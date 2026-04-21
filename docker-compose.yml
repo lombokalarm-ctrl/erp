@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  erp-app:
+    build: .
+    container_name: erp_app
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgres://erp_user:erp_password@erp-db:5432/erp_db
+      - JWT_SECRET=${JWT_SECRET:-super-secret-key-change-me-in-production}
+      - SEED_ADMIN_EMAIL=admin@lombokhomes.my.id
+      - SEED_ADMIN_PASSWORD=adminlombok
+      - APP_ORIGIN=https://apps.lombokhomes.my.id
+    depends_on:
+      erp-db:
+        condition: service_healthy
+    volumes:
+      - ./dist:/app/dist # Optional: Share built frontend files to host
+
+  erp-db:
+    image: postgres:15-alpine
+    container_name: erp_db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=erp_user
+      - POSTGRES_PASSWORD=erp_password
+      - POSTGRES_DB=erp_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - erp_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp_user -d erp_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  erp_pgdata:

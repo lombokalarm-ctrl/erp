@@ -1,0 +1,1 @@
+alter table products add column category_prices jsonb not null default '{}'::jsonb;

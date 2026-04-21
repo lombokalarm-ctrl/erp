@@ -1,0 +1,31 @@
+import { Router, type Request, type Response, type NextFunction } from 'express'
+import { z } from 'zod'
+import { ok } from '../../lib/http.js'
+import { authenticate, authorizeAny } from '../../middlewares/auth.js'
+import { listAuditLogs } from '../../services/auditService.js'
+
+const router = Router()
+
+router.get(
+  '/',
+  authenticate,
+  authorizeAny(['users:read']),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const query = z
+        .object({
+          page: z.coerce.number().int().min(1).default(1),
+          pageSize: z.coerce.number().int().min(1).max(200).default(50),
+        })
+        .parse(req.query)
+
+      const result = await listAuditLogs(query)
+      ok(res, result.items, { total: result.total })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+export default router
+
