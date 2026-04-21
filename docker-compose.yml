@@ -11,9 +11,9 @@ services:
       - NODE_ENV=production
       - DATABASE_URL=postgres://erp_user:erp_password@erp-db:5432/erp_db
       - JWT_SECRET=${JWT_SECRET:-super-secret-key-change-me-in-production}
-      - SEED_ADMIN_EMAIL=admin@lombokhomes.my.id
-      - SEED_ADMIN_PASSWORD=adminlombok
-      - APP_ORIGIN=https://apps.lombokhomes.my.id
+      - SEED_ADMIN_EMAIL=admin@apli.my.id
+      - SEED_ADMIN_PASSWORD=adminapli
+      - APP_ORIGIN=https://erp.apli.my.id
     depends_on:
       erp-db:
         condition: service_healthy

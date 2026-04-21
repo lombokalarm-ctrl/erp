@@ -40,7 +40,7 @@ export default function App() {
   }, [hydrate]);
 
   return (
-    <Router basename="/erp">
+    <Router>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route

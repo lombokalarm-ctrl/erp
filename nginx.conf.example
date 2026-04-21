@@ -1,11 +1,9 @@
 server {
     listen 80;
-    server_name apps.lombokhomes.my.id;
+    server_name erp.apli.my.id;
 
     # Backend API routing
-    location /erp/api/ {
-        # Strip the /erp prefix before passing to backend
-        rewrite ^/erp/(.*) /$1 break;
+    location /api/ {
         proxy_pass http://127.0.0.1:3001;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -18,14 +16,9 @@ server {
     }
 
     # Frontend routing
-    location /erp/ {
-        # Assuming you copy the built 'dist' folder to /var/www/erp
-        alias /var/www/erp/;
-        try_files $uri $uri/ /erp/index.html;
+    location / {
+        # Assuming you copy the built 'dist' folder to /opt/erp-distributor/dist/
+        alias /opt/erp-distributor/dist/;
+        try_files $uri $uri/ /index.html;
     }
-
-    # Optional: Redirect / to /erp if this is a dedicated ERP subdomain
-    # location = / {
-    #     return 301 /erp/;
-    # }
 }
