@@ -1,16 +1,17 @@
-import { getRawDb } from './pool.js'
+import { getPool } from './pool.js'
 
 export async function withTransaction<T>(fn: (client: any) => Promise<T>) {
-  const db = getRawDb()
-  return await db.transaction(async (tx) => {
-    const client = {
-      query: async (text: string, params?: any[]) => {
-        const res = await tx.query(text, params)
-        return { ...res, rowCount: res.affectedRows || res.rows.length }
-      },
-      release: () => {}
-    }
-    return await fn(client)
-  })
+  const pool = getPool()
+  const client = await pool.connect()
+  try {
+    await client.query('begin')
+    const out = await fn(client)
+    await client.query('commit')
+    return out
+  } catch (err) {
+    await client.query('rollback')
+    throw err
+  } finally {
+    client.release()
+  }
 }
-
