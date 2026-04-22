@@ -18,8 +18,6 @@ services:
     depends_on:
       erp-db:
         condition: service_healthy
-    volumes:
-      - ./dist:/app/dist # Optional: Share built frontend files to host
 
   erp-db:
     image: postgres:15-alpine
