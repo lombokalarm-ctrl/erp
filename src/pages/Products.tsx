@@ -168,9 +168,6 @@ export default function Products() {
                   <th className="px-4 py-2">Nama</th>
                   <th className="px-4 py-2 whitespace-nowrap">Sat. Dasar</th>
                   <th className="px-4 py-2">Harga Beli</th>
-                  <th className="px-4 py-2 whitespace-nowrap">H. Pcs</th>
-                  <th className="px-4 py-2 whitespace-nowrap">H. Pack</th>
-                  <th className="px-4 py-2 whitespace-nowrap">H. Dus</th>
                   <th className="px-4 py-2 whitespace-nowrap">H. Retail (Pcs|Pack|Dus)</th>
                   <th className="px-4 py-2 whitespace-nowrap">H. Grosir (Pcs|Pack|Dus)</th>
                   <th className="px-4 py-2 whitespace-nowrap">H. Modern Retail (Pcs|Pack|Dus)</th>
@@ -186,9 +183,6 @@ export default function Products() {
                     <td className="px-4 py-2">{p.name}</td>
                     <td className="px-4 py-2">{p.unit}</td>
                     <td className="px-4 py-2">{p.purchasePrice}</td>
-                    <td className="px-4 py-2">{p.unitPrices?.pcs ?? p.salePrice}</td>
-                    <td className="px-4 py-2">{p.unitPrices?.pack ?? "-"}</td>
-                    <td className="px-4 py-2">{p.unitPrices?.dus ?? "-"}</td>
                     <td className="px-4 py-2">{p.categoryPrices?.["RETAIL"] ? `${p.categoryPrices["RETAIL"].pcs}|${p.categoryPrices["RETAIL"].pack}|${p.categoryPrices["RETAIL"].dus}` : "-"}</td>
                     <td className="px-4 py-2">{p.categoryPrices?.["GROSIR"] ? `${p.categoryPrices["GROSIR"].pcs}|${p.categoryPrices["GROSIR"].pack}|${p.categoryPrices["GROSIR"].dus}` : "-"}</td>
                     <td className="px-4 py-2">{p.categoryPrices?.["MODERN RETAIL"] ? `${p.categoryPrices["MODERN RETAIL"].pcs}|${p.categoryPrices["MODERN RETAIL"].pack}|${p.categoryPrices["MODERN RETAIL"].dus}` : "-"}</td>
@@ -204,7 +198,7 @@ export default function Products() {
                 ))}
                 {items.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={13}>
+                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={10}>
                       Belum ada data.
                     </td>
                   </tr>
