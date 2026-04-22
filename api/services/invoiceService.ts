@@ -133,7 +133,7 @@ export async function getInvoiceDetail(id: string) {
       select
         p.sku,
         p.name as "productName",
-        p.unit,
+        ii.uom as unit,
         ii.qty,
         ii.unit_price::text as "unitPrice",
         ii.discount_amount::text as "discountAmount",

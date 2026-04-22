@@ -8,6 +8,7 @@ import { calculateBestPromo } from './promoService.js'
 export type SalesOrderItemInput = {
   productId: string
   qty: number
+  uom: 'pcs' | 'pack' | 'dus'
   unitPrice: number
   discountAmount?: number
 }
@@ -46,12 +47,30 @@ export async function createSalesOrder(params: {
 
   const resolvedItems = []
   for (const it of params.items) {
+    const pRes = await getPool().query(
+      `select pack_size as "packSize", dus_size as "dusSize" from products where id = $1 limit 1`,
+      [it.productId],
+    )
+    const p = pRes.rows[0] as { packSize?: number; dusSize?: number } | undefined
+    if (!p) throw new Error('Produk tidak ditemukan')
+
+    const qty = Math.trunc(it.qty)
+    const uomToPcs =
+      it.uom === 'pcs' ? 1 : it.uom === 'pack' ? Number(p.packSize ?? 0) : Number(p.dusSize ?? 0)
+    if (!Number.isFinite(uomToPcs) || uomToPcs < 1) {
+      throw new Error('Konversi satuan produk belum diatur (pack/dus)')
+    }
+    const qtyPcs = qty * uomToPcs
+
     const promoDiscount = await calculateBestPromo(it.productId, it.qty, it.unitPrice)
     const manualDiscount = it.discountAmount ?? 0
     const finalDiscount = Math.max(promoDiscount, manualDiscount)
     
     resolvedItems.push({
       ...it,
+      qty,
+      uomToPcs,
+      qtyPcs,
       discountAmount: finalDiscount,
       lineTotal: it.qty * it.unitPrice - finalDiscount,
     })
@@ -122,16 +141,22 @@ export async function createSalesOrder(params: {
             sales_order_id,
             product_id,
             qty,
+            uom,
+            uom_to_pcs,
+            qty_pcs,
             unit_price,
             discount_amount,
             line_total
           )
-          values ($1,$2,$3,$4,$5,$6)
+          values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
         `,
         [
           salesOrder.id,
           it.productId,
           it.qty,
+          it.uom,
+          it.uomToPcs,
+          it.qtyPcs,
           it.unitPrice,
           it.discountAmount,
           it.lineTotal,
@@ -173,8 +198,9 @@ export async function getDeliveryOrderBySoId(soId: string) {
       select
         p.sku,
         p.name as "productName",
-        p.unit,
-        doi.qty
+        doi.uom as unit,
+        doi.qty,
+        doi.qty_pcs as "qtyPcs"
       from delivery_order_items doi
       join products p on p.id = doi.product_id
       where doi.delivery_order_id = $1
@@ -288,9 +314,18 @@ export async function createDeliveryOrder(params: {
     // 4. Insert DO Items & Deduct Stock
     const warehouseId = await getDefaultWarehouseId(client as any)
     for (const it of items) {
+      const qtyPcs = Number(it.qty_pcs ?? 0)
+      const qty = Number(it.qty ?? 0)
       await client.query(
-        'insert into delivery_order_items(delivery_order_id, product_id, qty) values ($1, $2, $3)',
-        [deliveryOrder.id, it.product_id, Math.floor(Number(it.qty))]
+        'insert into delivery_order_items(delivery_order_id, product_id, qty, uom, uom_to_pcs, qty_pcs) values ($1, $2, $3, $4, $5, $6)',
+        [
+          deliveryOrder.id,
+          it.product_id,
+          Math.trunc(qty),
+          it.uom ?? 'pcs',
+          Number(it.uom_to_pcs ?? 1),
+          Math.trunc(qtyPcs),
+        ],
       )
 
       if (warehouseId) {
@@ -298,7 +333,7 @@ export async function createDeliveryOrder(params: {
           warehouseId,
           productId: it.product_id,
           type: 'SALE_OUT',
-          qtyDelta: -1 * Math.floor(Number(it.qty)),
+          qtyDelta: -1 * Math.trunc(qtyPcs),
           createdBy: params.createdBy,
           refType: 'delivery_orders',
           refId: deliveryOrder.id,
@@ -354,16 +389,22 @@ export async function createDeliveryOrder(params: {
             invoice_id,
             product_id,
             qty,
+            uom,
+            uom_to_pcs,
+            qty_pcs,
             unit_price,
             discount_amount,
             line_total
           )
-          values ($1,$2,$3,$4,$5,$6)
+          values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
         `,
         [
           invoice.id,
           it.product_id,
-          Math.floor(Number(it.qty)),
+          Math.trunc(Number(it.qty)),
+          it.uom ?? 'pcs',
+          Number(it.uom_to_pcs ?? 1),
+          Math.trunc(Number(it.qty_pcs ?? 0)),
           it.unit_price,
           it.discount_amount,
           it.line_total,

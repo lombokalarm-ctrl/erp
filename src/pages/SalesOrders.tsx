@@ -6,7 +6,16 @@ import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 
 type Customer = { id: string; name: string; code: string; category: string };
-type Product = { id: string; name: string; sku: string; salePrice: string; categoryPrices?: Record<string, number> };
+type Product = {
+  id: string;
+  name: string;
+  sku: string;
+  salePrice: string;
+  categoryPrices?: Record<string, number>;
+  unitPrices?: { pcs: number; pack: number; dus: number };
+  packSize?: number;
+  dusSize?: number;
+};
 
 type SalesOrderRow = {
   id: string;
@@ -31,8 +40,18 @@ export default function SalesOrders() {
   const [customerId, setCustomerId] = useState("");
   const [orderDate, setOrderDate] = useState(today());
   const [items, setItems] = useState<
-    { productId: string; qty: string; unitPrice: string }[]
-  >([{ productId: "", qty: "1", unitPrice: "0" }]);
+    { productId: string; qty: string; uom: "pcs" | "pack" | "dus"; unitPrice: string }[]
+  >([{ productId: "", qty: "1", uom: "pcs", unitPrice: "0" }]);
+
+  function resolveUnitPrice(p: Product | undefined, c: Customer | undefined, uom: "pcs" | "pack" | "dus") {
+    if (!p) return "0";
+    if (uom === "pcs" && c && p.categoryPrices && p.categoryPrices[c.category] !== undefined) {
+      return String(p.categoryPrices[c.category]);
+    }
+    const up = p.unitPrices?.[uom];
+    if (up !== undefined) return String(up);
+    return String(p.salePrice);
+  }
 
   const canSubmit = useMemo(
     () => customerId && items.every((i) => i.productId && Number(i.qty) > 0),
@@ -84,11 +103,7 @@ export default function SalesOrders() {
                     setItems(prev => prev.map(it => {
                       const p = products.find(x => x.id === it.productId);
                       if (p) {
-                        let newPrice = p.salePrice;
-                        if (p.categoryPrices && p.categoryPrices[c.category] !== undefined) {
-                          newPrice = String(p.categoryPrices[c.category]);
-                        }
-                        return { ...it, unitPrice: newPrice };
+                        return { ...it, unitPrice: resolveUnitPrice(p, c, it.uom) };
                       }
                       return it;
                     }));
@@ -120,10 +135,7 @@ export default function SalesOrders() {
                         const pid = e.target.value;
                         const p = products.find((x) => x.id === pid);
                         const c = customers.find((x) => x.id === customerId);
-                        let newPrice = p?.salePrice;
-                        if (p && c && p.categoryPrices && p.categoryPrices[c.category] !== undefined) {
-                          newPrice = String(p.categoryPrices[c.category]);
-                        }
+                        const newPrice = resolveUnitPrice(p, c, it.uom);
 
                         setItems((prev) =>
                           prev.map((x, i) =>
@@ -151,18 +163,40 @@ export default function SalesOrders() {
                           )
                         }
                       />
-                      <Input
-                        label="Harga"
-                        value={it.unitPrice}
-                        onChange={(e) =>
-                          setItems((prev) =>
-                            prev.map((x, i) =>
-                              i === idx ? { ...x, unitPrice: e.target.value } : x,
-                            ),
-                          )
-                        }
-                      />
+                      <label className="block">
+                        <div className="mb-1 text-xs font-medium text-zinc-600">Satuan</div>
+                        <select
+                          className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                          value={it.uom}
+                          onChange={(e) => {
+                            const nextUom = e.target.value as "pcs" | "pack" | "dus";
+                            const p = products.find((x) => x.id === it.productId);
+                            const c = customers.find((x) => x.id === customerId);
+                            const nextPrice = resolveUnitPrice(p, c, nextUom);
+                            setItems((prev) =>
+                              prev.map((x, i) =>
+                                i === idx ? { ...x, uom: nextUom, unitPrice: nextPrice } : x,
+                              ),
+                            );
+                          }}
+                        >
+                          <option value="pcs">pcs</option>
+                          <option value="pack">pack</option>
+                          <option value="dus">dus</option>
+                        </select>
+                      </label>
                     </div>
+                    <Input
+                      label="Harga"
+                      value={it.unitPrice}
+                      onChange={(e) =>
+                        setItems((prev) =>
+                          prev.map((x, i) =>
+                            i === idx ? { ...x, unitPrice: e.target.value } : x,
+                          ),
+                        )
+                      }
+                    />
                     <div className="flex justify-between">
                       <Button
                         variant="ghost"
@@ -182,7 +216,7 @@ export default function SalesOrders() {
                           variant="secondary"
                           size="sm"
                           type="button"
-                          onClick={() => setItems((prev) => [...prev, { productId: "", qty: "1", unitPrice: "0" }])}
+                          onClick={() => setItems((prev) => [...prev, { productId: "", qty: "1", uom: "pcs", unitPrice: "0" }])}
                         >
                           Tambah Item
                         </Button>
@@ -204,12 +238,13 @@ export default function SalesOrders() {
                     items: items.map((i) => ({
                       productId: i.productId,
                       qty: Number(i.qty),
+                      uom: i.uom,
                       unitPrice: Number(i.unitPrice),
                     })),
                   };
                   await apiFetch("/api/v1/sales-orders", { method: "POST", body: JSON.stringify(payload) });
                   setCustomerId("");
-                  setItems([{ productId: "", qty: "1", unitPrice: "0" }]);
+                  setItems([{ productId: "", qty: "1", uom: "pcs", unitPrice: "0" }]);
                   const soRes = await apiFetch<{ data: SalesOrderRow[] }>("/api/v1/sales-orders?page=1&pageSize=50");
                   setOrders(soRes.data);
                 } catch (e) {
