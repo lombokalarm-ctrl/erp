@@ -8,7 +8,7 @@ export type Product = {
   unit: string
   purchasePrice: string
   salePrice: string
-  categoryPrices?: Record<string, number>
+  categoryPrices?: Record<string, { pcs: number; pack: number; dus: number }>
   unitPrices?: Record<string, number>
   packSize: number
   dusSize: number
@@ -105,7 +105,7 @@ export async function createProduct(input: {
   unit: string
   purchasePrice: number
   salePrice: number
-  categoryPrices?: Record<string, number>
+  categoryPrices?: Record<string, { pcs: number; pack: number; dus: number }>
   unitPrices?: Record<string, number>
   packSize?: number
   packPerDus?: number
@@ -171,7 +171,7 @@ export async function updateProduct(
     unit: string
     purchasePrice: number
     salePrice: number
-    categoryPrices: Record<string, number>
+    categoryPrices: Record<string, { pcs: number; pack: number; dus: number }>
     unitPrices: Record<string, number>
     packSize: number
     packPerDus: number

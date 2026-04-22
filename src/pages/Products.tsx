@@ -11,7 +11,7 @@ type Product = {
   unit: string;
   purchasePrice: string;
   salePrice: string;
-  categoryPrices?: Record<string, number>;
+  categoryPrices?: Record<string, { pcs: number; pack: number; dus: number }>;
   unitPrices?: { pcs: number; pack: number; dus: number };
   packSize?: number;
   packPerDus?: number;
@@ -35,12 +35,12 @@ export default function Products() {
   });
   const [packSize, setPackSize] = useState("1");
   const [packPerDus, setPackPerDus] = useState("1");
-  const [categoryPrices, setCategoryPrices] = useState<Record<string, string>>({
-    "RETAIL": "0",
-    "GROSIR": "0",
-    "MODERN RETAIL": "0",
-    "HOREKA": "0",
-    "NASIONAL MODERN RETAIL": "0"
+  const [categoryPrices, setCategoryPrices] = useState<Record<string, { pcs: string; pack: string; dus: string }>>({
+    "RETAIL": { pcs: "0", pack: "0", dus: "0" },
+    "GROSIR": { pcs: "0", pack: "0", dus: "0" },
+    "MODERN RETAIL": { pcs: "0", pack: "0", dus: "0" },
+    "HOREKA": { pcs: "0", pack: "0", dus: "0" },
+    "NASIONAL MODERN RETAIL": { pcs: "0", pack: "0", dus: "0" }
   });
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -62,11 +62,31 @@ export default function Products() {
     setPackSize(String(p.packSize ?? 1));
     setPackPerDus(String(p.packPerDus ?? 1));
     setCategoryPrices({
-      "RETAIL": String(p.categoryPrices?.["RETAIL"] || 0),
-      "GROSIR": String(p.categoryPrices?.["GROSIR"] || 0),
-      "MODERN RETAIL": String(p.categoryPrices?.["MODERN RETAIL"] || 0),
-      "HOREKA": String(p.categoryPrices?.["HOREKA"] || 0),
-      "NASIONAL MODERN RETAIL": String(p.categoryPrices?.["NASIONAL MODERN RETAIL"] || 0),
+      "RETAIL": { 
+        pcs: String(p.categoryPrices?.["RETAIL"]?.pcs || 0), 
+        pack: String(p.categoryPrices?.["RETAIL"]?.pack || 0), 
+        dus: String(p.categoryPrices?.["RETAIL"]?.dus || 0) 
+      },
+      "GROSIR": { 
+        pcs: String(p.categoryPrices?.["GROSIR"]?.pcs || 0), 
+        pack: String(p.categoryPrices?.["GROSIR"]?.pack || 0), 
+        dus: String(p.categoryPrices?.["GROSIR"]?.dus || 0) 
+      },
+      "MODERN RETAIL": { 
+        pcs: String(p.categoryPrices?.["MODERN RETAIL"]?.pcs || 0), 
+        pack: String(p.categoryPrices?.["MODERN RETAIL"]?.pack || 0), 
+        dus: String(p.categoryPrices?.["MODERN RETAIL"]?.dus || 0) 
+      },
+      "HOREKA": { 
+        pcs: String(p.categoryPrices?.["HOREKA"]?.pcs || 0), 
+        pack: String(p.categoryPrices?.["HOREKA"]?.pack || 0), 
+        dus: String(p.categoryPrices?.["HOREKA"]?.dus || 0) 
+      },
+      "NASIONAL MODERN RETAIL": { 
+        pcs: String(p.categoryPrices?.["NASIONAL MODERN RETAIL"]?.pcs || 0), 
+        pack: String(p.categoryPrices?.["NASIONAL MODERN RETAIL"]?.pack || 0), 
+        dus: String(p.categoryPrices?.["NASIONAL MODERN RETAIL"]?.dus || 0) 
+      },
     });
   }
 
@@ -81,11 +101,11 @@ export default function Products() {
     setPackSize("1");
     setPackPerDus("1");
     setCategoryPrices({
-      "RETAIL": "0",
-      "GROSIR": "0",
-      "MODERN RETAIL": "0",
-      "HOREKA": "0",
-      "NASIONAL MODERN RETAIL": "0"
+      "RETAIL": { pcs: "0", pack: "0", dus: "0" },
+      "GROSIR": { pcs: "0", pack: "0", dus: "0" },
+      "MODERN RETAIL": { pcs: "0", pack: "0", dus: "0" },
+      "HOREKA": { pcs: "0", pack: "0", dus: "0" },
+      "NASIONAL MODERN RETAIL": { pcs: "0", pack: "0", dus: "0" }
     });
     setError(null);
   }
@@ -151,11 +171,11 @@ export default function Products() {
                   <th className="px-4 py-2 whitespace-nowrap">H. Pcs</th>
                   <th className="px-4 py-2 whitespace-nowrap">H. Pack</th>
                   <th className="px-4 py-2 whitespace-nowrap">H. Dus</th>
-                  <th className="px-4 py-2 whitespace-nowrap">H. Retail</th>
-                  <th className="px-4 py-2 whitespace-nowrap">H. Grosir</th>
-                  <th className="px-4 py-2 whitespace-nowrap">H. Modern Retail</th>
-                  <th className="px-4 py-2 whitespace-nowrap">H. Horeka</th>
-                  <th className="px-4 py-2 whitespace-nowrap">H. Nasional MR</th>
+                  <th className="px-4 py-2 whitespace-nowrap">H. Retail (Pcs|Pack|Dus)</th>
+                  <th className="px-4 py-2 whitespace-nowrap">H. Grosir (Pcs|Pack|Dus)</th>
+                  <th className="px-4 py-2 whitespace-nowrap">H. Modern Retail (Pcs|Pack|Dus)</th>
+                  <th className="px-4 py-2 whitespace-nowrap">H. Horeka (Pcs|Pack|Dus)</th>
+                  <th className="px-4 py-2 whitespace-nowrap">H. Nasional MR (Pcs|Pack|Dus)</th>
                   <th className="px-4 py-2 text-right">Aksi</th>
                 </tr>
               </thead>
@@ -169,11 +189,11 @@ export default function Products() {
                     <td className="px-4 py-2">{p.unitPrices?.pcs ?? p.salePrice}</td>
                     <td className="px-4 py-2">{p.unitPrices?.pack ?? "-"}</td>
                     <td className="px-4 py-2">{p.unitPrices?.dus ?? "-"}</td>
-                    <td className="px-4 py-2">{p.categoryPrices?.["RETAIL"] || "-"}</td>
-                    <td className="px-4 py-2">{p.categoryPrices?.["GROSIR"] || "-"}</td>
-                    <td className="px-4 py-2">{p.categoryPrices?.["MODERN RETAIL"] || "-"}</td>
-                    <td className="px-4 py-2">{p.categoryPrices?.["HOREKA"] || "-"}</td>
-                    <td className="px-4 py-2">{p.categoryPrices?.["NASIONAL MODERN RETAIL"] || "-"}</td>
+                    <td className="px-4 py-2">{p.categoryPrices?.["RETAIL"] ? `${p.categoryPrices["RETAIL"].pcs}|${p.categoryPrices["RETAIL"].pack}|${p.categoryPrices["RETAIL"].dus}` : "-"}</td>
+                    <td className="px-4 py-2">{p.categoryPrices?.["GROSIR"] ? `${p.categoryPrices["GROSIR"].pcs}|${p.categoryPrices["GROSIR"].pack}|${p.categoryPrices["GROSIR"].dus}` : "-"}</td>
+                    <td className="px-4 py-2">{p.categoryPrices?.["MODERN RETAIL"] ? `${p.categoryPrices["MODERN RETAIL"].pcs}|${p.categoryPrices["MODERN RETAIL"].pack}|${p.categoryPrices["MODERN RETAIL"].dus}` : "-"}</td>
+                    <td className="px-4 py-2">{p.categoryPrices?.["HOREKA"] ? `${p.categoryPrices["HOREKA"].pcs}|${p.categoryPrices["HOREKA"].pack}|${p.categoryPrices["HOREKA"].dus}` : "-"}</td>
+                    <td className="px-4 py-2">{p.categoryPrices?.["NASIONAL MODERN RETAIL"] ? `${p.categoryPrices["NASIONAL MODERN RETAIL"].pcs}|${p.categoryPrices["NASIONAL MODERN RETAIL"].pack}|${p.categoryPrices["NASIONAL MODERN RETAIL"].dus}` : "-"}</td>
                     <td className="px-4 py-2 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button onClick={() => handleEdit(p)} className="text-blue-600 hover:text-blue-800 font-medium">Edit</button>
@@ -249,14 +269,43 @@ export default function Products() {
             
             <div className="rounded-lg border border-zinc-200 p-3 mt-2 space-y-3">
               <div className="text-xs font-semibold text-zinc-600">Harga Per Kategori Pelanggan</div>
-              {Object.keys(categoryPrices).map((cat) => (
-                <Input
-                  key={cat}
-                  label={`Harga ${cat}`}
-                  value={categoryPrices[cat]}
-                  onChange={(e) => setCategoryPrices(prev => ({ ...prev, [cat]: e.target.value }))}
-                />
-              ))}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead>
+                    <tr className="border-b border-zinc-200">
+                      <th className="pb-2 font-medium">Kategori</th>
+                      <th className="pb-2 font-medium">H. Pcs</th>
+                      <th className="pb-2 font-medium">H. Pack</th>
+                      <th className="pb-2 font-medium">H. Dus</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.keys(categoryPrices).map((cat) => (
+                      <tr key={cat} className="border-b border-zinc-100 last:border-0">
+                        <td className="py-2 pr-2 text-xs font-medium text-zinc-700">{cat}</td>
+                        <td className="py-2 pr-2">
+                          <Input
+                            value={categoryPrices[cat].pcs}
+                            onChange={(e) => setCategoryPrices(prev => ({ ...prev, [cat]: { ...prev[cat], pcs: e.target.value } }))}
+                          />
+                        </td>
+                        <td className="py-2 pr-2">
+                          <Input
+                            value={categoryPrices[cat].pack}
+                            onChange={(e) => setCategoryPrices(prev => ({ ...prev, [cat]: { ...prev[cat], pack: e.target.value } }))}
+                          />
+                        </td>
+                        <td className="py-2">
+                          <Input
+                            value={categoryPrices[cat].dus}
+                            onChange={(e) => setCategoryPrices(prev => ({ ...prev, [cat]: { ...prev[cat], dus: e.target.value } }))}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             <div className="flex gap-2 pt-2">
@@ -280,11 +329,31 @@ export default function Products() {
                       packSize: Number(packSize) || 1,
                       packPerDus: Number(packPerDus) || 1,
                       categoryPrices: {
-                        "RETAIL": Number(categoryPrices["RETAIL"]) || 0,
-                        "GROSIR": Number(categoryPrices["GROSIR"]) || 0,
-                        "MODERN RETAIL": Number(categoryPrices["MODERN RETAIL"]) || 0,
-                        "HOREKA": Number(categoryPrices["HOREKA"]) || 0,
-                        "NASIONAL MODERN RETAIL": Number(categoryPrices["NASIONAL MODERN RETAIL"]) || 0,
+                        "RETAIL": {
+                          pcs: Number(categoryPrices["RETAIL"].pcs) || 0,
+                          pack: Number(categoryPrices["RETAIL"].pack) || 0,
+                          dus: Number(categoryPrices["RETAIL"].dus) || 0,
+                        },
+                        "GROSIR": {
+                          pcs: Number(categoryPrices["GROSIR"].pcs) || 0,
+                          pack: Number(categoryPrices["GROSIR"].pack) || 0,
+                          dus: Number(categoryPrices["GROSIR"].dus) || 0,
+                        },
+                        "MODERN RETAIL": {
+                          pcs: Number(categoryPrices["MODERN RETAIL"].pcs) || 0,
+                          pack: Number(categoryPrices["MODERN RETAIL"].pack) || 0,
+                          dus: Number(categoryPrices["MODERN RETAIL"].dus) || 0,
+                        },
+                        "HOREKA": {
+                          pcs: Number(categoryPrices["HOREKA"].pcs) || 0,
+                          pack: Number(categoryPrices["HOREKA"].pack) || 0,
+                          dus: Number(categoryPrices["HOREKA"].dus) || 0,
+                        },
+                        "NASIONAL MODERN RETAIL": {
+                          pcs: Number(categoryPrices["NASIONAL MODERN RETAIL"].pcs) || 0,
+                          pack: Number(categoryPrices["NASIONAL MODERN RETAIL"].pack) || 0,
+                          dus: Number(categoryPrices["NASIONAL MODERN RETAIL"].dus) || 0,
+                        },
                       }
                     };
                     if (editingId) {

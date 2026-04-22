@@ -48,7 +48,11 @@ router.post(
           unit: z.string().min(1).default('pcs'),
           purchasePrice: z.coerce.number().min(0),
           salePrice: z.coerce.number().min(0),
-          categoryPrices: z.record(z.coerce.number().min(0)).optional(),
+          categoryPrices: z.record(z.object({
+            pcs: z.coerce.number().min(0).default(0),
+            pack: z.coerce.number().min(0).default(0),
+            dus: z.coerce.number().min(0).default(0)
+          })).optional(),
           unitPrices: z
             .object({
               pcs: z.coerce.number().min(0).default(0),
@@ -73,7 +77,7 @@ router.post(
         packSize: body.packSize ?? 1,
         packPerDus: body.packPerDus ?? 1,
         dusSize: body.dusSize,
-      })
+      } as any)
       await writeAuditLog({
         actorUserId: req.user!.userId,
         action: 'PRODUCT_CREATE',
@@ -115,7 +119,11 @@ router.patch(
           unit: z.string().min(1).optional(),
           purchasePrice: z.coerce.number().min(0).optional(),
           salePrice: z.coerce.number().min(0).optional(),
-          categoryPrices: z.record(z.coerce.number().min(0)).optional(),
+          categoryPrices: z.record(z.object({
+            pcs: z.coerce.number().min(0).default(0),
+            pack: z.coerce.number().min(0).default(0),
+            dus: z.coerce.number().min(0).default(0)
+          })).optional(),
           unitPrices: z
             .object({
               pcs: z.coerce.number().min(0).optional(),
@@ -129,7 +137,7 @@ router.patch(
         })
         .parse(req.body)
 
-      const updated = await updateProduct(req.params.id, body)
+      const updated = await updateProduct(req.params.id, body as any)
       await writeAuditLog({
         actorUserId: req.user!.userId,
         action: 'PRODUCT_UPDATE',

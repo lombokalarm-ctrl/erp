@@ -11,7 +11,7 @@ type Product = {
   name: string;
   sku: string;
   salePrice: string;
-  categoryPrices?: Record<string, number>;
+  categoryPrices?: Record<string, { pcs: number; pack: number; dus: number }>;
   unitPrices?: { pcs: number; pack: number; dus: number };
   packSize?: number;
   dusSize?: number;
@@ -45,11 +45,12 @@ export default function SalesOrders() {
 
   function resolveUnitPrice(p: Product | undefined, c: Customer | undefined, uom: "pcs" | "pack" | "dus") {
     if (!p) return "0";
-    if (uom === "pcs" && c && p.categoryPrices && p.categoryPrices[c.category] !== undefined) {
-      return String(p.categoryPrices[c.category]);
+    if (c && p.categoryPrices && p.categoryPrices[c.category] && p.categoryPrices[c.category][uom] !== undefined) {
+      const catPrice = p.categoryPrices[c.category][uom];
+      if (catPrice > 0) return String(catPrice);
     }
     const up = p.unitPrices?.[uom];
-    if (up !== undefined) return String(up);
+    if (up !== undefined && up > 0) return String(up);
     return String(p.salePrice);
   }
 
