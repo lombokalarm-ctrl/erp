@@ -132,8 +132,8 @@ async function main() {
       }
     }
 
-    const adminEmail = getEnv('SEED_ADMIN_EMAIL', 'admin@local.test')
-    const adminPassword = getEnv('SEED_ADMIN_PASSWORD', 'admin123')
+    const adminEmail = getEnv('SEED_ADMIN_EMAIL', 'admin@apli.my.id')
+    const adminPassword = getEnv('SEED_ADMIN_PASSWORD', 'adminapli')
     const hash = await bcrypt.hash(adminPassword, 12)
 
     await client.query(
