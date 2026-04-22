@@ -194,7 +194,7 @@ export default function Products() {
           </div>
         </Card>
 
-        <Card className="p-4">
+        <Card className="p-4 max-h-[calc(100vh-10rem)] overflow-y-auto">
           <div className="text-sm font-semibold">{editingId ? "Edit Produk" : "Tambah Produk"}</div>
           <div className="mt-3 grid gap-3">
             <Input label="SKU" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="SKU-001" />
