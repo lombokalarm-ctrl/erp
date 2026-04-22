@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 import Button from "@/components/ui/Button";
 
 type NavItem = {
@@ -46,6 +47,12 @@ export default function AppLayout() {
   const user = useAuthStore((s) => s.user);
   const hasAnyPermission = useAuthStore((s) => s.hasAnyPermission);
   const logout = useAuthStore((s) => s.logout);
+  const companyName = useSettingsStore((s) => s.company?.name);
+  const fetchCompany = useSettingsStore((s) => s.fetchCompany);
+
+  useMemo(() => {
+    fetchCompany();
+  }, [fetchCompany]);
 
   const groups: NavGroup[] = useMemo(
     () => [
@@ -136,10 +143,10 @@ export default function AppLayout() {
             </button>
             <div className="flex items-center gap-2">
               <div className="grid h-9 w-9 place-items-center rounded-xl bg-zinc-900 text-white">
-                <span className="text-sm font-semibold">F&B</span>
+                <span className="text-sm font-semibold">{companyName ? companyName.charAt(0).toUpperCase() : 'E'}</span>
               </div>
               <div className="leading-tight">
-                <div className="text-sm font-semibold">ERP Distributor</div>
+                <div className="text-sm font-semibold">{companyName || "ERP System"}</div>
                 <div className="text-xs text-zinc-500">Operasional end-to-end</div>
               </div>
             </div>

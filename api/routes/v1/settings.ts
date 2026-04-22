@@ -8,7 +8,6 @@ const router = Router()
 
 router.get(
   '/company',
-  authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = await getCompanySettings()

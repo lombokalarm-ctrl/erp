@@ -1,14 +1,22 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { useAuthStore, type AuthUser } from "@/stores/authStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 export default function Login() {
   const navigate = useNavigate();
   const setAuth = useAuthStore((s) => s.setAuth);
+  
+  const companyName = useSettingsStore((s) => s.company?.name);
+  const fetchCompany = useSettingsStore((s) => s.fetchCompany);
+
+  useEffect(() => {
+    fetchCompany();
+  }, [fetchCompany]);
 
   const [email, setEmail] = useState("admin@local.test");
   const [password, setPassword] = useState("admin123");
@@ -23,9 +31,9 @@ export default function Login() {
         <div className="w-full max-w-md">
           <div className="mb-6 text-center">
             <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-zinc-900 text-white">
-              <span className="text-sm font-semibold">F&B</span>
+              <span className="text-sm font-semibold">{companyName ? companyName.charAt(0).toUpperCase() : 'E'}</span>
             </div>
-            <h1 className="text-xl font-semibold tracking-tight">ERP Distributor</h1>
+            <h1 className="text-xl font-semibold tracking-tight">{companyName || "ERP System"}</h1>
             <p className="mt-1 text-sm text-zinc-600">
               Login untuk mengakses penjualan, stok, piutang, dan laporan.
             </p>
