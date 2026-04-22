@@ -225,26 +225,7 @@ export default function Products() {
               <Input label="Harga Jual (Dasar)" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} />
             </div>
 
-            <div className="rounded-lg border border-zinc-200 p-3 mt-2 space-y-3">
-              <div className="text-xs font-semibold text-zinc-600">Harga Jual per Satuan</div>
-              <div className="grid grid-cols-1 gap-3">
-                <Input
-                  label="Harga Pcs"
-                  value={unitPrices.pcs}
-                  onChange={(e) => setUnitPrices((p) => ({ ...p, pcs: e.target.value }))}
-                />
-                <Input
-                  label="Harga Pack"
-                  value={unitPrices.pack}
-                  onChange={(e) => setUnitPrices((p) => ({ ...p, pack: e.target.value }))}
-                />
-                <Input
-                  label="Harga Dus"
-                  value={unitPrices.dus}
-                  onChange={(e) => setUnitPrices((p) => ({ ...p, dus: e.target.value }))}
-                />
-              </div>
-            </div>
+
 
             <div className="rounded-lg border border-zinc-200 p-3 mt-2 space-y-3">
               <div className="text-xs font-semibold text-zinc-600">Konversi Satuan</div>
