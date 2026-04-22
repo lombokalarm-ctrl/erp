@@ -3,14 +3,15 @@ version: '3.8'
 services:
   erp-app:
     build: .
-    container_name: erp_app
+    container_name: erp-app
     restart: unless-stopped
     ports:
       - "3001:3001"
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgres://erp_user:erp_password@erp-db:5432/erp_db
-      - JWT_SECRET=${JWT_SECRET:-super-secret-key-change-me-in-production}
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-super-secret-key-change-me-in-production}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-super-secret-refresh-key-change-me}
       - SEED_ADMIN_EMAIL=admin@apli.my.id
       - SEED_ADMIN_PASSWORD=adminapli
       - APP_ORIGIN=https://erp.apli.my.id
@@ -22,7 +23,7 @@ services:
 
   erp-db:
     image: postgres:15-alpine
-    container_name: erp_db
+    container_name: erp-db
     restart: unless-stopped
     environment:
       - POSTGRES_USER=erp_user
@@ -31,7 +32,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - erp_pgdata:/var/lib/postgresql/data
+      - erp-pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U erp_user -d erp_db"]
       interval: 10s
@@ -39,4 +40,4 @@ services:
       retries: 5
 
 volumes:
-  erp_pgdata:
+  erp-pgdata:
