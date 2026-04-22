@@ -9,6 +9,9 @@ export type Product = {
   purchasePrice: string
   salePrice: string
   categoryPrices?: Record<string, number>
+  unitPrices?: Record<string, number>
+  packSize: number
+  dusSize: number
 }
 
 export async function listProducts(params: {
@@ -47,7 +50,10 @@ export async function listProducts(params: {
         unit,
         purchase_price::text as "purchasePrice",
         sale_price::text as "salePrice",
-        category_prices as "categoryPrices"
+        category_prices as "categoryPrices",
+        unit_prices as "unitPrices",
+        pack_size as "packSize",
+        dus_size as "dusSize"
       from products
       ${whereSql}
       order by created_at desc
@@ -73,7 +79,10 @@ export async function getProductById(id: string) {
         unit,
         purchase_price::text as "purchasePrice",
         sale_price::text as "salePrice",
-        category_prices as "categoryPrices"
+        category_prices as "categoryPrices",
+        unit_prices as "unitPrices",
+        pack_size as "packSize",
+        dus_size as "dusSize"
       from products
       where id = $1
       limit 1
@@ -94,12 +103,15 @@ export async function createProduct(input: {
   purchasePrice: number
   salePrice: number
   categoryPrices?: Record<string, number>
+  unitPrices?: Record<string, number>
+  packSize?: number
+  dusSize?: number
 }) {
   const pool = getPool()
   const res = await pool.query(
     `
-      insert into products(sku, name, unit, purchase_price, sale_price, category_prices)
-      values ($1, $2, $3, $4, $5, $6)
+      insert into products(sku, name, unit, purchase_price, sale_price, category_prices, unit_prices, pack_size, dus_size)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       returning
         id,
         sku,
@@ -107,9 +119,22 @@ export async function createProduct(input: {
         unit,
         purchase_price::text as "purchasePrice",
         sale_price::text as "salePrice",
-        category_prices as "categoryPrices"
+        category_prices as "categoryPrices",
+        unit_prices as "unitPrices",
+        pack_size as "packSize",
+        dus_size as "dusSize"
     `,
-    [input.sku, input.name, input.unit, input.purchasePrice, input.salePrice, JSON.stringify(input.categoryPrices || {})],
+    [
+      input.sku,
+      input.name,
+      input.unit,
+      input.purchasePrice,
+      input.salePrice,
+      JSON.stringify(input.categoryPrices || {}),
+      JSON.stringify(input.unitPrices || { pcs: input.salePrice, pack: 0, dus: 0 }),
+      input.packSize ?? 1,
+      input.dusSize ?? 1,
+    ],
   )
   return res.rows[0] as Product
 }
@@ -138,10 +163,16 @@ export async function updateProduct(
     purchasePrice: number
     salePrice: number
     categoryPrices: Record<string, number>
+    unitPrices: Record<string, number>
+    packSize: number
+    dusSize: number
   }>,
 ) {
   const pool = getPool()
   const current = await getProductById(id)
+  const nextUnitPrices = input.unitPrices
+    ? { ...(current.unitPrices || {}), ...input.unitPrices }
+    : current.unitPrices || {}
 
   const res = await pool.query(
     `
@@ -152,6 +183,9 @@ export async function updateProduct(
           purchase_price = $5,
           sale_price = $6,
           category_prices = $7,
+          unit_prices = $8,
+          pack_size = $9,
+          dus_size = $10,
           updated_at = now()
       where id = $1
       returning
@@ -161,7 +195,10 @@ export async function updateProduct(
         unit,
         purchase_price::text as "purchasePrice",
         sale_price::text as "salePrice",
-        category_prices as "categoryPrices"
+        category_prices as "categoryPrices",
+        unit_prices as "unitPrices",
+        pack_size as "packSize",
+        dus_size as "dusSize"
     `,
     [
       id,
@@ -171,6 +208,9 @@ export async function updateProduct(
       input.purchasePrice ?? Number(current.purchasePrice),
       input.salePrice ?? Number(current.salePrice),
       input.categoryPrices ? JSON.stringify(input.categoryPrices) : JSON.stringify(current.categoryPrices || {}),
+      JSON.stringify(nextUnitPrices),
+      input.packSize ?? current.packSize ?? 1,
+      input.dusSize ?? current.dusSize ?? 1,
     ],
   )
 

@@ -12,6 +12,9 @@ type Product = {
   purchasePrice: string;
   salePrice: string;
   categoryPrices?: Record<string, number>;
+  unitPrices?: { pcs: number; pack: number; dus: number };
+  packSize?: number;
+  dusSize?: number;
 };
 
 export default function Products() {
@@ -24,6 +27,13 @@ export default function Products() {
   const [unit, setUnit] = useState("pcs");
   const [purchasePrice, setPurchasePrice] = useState("0");
   const [salePrice, setSalePrice] = useState("0");
+  const [unitPrices, setUnitPrices] = useState<{ pcs: string; pack: string; dus: string }>({
+    pcs: "0",
+    pack: "0",
+    dus: "0",
+  });
+  const [packSize, setPackSize] = useState("1");
+  const [dusSize, setDusSize] = useState("1");
   const [categoryPrices, setCategoryPrices] = useState<Record<string, string>>({
     "RETAIL": "0",
     "GROSIR": "0",
@@ -43,6 +53,13 @@ export default function Products() {
     setUnit(p.unit);
     setPurchasePrice(p.purchasePrice);
     setSalePrice(p.salePrice);
+    setUnitPrices({
+      pcs: String(p.unitPrices?.pcs ?? Number(p.salePrice) ?? 0),
+      pack: String(p.unitPrices?.pack ?? 0),
+      dus: String(p.unitPrices?.dus ?? 0),
+    });
+    setPackSize(String(p.packSize ?? 1));
+    setDusSize(String(p.dusSize ?? 1));
     setCategoryPrices({
       "RETAIL": String(p.categoryPrices?.["RETAIL"] || 0),
       "GROSIR": String(p.categoryPrices?.["GROSIR"] || 0),
@@ -59,6 +76,9 @@ export default function Products() {
     setUnit("pcs");
     setPurchasePrice("0");
     setSalePrice("0");
+    setUnitPrices({ pcs: "0", pack: "0", dus: "0" });
+    setPackSize("1");
+    setDusSize("1");
     setCategoryPrices({
       "RETAIL": "0",
       "GROSIR": "0",
@@ -125,9 +145,11 @@ export default function Products() {
                 <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
                   <th className="px-4 py-2">SKU</th>
                   <th className="px-4 py-2">Nama</th>
-                  <th className="px-4 py-2">Satuan</th>
+                  <th className="px-4 py-2 whitespace-nowrap">Sat. Dasar</th>
                   <th className="px-4 py-2">Harga Beli</th>
-                  <th className="px-4 py-2">Harga Jual</th>
+                  <th className="px-4 py-2 whitespace-nowrap">H. Pcs</th>
+                  <th className="px-4 py-2 whitespace-nowrap">H. Pack</th>
+                  <th className="px-4 py-2 whitespace-nowrap">H. Dus</th>
                   <th className="px-4 py-2 whitespace-nowrap">H. Retail</th>
                   <th className="px-4 py-2 whitespace-nowrap">H. Grosir</th>
                   <th className="px-4 py-2 whitespace-nowrap">H. Modern Retail</th>
@@ -143,7 +165,9 @@ export default function Products() {
                     <td className="px-4 py-2">{p.name}</td>
                     <td className="px-4 py-2">{p.unit}</td>
                     <td className="px-4 py-2">{p.purchasePrice}</td>
-                    <td className="px-4 py-2">{p.salePrice}</td>
+                    <td className="px-4 py-2">{p.unitPrices?.pcs ?? p.salePrice}</td>
+                    <td className="px-4 py-2">{p.unitPrices?.pack ?? "-"}</td>
+                    <td className="px-4 py-2">{p.unitPrices?.dus ?? "-"}</td>
                     <td className="px-4 py-2">{p.categoryPrices?.["RETAIL"] || "-"}</td>
                     <td className="px-4 py-2">{p.categoryPrices?.["GROSIR"] || "-"}</td>
                     <td className="px-4 py-2">{p.categoryPrices?.["MODERN RETAIL"] || "-"}</td>
@@ -159,7 +183,7 @@ export default function Products() {
                 ))}
                 {items.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={11}>
+                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={13}>
                       Belum ada data.
                     </td>
                   </tr>
@@ -178,6 +202,43 @@ export default function Products() {
             <div className="grid grid-cols-2 gap-3">
               <Input label="Harga Beli (Dasar)" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} />
               <Input label="Harga Jual (Dasar)" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} />
+            </div>
+
+            <div className="rounded-lg border border-zinc-200 p-3 mt-2 space-y-3">
+              <div className="text-xs font-semibold text-zinc-600">Harga Jual per Satuan</div>
+              <div className="grid grid-cols-1 gap-3">
+                <Input
+                  label="Harga Pcs"
+                  value={unitPrices.pcs}
+                  onChange={(e) => setUnitPrices((p) => ({ ...p, pcs: e.target.value }))}
+                />
+                <Input
+                  label="Harga Pack"
+                  value={unitPrices.pack}
+                  onChange={(e) => setUnitPrices((p) => ({ ...p, pack: e.target.value }))}
+                />
+                <Input
+                  label="Harga Dus"
+                  value={unitPrices.dus}
+                  onChange={(e) => setUnitPrices((p) => ({ ...p, dus: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-zinc-200 p-3 mt-2 space-y-3">
+              <div className="text-xs font-semibold text-zinc-600">Konversi Satuan</div>
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  label="1 Pack = (pcs)"
+                  value={packSize}
+                  onChange={(e) => setPackSize(e.target.value)}
+                />
+                <Input
+                  label="1 Dus = (pcs)"
+                  value={dusSize}
+                  onChange={(e) => setDusSize(e.target.value)}
+                />
+              </div>
             </div>
             
             <div className="rounded-lg border border-zinc-200 p-3 mt-2 space-y-3">
@@ -205,6 +266,13 @@ export default function Products() {
                       unit,
                       purchasePrice: Number(purchasePrice),
                       salePrice: Number(salePrice),
+                      unitPrices: {
+                        pcs: Number(unitPrices.pcs) || 0,
+                        pack: Number(unitPrices.pack) || 0,
+                        dus: Number(unitPrices.dus) || 0,
+                      },
+                      packSize: Number(packSize) || 1,
+                      dusSize: Number(dusSize) || 1,
                       categoryPrices: {
                         "RETAIL": Number(categoryPrices["RETAIL"]) || 0,
                         "GROSIR": Number(categoryPrices["GROSIR"]) || 0,
@@ -245,4 +313,3 @@ export default function Products() {
     </div>
   );
 }
-
