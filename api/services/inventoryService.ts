@@ -76,11 +76,14 @@ export async function listInventorySummary(params: { q?: string }) {
         p.id as "productId",
         p.sku,
         p.name,
+        p.pack_size as "packSize",
+        p.pack_per_dus as "packPerDus",
+        p.dus_size as "dusSize",
         coalesce(sum(b.qty), 0)::text as qty
       from products p
       left join inventory_balances b on b.product_id = p.id
       ${whereSql}
-      group by p.id, p.sku, p.name
+      group by p.id, p.sku, p.name, p.pack_size, p.pack_per_dus, p.dus_size
       order by p.name asc
       limit 500
     `,

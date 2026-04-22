@@ -14,6 +14,7 @@ type Product = {
   categoryPrices?: Record<string, number>;
   unitPrices?: { pcs: number; pack: number; dus: number };
   packSize?: number;
+  packPerDus?: number;
   dusSize?: number;
 };
 
@@ -33,7 +34,7 @@ export default function Products() {
     dus: "0",
   });
   const [packSize, setPackSize] = useState("1");
-  const [dusSize, setDusSize] = useState("1");
+  const [packPerDus, setPackPerDus] = useState("1");
   const [categoryPrices, setCategoryPrices] = useState<Record<string, string>>({
     "RETAIL": "0",
     "GROSIR": "0",
@@ -59,7 +60,7 @@ export default function Products() {
       dus: String(p.unitPrices?.dus ?? 0),
     });
     setPackSize(String(p.packSize ?? 1));
-    setDusSize(String(p.dusSize ?? 1));
+    setPackPerDus(String(p.packPerDus ?? 1));
     setCategoryPrices({
       "RETAIL": String(p.categoryPrices?.["RETAIL"] || 0),
       "GROSIR": String(p.categoryPrices?.["GROSIR"] || 0),
@@ -78,7 +79,7 @@ export default function Products() {
     setSalePrice("0");
     setUnitPrices({ pcs: "0", pack: "0", dus: "0" });
     setPackSize("1");
-    setDusSize("1");
+    setPackPerDus("1");
     setCategoryPrices({
       "RETAIL": "0",
       "GROSIR": "0",
@@ -234,11 +235,16 @@ export default function Products() {
                   onChange={(e) => setPackSize(e.target.value)}
                 />
                 <Input
-                  label="1 Dus = (pcs)"
-                  value={dusSize}
-                  onChange={(e) => setDusSize(e.target.value)}
+                  label="1 Dus = (pack)"
+                  value={packPerDus}
+                  onChange={(e) => setPackPerDus(e.target.value)}
                 />
               </div>
+              <Input
+                label="1 Dus = (pcs)"
+                value={String((Number(packSize) || 1) * (Number(packPerDus) || 1))}
+                readOnly
+              />
             </div>
             
             <div className="rounded-lg border border-zinc-200 p-3 mt-2 space-y-3">
@@ -272,7 +278,7 @@ export default function Products() {
                         dus: Number(unitPrices.dus) || 0,
                       },
                       packSize: Number(packSize) || 1,
-                      dusSize: Number(dusSize) || 1,
+                      packPerDus: Number(packPerDus) || 1,
                       categoryPrices: {
                         "RETAIL": Number(categoryPrices["RETAIL"]) || 0,
                         "GROSIR": Number(categoryPrices["GROSIR"]) || 0,

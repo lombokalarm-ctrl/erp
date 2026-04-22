@@ -57,7 +57,8 @@ router.post(
             })
             .optional(),
           packSize: z.coerce.number().int().min(1).default(1).optional(),
-          dusSize: z.coerce.number().int().min(1).default(1).optional(),
+          packPerDus: z.coerce.number().int().min(1).default(1).optional(),
+          dusSize: z.coerce.number().int().min(1).optional(),
         })
         .parse(req.body)
 
@@ -70,7 +71,8 @@ router.post(
         categoryPrices: body.categoryPrices,
         unitPrices: body.unitPrices ?? { pcs: body.salePrice, pack: 0, dus: 0 },
         packSize: body.packSize ?? 1,
-        dusSize: body.dusSize ?? 1,
+        packPerDus: body.packPerDus ?? 1,
+        dusSize: body.dusSize,
       })
       await writeAuditLog({
         actorUserId: req.user!.userId,
@@ -122,6 +124,7 @@ router.patch(
             })
             .optional(),
           packSize: z.coerce.number().int().min(1).optional(),
+          packPerDus: z.coerce.number().int().min(1).optional(),
           dusSize: z.coerce.number().int().min(1).optional(),
         })
         .parse(req.body)

@@ -48,15 +48,18 @@ export async function createSalesOrder(params: {
   const resolvedItems = []
   for (const it of params.items) {
     const pRes = await getPool().query(
-      `select pack_size as "packSize", dus_size as "dusSize" from products where id = $1 limit 1`,
+      `select pack_size as "packSize", dus_size as "dusSize", pack_per_dus as "packPerDus" from products where id = $1 limit 1`,
       [it.productId],
     )
-    const p = pRes.rows[0] as { packSize?: number; dusSize?: number } | undefined
+    const p = pRes.rows[0] as { packSize?: number; dusSize?: number; packPerDus?: number } | undefined
     if (!p) throw new Error('Produk tidak ditemukan')
 
     const qty = Math.trunc(it.qty)
-    const uomToPcs =
-      it.uom === 'pcs' ? 1 : it.uom === 'pack' ? Number(p.packSize ?? 0) : Number(p.dusSize ?? 0)
+    const packSize = Number(p.packSize ?? 0)
+    const packPerDus = Number(p.packPerDus ?? 0)
+    const dusSize = Number(p.dusSize ?? 0) || (packSize > 0 && packPerDus > 0 ? packSize * packPerDus : 0)
+
+    const uomToPcs = it.uom === 'pcs' ? 1 : it.uom === 'pack' ? packSize : dusSize
     if (!Number.isFinite(uomToPcs) || uomToPcs < 1) {
       throw new Error('Konversi satuan produk belum diatur (pack/dus)')
     }

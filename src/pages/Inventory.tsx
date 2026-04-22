@@ -4,7 +4,15 @@ import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 
-type SummaryRow = { productId: string; sku: string; name: string; qty: string };
+type SummaryRow = {
+  productId: string;
+  sku: string;
+  name: string;
+  qty: string;
+  packSize: number;
+  packPerDus: number;
+  dusSize: number;
+};
 type Product = { id: string; sku: string; name: string };
 
 export default function Inventory() {
@@ -66,20 +74,36 @@ export default function Inventory() {
                 <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
                   <th className="px-4 py-2">SKU</th>
                   <th className="px-4 py-2">Nama</th>
-                  <th className="px-4 py-2">Qty</th>
+                  <th className="px-4 py-2 text-right">Stok Dus</th>
+                  <th className="px-4 py-2 text-right">Stok Pack</th>
+                  <th className="px-4 py-2 text-right">Stok Pcs</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
-                  <tr key={r.productId} className="border-b border-zinc-100 hover:bg-zinc-50">
-                    <td className="px-4 py-2 font-medium">{r.sku}</td>
-                    <td className="px-4 py-2">{r.name}</td>
-                    <td className="px-4 py-2">{r.qty}</td>
-                  </tr>
-                ))}
+                {rows.map((r) => {
+                  const qtyPcs = Math.trunc(Number(r.qty) || 0);
+                  const packPcs = Math.max(1, Number(r.packSize) || 1);
+                  const dusPcs =
+                    Math.max(1, Number(r.dusSize) || 0) ||
+                    Math.max(1, (Number(r.packPerDus) || 1) * packPcs);
+                  const dus = Math.floor(qtyPcs / dusPcs);
+                  const rem1 = qtyPcs % dusPcs;
+                  const pack = Math.floor(rem1 / packPcs);
+                  const pcs = rem1 % packPcs;
+
+                  return (
+                    <tr key={r.productId} className="border-b border-zinc-100 hover:bg-zinc-50">
+                      <td className="px-4 py-2 font-medium">{r.sku}</td>
+                      <td className="px-4 py-2">{r.name}</td>
+                      <td className="px-4 py-2 text-right">{dus}</td>
+                      <td className="px-4 py-2 text-right">{pack}</td>
+                      <td className="px-4 py-2 text-right">{pcs}</td>
+                    </tr>
+                  );
+                })}
                 {rows.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={3}>
+                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={5}>
                       Belum ada data.
                     </td>
                   </tr>
@@ -132,4 +156,3 @@ export default function Inventory() {
     </div>
   );
 }
-
