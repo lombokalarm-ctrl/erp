@@ -74,9 +74,8 @@ export default function Inventory() {
                 <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
                   <th className="px-4 py-2">SKU</th>
                   <th className="px-4 py-2">Nama</th>
-                  <th className="px-4 py-2 text-right">Stok Dus</th>
-                  <th className="px-4 py-2 text-right">Stok Pack</th>
-                  <th className="px-4 py-2 text-right">Stok Pcs</th>
+                  <th className="px-4 py-2 text-right">Stok Total (Pcs)</th>
+                  <th className="px-4 py-2 text-right">Stok (Dus, Pack, Pcs)</th>
                 </tr>
               </thead>
               <tbody>
@@ -91,19 +90,23 @@ export default function Inventory() {
                   const pack = Math.floor(rem1 / packPcs);
                   const pcs = rem1 % packPcs;
 
+                  let formattedStock = [];
+                  if (dus > 0) formattedStock.push(`${dus} Dus`);
+                  if (pack > 0) formattedStock.push(`${pack} Pack`);
+                  if (pcs > 0 || formattedStock.length === 0) formattedStock.push(`${pcs} Pcs`);
+
                   return (
                     <tr key={r.productId} className="border-b border-zinc-100 hover:bg-zinc-50">
                       <td className="px-4 py-2 font-medium">{r.sku}</td>
                       <td className="px-4 py-2">{r.name}</td>
-                      <td className="px-4 py-2 text-right">{dus}</td>
-                      <td className="px-4 py-2 text-right">{pack}</td>
-                      <td className="px-4 py-2 text-right">{pcs}</td>
+                      <td className="px-4 py-2 text-right font-medium">{qtyPcs}</td>
+                      <td className="px-4 py-2 text-right text-zinc-600">{formattedStock.join(', ')}</td>
                     </tr>
                   );
                 })}
                 {rows.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={5}>
+                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={4}>
                       Belum ada data.
                     </td>
                   </tr>
