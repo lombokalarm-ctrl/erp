@@ -45,6 +45,7 @@ router.post(
               z.object({
                 productId: z.string().uuid(),
                 qty: z.coerce.number().positive(),
+                uom: z.enum(['pcs', 'pack', 'dus']),
               }),
             )
             .min(1),
@@ -57,7 +58,7 @@ router.post(
         receivedDate: body.receivedDate,
         createdBy: req.user!.userId,
         notes: body.notes,
-        items: body.items.map((i) => ({ productId: i.productId, qty: i.qty })),
+        items: body.items.map((i) => ({ productId: i.productId, qty: i.qty, uom: i.uom })),
       })
 
       await writeAuditLog({

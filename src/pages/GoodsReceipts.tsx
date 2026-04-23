@@ -20,7 +20,7 @@ export default function GoodsReceipts() {
 
   const [warehouseId, setWarehouseId] = useState("");
   const [receivedDate, setReceivedDate] = useState(today());
-  const [items, setItems] = useState<{ productId: string; qty: string }[]>([{ productId: "", qty: "1" }]);
+  const [items, setItems] = useState<{ productId: string; qty: string; uom: "pcs" | "pack" | "dus" }[]>([{ productId: "", qty: "1", uom: "pcs" }]);
 
   const canSubmit = useMemo(
     () => warehouseId && items.every((i) => i.productId && Number(i.qty) > 0),
@@ -95,7 +95,21 @@ export default function GoodsReceipts() {
                         </option>
                       ))}
                     </select>
-                    <Input label="Qty" value={it.qty} onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, qty: e.target.value } : x)))} />
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input type="number" min="1" label="Qty" value={it.qty} onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, qty: e.target.value } : x)))} />
+                      <label className="block">
+                        <div className="mb-1 text-xs font-medium text-zinc-600">Satuan</div>
+                        <select
+                          className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                          value={it.uom}
+                          onChange={(e) => setItems((prev) => prev.map((x, i) => i === idx ? { ...x, uom: e.target.value as "pcs" | "pack" | "dus" } : x))}
+                        >
+                          <option value="pcs">pcs</option>
+                          <option value="pack">pack</option>
+                          <option value="dus">dus</option>
+                        </select>
+                      </label>
+                    </div>
                     <div className="flex justify-between">
                       <Button
                         variant="ghost"
@@ -111,7 +125,7 @@ export default function GoodsReceipts() {
                           variant="secondary"
                           size="sm"
                           type="button"
-                          onClick={() => setItems((prev) => [...prev, { productId: "", qty: "1" }])}
+                          onClick={() => setItems((prev) => [...prev, { productId: "", qty: "1", uom: "pcs" }])}
                         >
                           Tambah Item
                         </Button>
@@ -132,10 +146,10 @@ export default function GoodsReceipts() {
                     body: JSON.stringify({
                       warehouseId,
                       receivedDate,
-                      items: items.map((i) => ({ productId: i.productId, qty: Number(i.qty) })),
+                      items: items.map((i) => ({ productId: i.productId, qty: Number(i.qty), uom: i.uom })),
                     }),
                   });
-                  setItems([{ productId: "", qty: "1" }]);
+                  setItems([{ productId: "", qty: "1", uom: "pcs" }]);
                   await load();
                 } catch (e) {
                   setError(e instanceof ApiError ? e.message : "Gagal membuat GRN");

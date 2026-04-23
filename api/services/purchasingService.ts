@@ -58,13 +58,41 @@ export async function createPurchaseOrder(params: {
   createdBy: string
   orderDate: string
   notes?: string
-  items: { productId: string; qty: number; unitPrice: number }[]
+  items: { productId: string; qty: number; uom: 'pcs' | 'pack' | 'dus'; unitPrice: number }[]
 }) {
-  const items = params.items.map((it) => ({
-    ...it,
-    lineTotal: it.qty * it.unitPrice,
-  }))
-  const subtotal = items.reduce((a, it) => a + it.lineTotal, 0)
+  const pool = getPool()
+  const resolvedItems = []
+  
+  for (const it of params.items) {
+    const pRes = await pool.query(
+      `select pack_size as "packSize", pack_per_dus as "packPerDus", dus_size as "dusSize" from products where id = $1 limit 1`,
+      [it.productId],
+    )
+    const p = pRes.rows[0] as { packSize?: number; packPerDus?: number; dusSize?: number } | undefined
+    if (!p) throw new Error('Produk tidak ditemukan')
+
+    const packSize = Number(p.packSize ?? 0)
+    const packPerDus = Number(p.packPerDus ?? 0)
+    const dusSize = Number(p.dusSize ?? 0) || (packSize > 0 && packPerDus > 0 ? packSize * packPerDus : 0)
+
+    const uomToPcs = it.uom === 'pcs' ? 1 : it.uom === 'pack' ? packSize : dusSize
+    if (!Number.isFinite(uomToPcs) || uomToPcs < 1) {
+      throw new Error('Konversi satuan produk belum diatur (pack/dus)')
+    }
+    
+    const qty = Math.trunc(it.qty)
+    const qtyPcs = qty * uomToPcs
+
+    resolvedItems.push({
+      ...it,
+      qty,
+      uomToPcs,
+      qtyPcs,
+      lineTotal: qty * it.unitPrice,
+    })
+  }
+
+  const subtotal = resolvedItems.reduce((a, it) => a + it.lineTotal, 0)
   const totalAmount = subtotal
   const dateKey = params.orderDate.replace(/-/g, '')
 
@@ -90,13 +118,13 @@ export async function createPurchaseOrder(params: {
     )
     const po = poRes.rows[0]
 
-    for (const it of items) {
+    for (const it of resolvedItems) {
       await client.query(
         `
-          insert into purchase_order_items(purchase_order_id, product_id, qty, unit_price, line_total)
-          values ($1,$2,$3,$4,$5)
+          insert into purchase_order_items(purchase_order_id, product_id, qty, uom, uom_to_pcs, qty_pcs, unit_price, line_total)
+          values ($1,$2,$3,$4,$5,$6,$7,$8)
         `,
-        [po.id, it.productId, it.qty, it.unitPrice, it.lineTotal],
+        [po.id, it.productId, it.qty, it.uom, it.uomToPcs, it.qtyPcs, it.unitPrice, it.lineTotal],
       )
     }
 
@@ -110,8 +138,39 @@ export async function createGoodsReceipt(params: {
   receivedDate: string
   createdBy: string
   notes?: string
-  items: { productId: string; qty: number }[]
+  items: { productId: string; qty: number; uom: 'pcs' | 'pack' | 'dus' }[]
 }) {
+  const pool = getPool()
+  const resolvedItems = []
+  
+  for (const it of params.items) {
+    const pRes = await pool.query(
+      `select pack_size as "packSize", pack_per_dus as "packPerDus", dus_size as "dusSize" from products where id = $1 limit 1`,
+      [it.productId],
+    )
+    const p = pRes.rows[0] as { packSize?: number; packPerDus?: number; dusSize?: number } | undefined
+    if (!p) throw new Error('Produk tidak ditemukan')
+
+    const packSize = Number(p.packSize ?? 0)
+    const packPerDus = Number(p.packPerDus ?? 0)
+    const dusSize = Number(p.dusSize ?? 0) || (packSize > 0 && packPerDus > 0 ? packSize * packPerDus : 0)
+
+    const uomToPcs = it.uom === 'pcs' ? 1 : it.uom === 'pack' ? packSize : dusSize
+    if (!Number.isFinite(uomToPcs) || uomToPcs < 1) {
+      throw new Error('Konversi satuan produk belum diatur (pack/dus)')
+    }
+    
+    const qty = Math.trunc(it.qty)
+    const qtyPcs = qty * uomToPcs
+
+    resolvedItems.push({
+      ...it,
+      qty,
+      uomToPcs,
+      qtyPcs,
+    })
+  }
+
   const dateKey = params.receivedDate.replace(/-/g, '')
 
   return withTransaction(async (client) => {
@@ -135,20 +194,20 @@ export async function createGoodsReceipt(params: {
     )
     const grn = grnRes.rows[0]
 
-    for (const it of params.items) {
+    for (const it of resolvedItems) {
       await client.query(
         `
-          insert into goods_receipt_items(goods_receipt_id, product_id, qty)
-          values ($1,$2,$3)
+          insert into goods_receipt_items(goods_receipt_id, product_id, qty, uom, uom_to_pcs, qty_pcs)
+          values ($1,$2,$3,$4,$5,$6)
         `,
-        [grn.id, it.productId, it.qty],
+        [grn.id, it.productId, it.qty, it.uom, it.uomToPcs, it.qtyPcs],
       )
 
       await applyInventoryTransaction({
         warehouseId: params.warehouseId,
         productId: it.productId,
         type: 'PURCHASE_IN',
-        qtyDelta: it.qty,
+        qtyDelta: it.qtyPcs,
         createdBy: params.createdBy,
         refType: 'goods_receipts',
         refId: grn.id,
