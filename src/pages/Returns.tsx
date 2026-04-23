@@ -36,8 +36,8 @@ export default function Returns() {
   const [referenceNo, setReferenceNo] = useState("");
   const [returnDate, setReturnDate] = useState(today());
   const [notes, setNotes] = useState("");
-  const [items, setItems] = useState<{ productId: string; qty: string; reason: string }[]>([
-    { productId: "", qty: "1", reason: "" },
+  const [items, setItems] = useState<{ productId: string; qty: string; uom: "pcs" | "pack" | "dus"; reason: string }[]>([
+    { productId: "", qty: "1", uom: "pcs", reason: "" },
   ]);
   const [saving, setSaving] = useState(false);
 
@@ -76,14 +76,14 @@ export default function Returns() {
           referenceNo,
           returnDate,
           notes,
-          items: items.map((i) => ({ productId: i.productId, qty: Number(i.qty), reason: i.reason })),
+          items: items.map((i) => ({ productId: i.productId, qty: Number(i.qty), uom: i.uom, reason: i.reason })),
         }),
       });
 
       setPartnerId("");
       setReferenceNo("");
       setNotes("");
-      setItems([{ productId: "", qty: "1", reason: "" }]);
+      setItems([{ productId: "", qty: "1", uom: "pcs", reason: "" }]);
       loadInitial();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Gagal memproses retur");
@@ -186,6 +186,7 @@ export default function Returns() {
                         className="w-20"
                         placeholder="Qty"
                         type="number"
+                        min="1"
                         value={it.qty}
                         onChange={(e) =>
                           setItems((prev) =>
@@ -193,6 +194,15 @@ export default function Returns() {
                           )
                         }
                       />
+                      <select
+                        className="h-10 w-24 rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                        value={it.uom}
+                        onChange={(e) => setItems((prev) => prev.map((x, i) => i === idx ? { ...x, uom: e.target.value as "pcs" | "pack" | "dus" } : x))}
+                      >
+                        <option value="pcs">pcs</option>
+                        <option value="pack">pack</option>
+                        <option value="dus">dus</option>
+                      </select>
                       <Input
                         className="flex-1"
                         placeholder="Kondisi / Alasan..."
@@ -220,7 +230,7 @@ export default function Returns() {
                         <Button
                           variant="secondary"
                           size="sm"
-                          onClick={() => setItems((prev) => [...prev, { productId: "", qty: "1", reason: "" }])}
+                          onClick={() => setItems((prev) => [...prev, { productId: "", qty: "1", uom: "pcs", reason: "" }])}
                         >
                           + Barang Lain
                         </Button>
