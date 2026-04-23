@@ -15,9 +15,23 @@ type SummaryRow = {
 };
 type Product = { id: string; sku: string; name: string };
 
+type TransactionRow = {
+  id: string;
+  type: string;
+  qtyDelta: string;
+  refType: string | null;
+  refId: string | null;
+  createdAt: string;
+  warehouseCode: string;
+  sku: string;
+  productName: string;
+};
+
 export default function Inventory() {
+  const [activeTab, setActiveTab] = useState<"summary" | "transactions">("summary");
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<SummaryRow[]>([]);
+  const [txRows, setTxRows] = useState<TransactionRow[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,12 +42,14 @@ export default function Inventory() {
   async function load() {
     setError(null);
     try {
-      const [s, p] = await Promise.all([
+      const [s, p, tx] = await Promise.all([
         apiFetch<{ data: SummaryRow[] }>(`/api/v1/inventory/summary?q=${encodeURIComponent(q)}`),
         apiFetch<{ data: Product[] }>("/api/v1/products?page=1&pageSize=200"),
+        apiFetch<{ data: TransactionRow[] }>("/api/v1/inventory/transactions?page=1&pageSize=100"),
       ]);
       setRows(s.data);
       setProducts(p.data);
+      setTxRows(tx.data);
       if (!productId && p.data[0]?.id) setProductId(p.data[0].id);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Gagal memuat data");
@@ -49,23 +65,51 @@ export default function Inventory() {
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
         <div>
           <h1 className="text-lg font-semibold">Inventory</h1>
-          <p className="mt-1 text-sm text-zinc-600">Stok ringkas dan penyesuaian stok (adjustment).</p>
+          <p className="mt-1 text-sm text-zinc-600">Stok ringkas, penyesuaian stok, dan riwayat pergerakan stok (Kartu Stok).</p>
         </div>
-        <div className="flex gap-2">
-          <div className="w-full md:w-72">
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari SKU / nama..." />
+        {activeTab === "summary" && (
+          <div className="flex gap-2">
+            <div className="w-full md:w-72">
+              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari SKU / nama..." />
+            </div>
+            <Button variant="secondary" onClick={load}>
+              Cari
+            </Button>
           </div>
-          <Button variant="secondary" onClick={load}>
-            Cari
-          </Button>
-        </div>
+        )}
       </div>
 
       {error ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_420px]">
+      <div className="border-b border-zinc-200">
+        <nav className="-mb-px flex gap-6" aria-label="Tabs">
+          <button
+            onClick={() => setActiveTab("summary")}
+            className={`whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium ${
+              activeTab === "summary"
+                ? "border-zinc-900 text-zinc-900"
+                : "border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700"
+            }`}
+          >
+            Stok Ringkas
+          </button>
+          <button
+            onClick={() => setActiveTab("transactions")}
+            className={`whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium ${
+              activeTab === "transactions"
+                ? "border-zinc-900 text-zinc-900"
+                : "border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700"
+            }`}
+          >
+            Kartu Stok (Riwayat)
+          </button>
+        </nav>
+      </div>
+
+      {activeTab === "summary" ? (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_420px]">
         <Card className="overflow-hidden">
           <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold">Stok Ringkas</div>
           <div className="overflow-auto">
@@ -156,6 +200,50 @@ export default function Inventory() {
           </div>
         </Card>
       </div>
+      ) : (
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm text-left">
+              <thead className="sticky top-0 bg-white">
+                <tr className="border-b border-zinc-200 text-xs font-semibold text-zinc-500">
+                  <th className="px-4 py-3">Tanggal & Waktu</th>
+                  <th className="px-4 py-3">Produk</th>
+                  <th className="px-4 py-3">Tipe Transaksi</th>
+                  <th className="px-4 py-3 text-right">Perubahan Qty</th>
+                  <th className="px-4 py-3">Referensi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {txRows.map((t) => (
+                  <tr key={t.id} className="border-b border-zinc-100 hover:bg-zinc-50">
+                    <td className="px-4 py-2">{new Date(t.createdAt).toLocaleString('id-ID')}</td>
+                    <td className="px-4 py-2 font-medium">
+                      <div className="text-zinc-900">{t.sku}</div>
+                      <div className="text-xs text-zinc-500 font-normal">{t.productName}</div>
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-800">
+                        {t.type}
+                      </span>
+                    </td>
+                    <td className={`px-4 py-2 text-right font-medium ${Number(t.qtyDelta) > 0 ? "text-emerald-600" : "text-red-600"}`}>
+                      {Number(t.qtyDelta) > 0 ? "+" : ""}{t.qtyDelta}
+                    </td>
+                    <td className="px-4 py-2 text-xs text-zinc-500">
+                      {t.refType ? `${t.refType} #${t.refId?.slice(0,8)}` : "-"}
+                    </td>
+                  </tr>
+                ))}
+                {txRows.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center text-zinc-500">Belum ada riwayat transaksi stok.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
