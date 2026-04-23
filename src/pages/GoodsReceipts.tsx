@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import { Camera } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
+import { BarcodeScanner } from "@/components/ui/BarcodeScanner";
 
 type Warehouse = { id: string; code: string; name: string };
 type Product = { id: string; sku: string; name: string };
@@ -21,6 +23,8 @@ export default function GoodsReceipts() {
   const [warehouseId, setWarehouseId] = useState("");
   const [receivedDate, setReceivedDate] = useState(today());
   const [items, setItems] = useState<{ productId: string; qty: string; uom: "pcs" | "pack" | "dus" }[]>([{ productId: "", qty: "1", uom: "pcs" }]);
+  const [showScanner, setShowScanner] = useState(false);
+  const [scannerTargetIdx, setScannerTargetIdx] = useState<number | null>(null);
 
   const canSubmit = useMemo(
     () => warehouseId && items.every((i) => i.productId && Number(i.qty) > 0),
@@ -43,8 +47,31 @@ export default function GoodsReceipts() {
     load().catch(() => {});
   }, []);
 
+  function handleScan(decodedText: string) {
+    if (scannerTargetIdx === null) return;
+    
+    // Find product by SKU or Name
+    const found = products.find(p => p.sku === decodedText || p.name.includes(decodedText));
+    if (found) {
+      setItems(prev => prev.map((x, i) => i === scannerTargetIdx ? { ...x, productId: found.id } : x));
+      setShowScanner(false);
+      setScannerTargetIdx(null);
+    } else {
+      alert(`Produk dengan SKU ${decodedText} tidak ditemukan.`);
+    }
+  }
+
   return (
     <div className="space-y-4">
+      {showScanner && (
+        <BarcodeScanner
+          onScan={handleScan}
+          onClose={() => {
+            setShowScanner(false);
+            setScannerTargetIdx(null);
+          }}
+        />
+      )}
       <div>
         <h1 className="text-lg font-semibold">Penerimaan Barang (GRN)</h1>
         <p className="mt-1 text-sm text-zinc-600">Mencatat barang masuk dan otomatis menambah stok.</p>
@@ -81,20 +108,34 @@ export default function GoodsReceipts() {
               <div className="grid gap-2 p-3">
                 {items.map((it, idx) => (
                   <div key={idx} className="grid gap-2">
-                    <select
-                      className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
-                      value={it.productId}
-                      onChange={(e) =>
-                        setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, productId: e.target.value } : x)))
-                      }
-                    >
-                      <option value="">Pilih produk</option>
-                      {products.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.sku} - {p.name}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="flex gap-2">
+                      <select
+                        className="h-10 flex-1 rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                        value={it.productId}
+                        onChange={(e) =>
+                          setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, productId: e.target.value } : x)))
+                        }
+                      >
+                        <option value="">Pilih produk</option>
+                        {products.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.sku} - {p.name}
+                          </option>
+                        ))}
+                      </select>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => {
+                          setScannerTargetIdx(idx);
+                          setShowScanner(true);
+                        }}
+                        className="px-3"
+                        title="Scan Barcode"
+                      >
+                        <Camera className="h-4 w-4" />
+                      </Button>
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       <Input type="number" min="1" label="Qty" value={it.qty} onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, qty: e.target.value } : x)))} />
                       <label className="block">
