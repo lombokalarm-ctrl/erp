@@ -6,6 +6,7 @@ import { useAuthStore } from "@/stores/authStore";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import Customers from "@/pages/Customers";
+import Regions from "@/pages/Regions";
 import Products from "@/pages/Products";
 import SalesOrders from "@/pages/SalesOrders";
 import ApprovalOrders from "@/pages/ApprovalOrders";
@@ -54,6 +55,7 @@ export default function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="customers" element={<Customers />} />
+          <Route path="regions" element={<Regions />} />
           <Route path="products" element={<Products />} />
           <Route path="suppliers" element={<Suppliers />} />
           <Route path="inventory" element={<Inventory />} />

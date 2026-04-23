@@ -13,6 +13,7 @@ import helmet from 'helmet'
 import dotenv from 'dotenv'
 import { errorMiddleware } from './lib/http.js'
 import v1Routes from './routes/v1/index.js'
+import regionsRouter from './routes/v1/regions.js'
 
 // load env
 dotenv.config()

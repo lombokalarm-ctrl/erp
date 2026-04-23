@@ -54,9 +54,11 @@ router.post(
         .object({
           code: z.string().min(1),
           name: z.string().min(1),
-          category: z.string().min(1),
+          category: z.enum(['RETAIL', 'GROSIR', 'MODERN RETAIL', 'HOREKA', 'NASIONAL MODERN RETAIL']),
           phone: z.string().optional(),
+          email: z.string().optional(),
           address: z.string().optional(),
+          regionId: z.string().uuid().nullable().optional(),
           status: z.enum(['ACTIVE', 'BLOCKED']).optional(),
           salesId: z.string().uuid().nullable().optional(),
         })
@@ -72,7 +74,9 @@ router.post(
         name: body.name,
         category: body.category,
         phone: body.phone,
+        email: body.email,
         address: body.address,
+        regionId: body.regionId,
         status: body.status,
         salesId: salesId ?? null,
       })
@@ -114,13 +118,15 @@ router.patch(
         .object({
           code: z.string().min(1).optional(),
           name: z.string().min(1).optional(),
-          category: z.string().min(1).optional(),
-          phone: z.string().nullable().optional(),
-          address: z.string().nullable().optional(),
-          status: z.enum(['ACTIVE', 'BLOCKED']).optional(),
-          salesId: z.string().uuid().nullable().optional(),
-        })
-        .parse(req.body)
+          category: z.enum(['RETAIL', 'GROSIR', 'MODERN RETAIL', 'HOREKA', 'NASIONAL MODERN RETAIL']).optional(),
+        phone: z.string().nullable().optional(),
+        email: z.string().nullable().optional(),
+        address: z.string().nullable().optional(),
+        regionId: z.string().uuid().nullable().optional(),
+        status: z.enum(['ACTIVE', 'BLOCKED']).optional(),
+        salesId: z.string().uuid().nullable().optional(),
+      })
+      .parse(req.body)
 
       const updateData = { ...body }
       if (req.user?.role === 'Sales') {
@@ -128,15 +134,15 @@ router.patch(
         delete updateData.salesId
       }
 
-      const updated = await updateCustomer(req.params.id, updateData)
+      await updateCustomer(req.params.id, updateData)
       await writeAuditLog({
         actorUserId: req.user!.userId,
         action: 'CUSTOMER_UPDATE',
         entity: 'customers',
-        entityId: updated.id,
+        entityId: req.params.id,
         payload: body,
       })
-      ok(res, updated)
+      ok(res, { id: req.params.id })
     } catch (err) {
       next(err)
     }

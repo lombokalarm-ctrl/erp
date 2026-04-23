@@ -49,7 +49,7 @@ export async function listCustomers(params: {
   const listRes = await pool.query(
     `
       select 
-        c.id, c.code, c.name, c.category, c.phone, c.address, c.status,
+        c.id, c.code, c.name, c.category, c.phone, c.email, c.address, c.region_id as "regionId", c.status,
         c.sales_id as "salesId",
         u.full_name as "salesName"
       from customers c
@@ -94,23 +94,27 @@ export async function createCustomer(input: {
   name: string
   category: string
   phone?: string | null
+  email?: string | null
   address?: string | null
+  regionId?: string | null
   status?: string
   salesId?: string | null
 }) {
   const pool = getPool()
   const res = await pool.query(
     `
-      insert into customers(code, name, category, phone, address, status, sales_id)
-      values ($1, $2, $3, $4, $5, $6, $7)
-      returning id, code, name, category, phone, address, status, sales_id as "salesId"
+      insert into customers(code, name, category, phone, email, address, region_id, status, sales_id)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      returning id, code, name, category, phone, email, address, region_id as "regionId", status, sales_id as "salesId"
     `,
     [
       input.code,
       input.name,
       input.category,
       input.phone ?? null,
+      input.email ?? null,
       input.address ?? null,
+      input.regionId ?? null,
       input.status ?? 'ACTIVE',
       input.salesId ?? null,
     ],
@@ -135,38 +139,36 @@ export async function deleteCustomer(id: string) {
 
 export async function updateCustomer(
   id: string,
-  input: Partial<Omit<Customer, 'id' | 'salesName'>>,
+  input: Partial<{
+    code: string
+    name: string
+    category: string
+    phone: string | null
+    email: string | null
+    address: string | null
+    regionId: string | null
+    status: 'ACTIVE' | 'BLOCKED'
+    salesId: string | null
+  }>,
 ) {
   const pool = getPool()
-
-  const current = await getCustomerById(id)
-
-  const next = {
-    code: input.code ?? current.code,
-    name: input.name ?? current.name,
-    category: input.category ?? current.category,
-    phone: input.phone ?? current.phone,
-    address: input.address ?? current.address,
-    status: input.status ?? current.status,
-    salesId: input.salesId !== undefined ? input.salesId : current.salesId,
+  const sets = []
+  const values = []
+  let i = 1
+  for (const [k, v] of Object.entries(input)) {
+    if (k === 'salesId') {
+      sets.push(`sales_id = $${i++}`)
+      values.push(v)
+    } else if (k === 'regionId') {
+      sets.push(`region_id = $${i++}`)
+      values.push(v)
+    } else {
+      sets.push(`${k} = $${i++}`)
+      values.push(v)
+    }
   }
+  if (sets.length === 0) return
 
-  const res = await pool.query(
-    `
-      update customers
-      set code = $2,
-          name = $3,
-          category = $4,
-          phone = $5,
-          address = $6,
-          status = $7,
-          sales_id = $8,
-          updated_at = now()
-      where id = $1
-      returning id, code, name, category, phone, address, status, sales_id as "salesId"
-    `,
-    [id, next.code, next.name, next.category, next.phone, next.address, next.status, next.salesId],
-  )
-
-  return res.rows[0] as Customer
+  values.push(id)
+  await pool.query(`update customers set ${sets.join(', ')} where id = $${i}`, values)
 }
