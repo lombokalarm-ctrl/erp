@@ -15,8 +15,13 @@ export function BarcodeScanner({
     let isComponentMounted = true;
 
     const startScanner = (cameraConfig: any) => {
+      // Improve resolution to HD/FHD to help decoding even if slightly blurry
+      const constraints = typeof cameraConfig === 'object' 
+        ? { ...cameraConfig, width: { ideal: 1280 }, height: { ideal: 720 } }
+        : cameraConfig;
+
       html5QrCode.start(
-        cameraConfig,
+        constraints,
         {
           fps: 10,
           qrbox: { width: 250, height: 250 },
@@ -79,6 +84,32 @@ export function BarcodeScanner({
     };
   }, [onScan]);
 
+  const handleTapToFocus = async () => {
+    try {
+      const videoEl = document.querySelector("#reader video") as HTMLVideoElement;
+      if (videoEl && videoEl.srcObject) {
+        const stream = videoEl.srcObject as MediaStream;
+        const track = stream.getVideoTracks()[0];
+        if (track) {
+          const capabilities = track.getCapabilities() as any;
+          if (capabilities.focusMode) {
+            await track.applyConstraints({
+              advanced: [{ focusMode: "single-shot" } as any]
+            });
+            // Revert back to continuous if supported
+            setTimeout(() => {
+              track.applyConstraints({
+                advanced: [{ focusMode: "continuous" } as any]
+              }).catch(() => {});
+            }, 1000);
+          }
+        }
+      }
+    } catch (e) {
+      console.log("Tap to focus not supported on this device", e);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
       <div className="w-full max-w-md overflow-hidden rounded-xl bg-white p-4">
@@ -93,7 +124,16 @@ export function BarcodeScanner({
             {error}
           </div>
         ) : (
-          <div id="reader" className="w-full overflow-hidden rounded-lg bg-black"></div>
+          <div className="relative">
+            <div 
+              id="reader" 
+              className="w-full overflow-hidden rounded-lg bg-black"
+              onClick={handleTapToFocus}
+            ></div>
+            <div className="pointer-events-none absolute bottom-4 left-0 right-0 text-center text-xs text-white/70 drop-shadow-md">
+              Ketuk layar untuk memfokuskan kamera
+            </div>
+          </div>
         )}
       </div>
     </div>
