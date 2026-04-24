@@ -42,7 +42,16 @@ export function BarcodeScanner({
           if (cameraConfig.facingMode === "environment") {
             Html5Qrcode.getCameras().then((devices) => {
               if (devices && devices.length) {
-                startScanner(devices[0].id);
+                let cameraId = devices[0].id;
+                const backCamera = devices.find(d => 
+                  d.label.toLowerCase().includes('back') || 
+                  d.label.toLowerCase().includes('rear') ||
+                  d.label.toLowerCase().includes('belakang')
+                );
+                if (backCamera) {
+                  cameraId = backCamera.id;
+                }
+                startScanner(cameraId);
               } else {
                 setError("Tidak ada kamera yang ditemukan.");
               }
@@ -57,13 +66,10 @@ export function BarcodeScanner({
       });
     };
 
-    // First attempt: Prefer environment camera with auto-focus hints
-    // Passing facingMode: "environment" allows mobile browsers to natively enable continuous autofocus
-    startScanner({ 
-      facingMode: "environment",
-      // Optional hints for some browsers to force continuous autofocus
-      advanced: [{ focusMode: "continuous" }]
-    } as any);
+    // Use environment facing mode without advanced focus constraints
+    // This allows mobile browsers to natively handle continuous autofocus
+    // without throwing OverconstrainedError
+    startScanner({ facingMode: "environment" });
 
     return () => {
       isComponentMounted = false;
