@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { Html5QrcodeScanner } from "html5-qrcode";
+import { useEffect, useState } from "react";
+import { Html5Qrcode } from "html5-qrcode";
 
 export function BarcodeScanner({
   onScan,
@@ -8,31 +8,71 @@ export function BarcodeScanner({
   onScan: (decodedText: string) => void;
   onClose: () => void;
 }) {
-  const scannerRef = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState<string>("");
 
   useEffect(() => {
-    if (!scannerRef.current) return;
-    
-    const html5QrcodeScanner = new Html5QrcodeScanner(
-      "reader",
-      { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
-      false
-    );
+    const html5QrCode = new Html5Qrcode("reader");
+    let isComponentMounted = true;
 
-    html5QrcodeScanner.render(
-      (decodedText) => {
-        html5QrcodeScanner.clear();
-        onScan(decodedText);
-      },
-      (error) => {
-        // ignore continuous scanning errors
-      }
-    );
+    Html5Qrcode.getCameras()
+      .then((devices) => {
+        if (!isComponentMounted) return;
+        
+        if (devices && devices.length) {
+          // Default to the first camera, but try to find a back/rear camera
+          let cameraId = devices[0].id;
+          const backCamera = devices.find(d => 
+            d.label.toLowerCase().includes('back') || 
+            d.label.toLowerCase().includes('rear') ||
+            d.label.toLowerCase().includes('belakang')
+          );
+          if (backCamera) {
+            cameraId = backCamera.id;
+          }
+
+          html5QrCode.start(
+            cameraId,
+            {
+              fps: 10,
+              qrbox: { width: 250, height: 250 },
+              aspectRatio: 1.0,
+            },
+            (decodedText) => {
+              if (html5QrCode.isScanning) {
+                html5QrCode.stop().then(() => {
+                  onScan(decodedText);
+                }).catch(() => {
+                  onScan(decodedText);
+                });
+              } else {
+                onScan(decodedText);
+              }
+            },
+            (errorMessage) => {
+              // ignore continuous scanning errors
+            }
+          ).catch((err) => {
+            if (isComponentMounted) {
+              setError("Gagal memulai kamera. Pastikan browser memiliki izin mengakses kamera.");
+              console.error(err);
+            }
+          });
+        } else {
+          if (isComponentMounted) setError("Tidak ada kamera yang ditemukan pada perangkat ini.");
+        }
+      })
+      .catch((err) => {
+        if (isComponentMounted) {
+          setError("Izin kamera ditolak. Harap izinkan akses kamera pada pengaturan browser Anda.");
+          console.error(err);
+        }
+      });
 
     return () => {
-      html5QrcodeScanner.clear().catch(error => {
-        console.error("Failed to clear html5QrcodeScanner. ", error);
-      });
+      isComponentMounted = false;
+      if (html5QrCode.isScanning) {
+        html5QrCode.stop().catch(err => console.error("Failed to stop scanner", err));
+      }
     };
   }, [onScan]);
 
@@ -45,7 +85,13 @@ export function BarcodeScanner({
             Tutup
           </button>
         </div>
-        <div id="reader" ref={scannerRef} className="w-full"></div>
+        {error ? (
+          <div className="rounded-lg bg-red-50 p-4 text-center text-sm text-red-600">
+            {error}
+          </div>
+        ) : (
+          <div id="reader" className="w-full overflow-hidden rounded-lg bg-black"></div>
+        )}
       </div>
     </div>
   );
