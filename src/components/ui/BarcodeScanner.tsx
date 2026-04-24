@@ -14,59 +14,56 @@ export function BarcodeScanner({
     const html5QrCode = new Html5Qrcode("reader");
     let isComponentMounted = true;
 
-    Html5Qrcode.getCameras()
-      .then((devices) => {
-        if (!isComponentMounted) return;
-        
-        if (devices && devices.length) {
-          // Default to the first camera, but try to find a back/rear camera
-          let cameraId = devices[0].id;
-          const backCamera = devices.find(d => 
-            d.label.toLowerCase().includes('back') || 
-            d.label.toLowerCase().includes('rear') ||
-            d.label.toLowerCase().includes('belakang')
-          );
-          if (backCamera) {
-            cameraId = backCamera.id;
+    const startScanner = (cameraConfig: any) => {
+      html5QrCode.start(
+        cameraConfig,
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
+          aspectRatio: 1.0,
+        },
+        (decodedText) => {
+          if (html5QrCode.isScanning) {
+            html5QrCode.stop().then(() => {
+              onScan(decodedText);
+            }).catch(() => {
+              onScan(decodedText);
+            });
+          } else {
+            onScan(decodedText);
           }
-
-          html5QrCode.start(
-            cameraId,
-            {
-              fps: 10,
-              qrbox: { width: 250, height: 250 },
-              aspectRatio: 1.0,
-            },
-            (decodedText) => {
-              if (html5QrCode.isScanning) {
-                html5QrCode.stop().then(() => {
-                  onScan(decodedText);
-                }).catch(() => {
-                  onScan(decodedText);
-                });
-              } else {
-                onScan(decodedText);
-              }
-            },
-            (errorMessage) => {
-              // ignore continuous scanning errors
-            }
-          ).catch((err) => {
-            if (isComponentMounted) {
-              setError("Gagal memulai kamera. Pastikan browser memiliki izin mengakses kamera.");
-              console.error(err);
-            }
-          });
-        } else {
-          if (isComponentMounted) setError("Tidak ada kamera yang ditemukan pada perangkat ini.");
+        },
+        (errorMessage) => {
+          // ignore continuous scanning errors
         }
-      })
-      .catch((err) => {
+      ).catch((err) => {
         if (isComponentMounted) {
-          setError("Izin kamera ditolak. Harap izinkan akses kamera pada pengaturan browser Anda.");
-          console.error(err);
+          // If environment camera fails, fallback to standard deviceId
+          if (cameraConfig.facingMode === "environment") {
+            Html5Qrcode.getCameras().then((devices) => {
+              if (devices && devices.length) {
+                startScanner(devices[0].id);
+              } else {
+                setError("Tidak ada kamera yang ditemukan.");
+              }
+            }).catch(() => {
+              setError("Izin kamera ditolak atau tidak ada kamera.");
+            });
+          } else {
+            setError("Gagal memulai kamera. Pastikan izin diberikan.");
+            console.error(err);
+          }
         }
       });
+    };
+
+    // First attempt: Prefer environment camera with auto-focus hints
+    // Passing facingMode: "environment" allows mobile browsers to natively enable continuous autofocus
+    startScanner({ 
+      facingMode: "environment",
+      // Optional hints for some browsers to force continuous autofocus
+      advanced: [{ focusMode: "continuous" }]
+    } as any);
 
     return () => {
       isComponentMounted = false;
