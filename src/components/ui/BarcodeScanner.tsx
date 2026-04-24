@@ -15,13 +15,8 @@ export function BarcodeScanner({
     let isComponentMounted = true;
 
     const startScanner = (cameraConfig: any) => {
-      // Improve resolution to HD/FHD to help decoding even if slightly blurry
-      const constraints = typeof cameraConfig === 'object' 
-        ? { ...cameraConfig, width: { ideal: 1280 }, height: { ideal: 720 } }
-        : cameraConfig;
-
       html5QrCode.start(
-        constraints,
+        cameraConfig,
         {
           fps: 10,
           qrbox: { width: 250, height: 250 },
