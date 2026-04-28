@@ -368,14 +368,11 @@ export async function processApproval(approvalId: string, action: 'APPROVED' | '
     )
 
     if (!apprRes.rowCount) throw new Error('Approval tidak ditemukan atau sudah diproses')
-    const soId = apprRes.rows[0].sales_order_id
+    const soId = apprRes.rows[0].sales_order_id as string
 
     // 2. Update SO status
     const newSoStatus = action === 'APPROVED' ? 'CONFIRMED' : 'CANCELLED'
-    await client.query(
-      `update sales_orders set status = $2 where id = $1`,
-      [soId, newSoStatus]
-    )
+    await client.query(`update sales_orders set status = $2 where id = $1`, [soId, newSoStatus])
 
     if (action === 'APPROVED') {
       const soRes = await client.query(`select order_date::text as "orderDate" from sales_orders where id = $1 limit 1`, [soId])
@@ -394,13 +391,33 @@ export async function createDeliveryOrder(params: {
   deliveryDate: string
 }) {
   return withTransaction(async (client) => {
+    const hasApprovedOverride = async (salesOrderId: string) => {
+      const approvedRes = await client.query(
+        `
+          select 1
+          from sales_order_approvals
+          where sales_order_id = $1
+            and status = 'APPROVED'
+          limit 1
+        `,
+        [salesOrderId],
+      )
+      return approvedRes.rowCount > 0
+    }
+
     // 1. Get SO
     const soRes = await client.query('select * from sales_orders where id = $1', [params.salesOrderId])
     const so = soRes.rows[0]
     if (!so) throw new Error('SO not found')
     if (so.delivery_status !== 'PENDING') throw new Error('SO is already delivered or cancelled')
     if (!['CONFIRMED', 'DELIVERED'].includes(String(so.status))) {
-      throw new Error('SO belum disetujui/terkonfirmasi')
+      const approvedOverride = await hasApprovedOverride(params.salesOrderId)
+      if (!approvedOverride) {
+        throw new Error('SO belum disetujui/terkonfirmasi')
+      }
+
+      // Self-heal legacy inconsistent rows: approval is APPROVED but SO status is still DRAFT.
+      await client.query(`update sales_orders set status = 'CONFIRMED' where id = $1`, [params.salesOrderId])
     }
 
     const invoice = await getExistingInvoiceBySalesOrderId(client as any, params.salesOrderId)
@@ -515,7 +532,17 @@ export async function listSalesOrders(params: {
         so.customer_id as "customerId",
         c.name as "customerName",
         so.order_date::text as "orderDate",
-        so.status,
+        case
+          when so.status = 'DRAFT'
+            and exists (
+              select 1
+              from sales_order_approvals a
+              where a.sales_order_id = so.id
+                and a.status = 'APPROVED'
+            )
+            then 'CONFIRMED'
+          else so.status
+        end as status,
         so.delivery_status as "deliveryStatus",
         so.total_amount::text as "totalAmount"
       from sales_orders so
