@@ -14,7 +14,12 @@ export async function getCustomerOutstanding(customerId: string) {
         ), 0) as paid_total,
         coalesce((
           select sum(total_amount) from sales_orders
-          where customer_id = $1 and delivery_status = 'PENDING' and status = 'CONFIRMED'
+          where customer_id = $1
+            and delivery_status = 'PENDING'
+            and status = 'CONFIRMED'
+            and not exists (
+              select 1 from invoices i2 where i2.sales_order_id = sales_orders.id
+            )
         ), 0) as pending_so_total
       from invoices i
       where i.customer_id = $1

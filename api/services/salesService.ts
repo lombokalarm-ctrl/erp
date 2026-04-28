@@ -34,6 +34,97 @@ async function generateNumber(
   return `${prefix}-${dateKey}-${pad4(nextSeq)}`
 }
 
+async function getExistingInvoiceBySalesOrderId(client: PoolClient, salesOrderId: string) {
+  const existing = await client.query(
+    `
+      select id, invoice_no as "invoiceNo", sales_order_id as "salesOrderId"
+      from invoices
+      where sales_order_id = $1
+      limit 1
+    `,
+    [salesOrderId],
+  )
+  return existing.rows[0] as { id: string; invoiceNo: string; salesOrderId: string } | undefined
+}
+
+async function ensureInvoiceForSalesOrder(client: PoolClient, salesOrderId: string, invoiceDate: string) {
+  const exists = await getExistingInvoiceBySalesOrderId(client, salesOrderId)
+  if (exists) return exists
+
+  const soRes = await client.query('select * from sales_orders where id = $1 limit 1', [salesOrderId])
+  const so = soRes.rows[0]
+  if (!so) throw new Error('SO tidak ditemukan')
+
+  const profile = await getCustomerCreditProfile(so.customer_id)
+  const dateKey = invoiceDate.replace(/-/g, '')
+  const dueDate = new Date(invoiceDate)
+  dueDate.setDate(dueDate.getDate() + profile.paymentTermDays)
+  const dueDateStr = dueDate.toISOString().slice(0, 10)
+  const invoiceNo = await generateNumber(client, 'INV', dateKey, 'invoices', 'invoice_no')
+
+  const invRes = await client.query(
+    `
+      insert into invoices(
+        invoice_no,
+        customer_id,
+        sales_order_id,
+        invoice_date,
+        due_date,
+        subtotal,
+        discount_amount,
+        total_amount,
+        status
+      )
+      values ($1,$2,$3,$4,$5,$6,$7,$8,'UNPAID')
+      returning id, invoice_no as "invoiceNo", sales_order_id as "salesOrderId"
+    `,
+    [
+      invoiceNo,
+      so.customer_id,
+      so.id,
+      invoiceDate,
+      dueDateStr,
+      so.subtotal,
+      so.discount_amount,
+      so.total_amount,
+    ],
+  )
+  const invoice = invRes.rows[0] as { id: string; invoiceNo: string; salesOrderId: string }
+
+  const itemsRes = await client.query('select * from sales_order_items where sales_order_id = $1', [salesOrderId])
+  for (const it of itemsRes.rows) {
+    await client.query(
+      `
+        insert into invoice_items(
+          invoice_id,
+          product_id,
+          qty,
+          uom,
+          uom_to_pcs,
+          qty_pcs,
+          unit_price,
+          discount_amount,
+          line_total
+        )
+        values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      `,
+      [
+        invoice.id,
+        it.product_id,
+        Math.trunc(Number(it.qty)),
+        it.uom ?? 'pcs',
+        Number(it.uom_to_pcs ?? 1),
+        Math.trunc(Number(it.qty_pcs ?? 0)),
+        it.unit_price,
+        it.discount_amount,
+        it.line_total,
+      ],
+    )
+  }
+
+  return invoice
+}
+
 export async function createSalesOrder(params: {
   customerId: string
   createdBy: string
@@ -172,6 +263,13 @@ export async function createSalesOrder(params: {
       )
     }
 
+    if (status !== 'PENDING_APPROVAL') {
+      await client.query(`update sales_orders set status = 'CONFIRMED' where id = $1`, [salesOrder.id])
+      salesOrder.status = 'CONFIRMED'
+      const invoice = await ensureInvoiceForSalesOrder(client as any, salesOrder.id, params.orderDate)
+      return { salesOrder, invoice }
+    }
+
     return { salesOrder }
   })
 }
@@ -273,11 +371,18 @@ export async function processApproval(approvalId: string, action: 'APPROVED' | '
     const soId = apprRes.rows[0].sales_order_id
 
     // 2. Update SO status
-    const newSoStatus = action === 'APPROVED' ? 'DRAFT' : 'CANCELLED'
+    const newSoStatus = action === 'APPROVED' ? 'CONFIRMED' : 'CANCELLED'
     await client.query(
       `update sales_orders set status = $2 where id = $1`,
       [soId, newSoStatus]
     )
+
+    if (action === 'APPROVED') {
+      const soRes = await client.query(`select order_date::text as "orderDate" from sales_orders where id = $1 limit 1`, [soId])
+      const orderDate = String(soRes.rows[0]?.orderDate ?? new Date().toISOString().slice(0, 10))
+      const invoice = await ensureInvoiceForSalesOrder(client as any, soId, orderDate)
+      return { success: true, newSoStatus, invoice }
+    }
 
     return { success: true, newSoStatus }
   })
@@ -288,18 +393,20 @@ export async function createDeliveryOrder(params: {
   createdBy: string
   deliveryDate: string
 }) {
-  // Fetch credit profile outside transaction to prevent deadlock
-  const pool = getPool()
-  const soCheck = await pool.query('select customer_id from sales_orders where id = $1', [params.salesOrderId])
-  if (!soCheck.rows[0]) throw new Error('SO not found')
-  const profile = await getCustomerCreditProfile(soCheck.rows[0].customer_id)
-
   return withTransaction(async (client) => {
     // 1. Get SO
     const soRes = await client.query('select * from sales_orders where id = $1', [params.salesOrderId])
     const so = soRes.rows[0]
     if (!so) throw new Error('SO not found')
     if (so.delivery_status !== 'PENDING') throw new Error('SO is already delivered or cancelled')
+    if (!['CONFIRMED', 'DELIVERED'].includes(String(so.status))) {
+      throw new Error('SO belum disetujui/terkonfirmasi')
+    }
+
+    const invoice = await getExistingInvoiceBySalesOrderId(client as any, params.salesOrderId)
+    if (!invoice) {
+      throw new Error('Invoice belum terbit. Setujui/konfirmasi SO terlebih dahulu.')
+    }
 
     // 2. Get SO items
     const itemsRes = await client.query('select * from sales_order_items where sales_order_id = $1', [params.salesOrderId])
@@ -352,73 +459,6 @@ export async function createDeliveryOrder(params: {
 
     // 5. Update SO status
     await client.query("update sales_orders set delivery_status = 'DELIVERED' where id = $1", [params.salesOrderId])
-
-    // 6. Generate Invoice
-    const invoiceDate = params.deliveryDate
-    const dueDate = new Date(invoiceDate)
-    dueDate.setDate(dueDate.getDate() + profile.paymentTermDays)
-    const dueDateStr = dueDate.toISOString().slice(0, 10)
-    
-    const invoiceNo = await generateNumber(client as any, 'INV', dateKey, 'invoices', 'invoice_no')
-
-    const invRes = await client.query(
-      `
-        insert into invoices(
-          invoice_no,
-          customer_id,
-          sales_order_id,
-          invoice_date,
-          due_date,
-          subtotal,
-          discount_amount,
-          total_amount,
-          status
-        )
-        values ($1,$2,$3,$4,$5,$6,$7,$8,'UNPAID')
-        returning *
-      `,
-      [
-        invoiceNo,
-        so.customer_id,
-        so.id,
-        invoiceDate,
-        dueDateStr,
-        so.subtotal,
-        so.discount_amount,
-        so.total_amount,
-      ],
-    )
-    const invoice = invRes.rows[0]
-
-    for (const it of items) {
-      await client.query(
-        `
-          insert into invoice_items(
-            invoice_id,
-            product_id,
-            qty,
-            uom,
-            uom_to_pcs,
-            qty_pcs,
-            unit_price,
-            discount_amount,
-            line_total
-          )
-          values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-        `,
-        [
-          invoice.id,
-          it.product_id,
-          Math.trunc(Number(it.qty)),
-          it.uom ?? 'pcs',
-          Number(it.uom_to_pcs ?? 1),
-          Math.trunc(Number(it.qty_pcs ?? 0)),
-          it.unit_price,
-          it.discount_amount,
-          it.line_total,
-        ],
-      )
-    }
 
     return { deliveryOrder, invoice }
   })

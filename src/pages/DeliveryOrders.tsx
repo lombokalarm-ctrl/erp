@@ -185,7 +185,7 @@ export default function DeliveryOrders() {
       <div>
         <h1 className="text-lg font-semibold">Surat Jalan (Pengiriman)</h1>
         <p className="mt-1 text-sm text-zinc-600">
-          Proses Sales Order menjadi Surat Jalan untuk memotong stok dan membuat tagihan Invoice otomatis.
+          Proses Sales Order yang sudah disetujui & terinvoice menjadi Surat Jalan untuk memotong stok.
         </p>
       </div>
 
@@ -227,7 +227,7 @@ export default function DeliveryOrders() {
                   <td className="px-4 py-2">{o.totalAmount}</td>
                   <td className="px-4 py-2 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      {o.deliveryStatus === 'PENDING' && o.status !== 'CANCELLED' && (
+                      {o.deliveryStatus === 'PENDING' && o.status === 'CONFIRMED' && (
                         <>
                           <Button
                             variant="ghost"

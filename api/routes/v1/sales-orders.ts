@@ -126,7 +126,7 @@ router.post(
         action: 'DELIVERY_ORDER_CREATE',
         entity: 'delivery_orders',
         entityId: result.deliveryOrder.id,
-        payload: { doNo: result.deliveryOrder.do_no, invoiceNo: result.invoice.invoice_no },
+        payload: { doNo: result.deliveryOrder.do_no, invoiceNo: result.invoice.invoiceNo },
       })
       ok(res, result)
     } catch (err) {
