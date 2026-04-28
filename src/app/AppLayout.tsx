@@ -89,7 +89,7 @@ export default function AppLayout() {
         items: [
           { to: "/sales-orders", label: "Sales Order", icon: <ShoppingCart className="h-4 w-4" />, anyPerm: ["sales_orders:read"] },
           { to: "/sales-orders/approvals", label: "Approval SO", icon: <ShieldAlert className="h-4 w-4" />, anyPerm: ["sales_orders:approve"] },
-          { to: "/delivery-orders", label: "Surat Jalan (DO)", icon: <Truck className="h-4 w-4" />, anyPerm: ["delivery_orders:read"] },
+          { to: "/delivery-orders", label: "Surat Jalan (DO)", icon: <Truck className="h-4 w-4" />, anyPerm: ["sales_orders:read"] },
         ]
       },
       {
