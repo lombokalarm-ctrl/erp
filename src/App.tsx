@@ -31,6 +31,7 @@ import SalesReport from "@/pages/SalesReport";
 import CollectionReport from "@/pages/CollectionReport";
 import PromoReport from "@/pages/PromoReport";
 import ProfitLossReport from "@/pages/ProfitLossReport";
+import ChangePassword from "@/pages/ChangePassword";
 
 export default function App() {
   const hydrate = useAuthStore((s) => s.hydrate);
@@ -69,6 +70,7 @@ export default function App() {
           <Route path="receivables" element={<Receivables />} />
           <Route path="store-analysis" element={<StoreAnalysis />} />
           <Route path="users" element={<Users />} />
+          <Route path="change-password" element={<ChangePassword />} />
           <Route path="sales-performance" element={<SalesPerformance />} />
           <Route path="sales-report" element={<SalesReport />} />
           <Route path="return-report" element={<ReturnReport />} />

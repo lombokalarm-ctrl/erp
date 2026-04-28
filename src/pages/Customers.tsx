@@ -9,6 +9,9 @@ type Customer = {
   id: string;
   code: string;
   name: string;
+  ownerName?: string | null;
+  ktpNo?: string | null;
+  npwpNo?: string | null;
   category: string;
   phone: string | null;
   address: string | null;
@@ -20,6 +23,7 @@ type Customer = {
 type CreditProfile = {
   customerId: string;
   creditLimit: string;
+  salesOrderLimit: string;
   paymentTermDays: number;
   maxOverdueDaysBeforeBlock: number | null;
 };
@@ -33,6 +37,9 @@ export default function Customers() {
 
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
+  const [ownerName, setOwnerName] = useState("");
+  const [ktpNo, setKtpNo] = useState("");
+  const [npwpNo, setNpwpNo] = useState("");
   const [category, setCategory] = useState("RETAIL");
   const [status, setStatus] = useState("ACTIVE");
   const [salesId, setSalesId] = useState("");
@@ -48,6 +55,9 @@ export default function Customers() {
     setEditingId(c.id);
     setCode(c.code);
     setName(c.name);
+    setOwnerName(c.ownerName || "");
+    setKtpNo(c.ktpNo || "");
+    setNpwpNo(c.npwpNo || "");
     setCategory(c.category);
     setStatus(c.status);
     setSalesId(c.salesId || "");
@@ -59,6 +69,9 @@ export default function Customers() {
     setEditingId(null);
     setCode("");
     setName("");
+    setOwnerName("");
+    setKtpNo("");
+    setNpwpNo("");
     setCategory("RETAIL");
     setStatus("ACTIVE");
     setSalesId("");
@@ -138,6 +151,9 @@ export default function Customers() {
                 <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
                   <th className="px-4 py-2">Kode</th>
                   <th className="px-4 py-2">Nama</th>
+                  <th className="px-4 py-2">Nama Pemilik</th>
+                  <th className="px-4 py-2">No KTP</th>
+                  <th className="px-4 py-2">No NPWP</th>
                   <th className="px-4 py-2">Kategori</th>
                   <th className="px-4 py-2">Sales</th>
                   <th className="px-4 py-2">Status</th>
@@ -157,6 +173,9 @@ export default function Customers() {
                   >
                     <td className="px-4 py-2 font-medium">{c.code}</td>
                     <td className="px-4 py-2">{c.name}</td>
+                    <td className="px-4 py-2">{c.ownerName || "-"}</td>
+                    <td className="px-4 py-2">{c.ktpNo || "-"}</td>
+                    <td className="px-4 py-2">{c.npwpNo || "-"}</td>
                     <td className="px-4 py-2">{c.category}</td>
                     <td className="px-4 py-2 text-zinc-600">{c.salesName || "-"}</td>
                     <td className="px-4 py-2">
@@ -174,7 +193,7 @@ export default function Customers() {
                 ))}
                 {items.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={5}>
+                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={9}>
                       Belum ada data.
                     </td>
                   </tr>
@@ -190,6 +209,9 @@ export default function Customers() {
             <div className="mt-3 grid gap-3">
               <Input label="Kode" value={code} onChange={(e) => setCode(e.target.value)} placeholder="CUST-001" />
               <Input label="Nama" value={name} onChange={(e) => setName(e.target.value)} placeholder="Toko Sumber Rejeki" />
+              <Input label="Nama Pemilik" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="Nama pemilik toko" />
+              <Input label="No KTP" value={ktpNo} onChange={(e) => setKtpNo(e.target.value)} placeholder="3273xxxxxxxxxxxx" />
+              <Input label="No NPWP" value={npwpNo} onChange={(e) => setNpwpNo(e.target.value)} placeholder="xx.xxx.xxx.x-xxx.xxx" />
               <label className="block">
               <div className="mb-1 text-xs font-medium text-zinc-600">Kategori</div>
               <select
@@ -241,7 +263,7 @@ export default function Customers() {
                   onClick={async () => {
                     setError(null);
                     try {
-                      const payload: any = { code, name, category, status };
+                      const payload: any = { code, name, ownerName: ownerName || null, ktpNo: ktpNo || null, npwpNo: npwpNo || null, category, status };
                       if (!isSalesRole) payload.salesId = salesId || null;
 
                       if (editingId) {
@@ -274,9 +296,9 @@ export default function Customers() {
           </Card>
 
           <Card className="p-4">
-            <div className="text-sm font-semibold">Limit Kredit</div>
+            <div className="text-sm font-semibold">Limit Kredit & Sales Order</div>
             <div className="mt-1 text-sm text-zinc-600">
-              {selected ? `Untuk: ${selected.name}` : "Pilih pelanggan untuk mengatur limit."}
+              {selected ? `Untuk: ${selected.name}` : "Pilih pelanggan untuk mengatur limit kredit dan limit sales order."}
             </div>
             {selected ? (
               <CreditEditor
@@ -303,12 +325,14 @@ function CreditEditor({
   onSaved: () => void;
 }) {
   const [creditLimit, setCreditLimit] = useState(initial?.creditLimit ?? "0");
+  const [salesOrderLimit, setSalesOrderLimit] = useState(initial?.salesOrderLimit ?? "0");
   const [paymentTermDays, setPaymentTermDays] = useState(String(initial?.paymentTermDays ?? 0));
   const [saving, setSaving] = useState(false);
 
   return (
     <div className="mt-3 grid gap-3">
       <Input label="Limit Kredit" value={creditLimit} onChange={(e) => setCreditLimit(e.target.value)} placeholder="0" />
+      <Input label="Limit Sales Order" value={salesOrderLimit} onChange={(e) => setSalesOrderLimit(e.target.value)} placeholder="0" />
       <Input label="Tempo (hari)" value={paymentTermDays} onChange={(e) => setPaymentTermDays(e.target.value)} placeholder="0" />
       <Button
         variant="secondary"
@@ -320,6 +344,7 @@ function CreditEditor({
               method: "PUT",
               body: JSON.stringify({
                 creditLimit: Number(creditLimit),
+                salesOrderLimit: Number(salesOrderLimit),
                 paymentTermDays: Number(paymentTermDays),
               }),
             });

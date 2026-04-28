@@ -38,7 +38,7 @@ export async function getCustomerCreditProfile(customerId: string) {
   const pool = getPool()
   const res = await pool.query(
     `
-      select credit_limit, payment_term_days
+      select credit_limit, sales_order_limit, payment_term_days
       from customer_credit_profiles
       where customer_id = $1
       limit 1
@@ -46,14 +46,15 @@ export async function getCustomerCreditProfile(customerId: string) {
     [customerId],
   )
   const row = res.rows[0] as
-    | { credit_limit: string | number; payment_term_days: number }
+    | { credit_limit: string | number; sales_order_limit: string | number; payment_term_days: number }
     | undefined
   return row
     ? {
         creditLimit: Number(row.credit_limit),
+        salesOrderLimit: Number(row.sales_order_limit),
         paymentTermDays: Number(row.payment_term_days),
       }
-    : { creditLimit: 0, paymentTermDays: 0 }
+    : { creditLimit: 0, salesOrderLimit: 0, paymentTermDays: 0 }
 }
 
 export async function validateCreditOrThrow(params: {
@@ -65,9 +66,10 @@ export async function validateCreditOrThrow(params: {
   const profile = await getCustomerCreditProfile(params.customerId)
   const ar = await getCustomerOutstanding(params.customerId)
   const projected = ar.outstanding + params.newInvoiceAmount
+  const exceedsSalesOrderLimit = profile.salesOrderLimit > 0 && params.newInvoiceAmount > profile.salesOrderLimit
 
   if (profile.creditLimit <= 0) {
-    return { creditLimit: profile.creditLimit, outstanding: ar.outstanding, projected, exceedsLimit: false }
+    return { creditLimit: profile.creditLimit, salesOrderLimit: profile.salesOrderLimit, outstanding: ar.outstanding, projected, exceedsLimit: false, exceedsSalesOrderLimit }
   }
 
   const exceedsLimit = projected > profile.creditLimit
@@ -81,12 +83,13 @@ export async function validateCreditOrThrow(params: {
       details: {
         reason: 'CREDIT_LIMIT_EXCEEDED',
         creditLimit: profile.creditLimit,
+        salesOrderLimit: profile.salesOrderLimit,
         outstanding: ar.outstanding,
         projected,
       },
     })
   }
 
-  return { creditLimit: profile.creditLimit, outstanding: ar.outstanding, projected, exceedsLimit }
+  return { creditLimit: profile.creditLimit, salesOrderLimit: profile.salesOrderLimit, outstanding: ar.outstanding, projected, exceedsLimit, exceedsSalesOrderLimit }
 }
 

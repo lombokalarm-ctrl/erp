@@ -69,8 +69,10 @@ export async function createSalesOrder(params: {
     isDraft: true, // Bypass throw to allow creating PENDING_APPROVAL
   })
 
-  // Set status: if exceeds limit and user didn't explicitly override (or isn't allowed to), it becomes PENDING_APPROVAL
-  const status = (creditCheck.exceedsLimit && !params.allowOverLimit) ? 'PENDING_APPROVAL' : 'DRAFT'
+  // Set status: if exceeds credit/order limit and no override, requires approval.
+  const requiresApproval =
+    (creditCheck.exceedsLimit || creditCheck.exceedsSalesOrderLimit) && !params.allowOverLimit
+  const status = requiresApproval ? 'PENDING_APPROVAL' : 'DRAFT'
 
   const dateKey = params.orderDate.replace(/-/g, '')
 
@@ -109,9 +111,12 @@ export async function createSalesOrder(params: {
     const salesOrder = soRes.rows[0]
 
     if (status === 'PENDING_APPROVAL') {
+      const reasons: string[] = []
+      if (creditCheck.exceedsLimit) reasons.push(`Limit Kredit: ${creditCheck.creditLimit}, Proyeksi Tagihan: ${creditCheck.projected}`)
+      if (creditCheck.exceedsSalesOrderLimit) reasons.push(`Limit SO per Pelanggan: ${creditCheck.salesOrderLimit}, Total SO: ${totalAmount}`)
       await client.query(
         `insert into sales_order_approvals(sales_order_id, requested_by, status, notes) values ($1, $2, 'PENDING', $3)`,
-        [salesOrder.id, params.createdBy, `Overlimit (Limit: ${creditCheck.creditLimit}, Tagihan: ${creditCheck.projected})`]
+        [salesOrder.id, params.createdBy, `Overlimit (${reasons.join(' | ')})`]
       )
     }
 

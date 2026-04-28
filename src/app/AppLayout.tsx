@@ -22,6 +22,7 @@ import {
   RotateCcw,
   Building,
   ShieldAlert,
+  KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -111,6 +112,7 @@ export default function AppLayout() {
       {
         groupLabel: "Pengaturan",
         items: [
+          { to: "/change-password", label: "Ganti Password", icon: <KeyRound className="h-4 w-4" /> },
           { to: "/company-settings", label: "Profil Perusahaan", icon: <Building className="h-4 w-4" />, anyPerm: ["users:write"] },
           { to: "/users", label: "Pengguna", icon: <Users className="h-4 w-4" />, anyPerm: ["users:read"] },
           { to: "/roles", label: "Role & Akses", icon: <Shield className="h-4 w-4" />, anyPerm: ["users:write"] },

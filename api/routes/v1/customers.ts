@@ -54,6 +54,9 @@ router.post(
         .object({
           code: z.string().min(1),
           name: z.string().min(1),
+          ownerName: z.string().optional(),
+          ktpNo: z.string().optional(),
+          npwpNo: z.string().optional(),
           category: z.string().min(1),
           phone: z.string().optional(),
           address: z.string().optional(),
@@ -70,6 +73,9 @@ router.post(
       const created = await createCustomer({
         code: body.code,
         name: body.name,
+        ownerName: body.ownerName,
+        ktpNo: body.ktpNo,
+        npwpNo: body.npwpNo,
         category: body.category,
         phone: body.phone,
         address: body.address,
@@ -114,6 +120,9 @@ router.patch(
         .object({
           code: z.string().min(1).optional(),
           name: z.string().min(1).optional(),
+          ownerName: z.string().nullable().optional(),
+          ktpNo: z.string().nullable().optional(),
+          npwpNo: z.string().nullable().optional(),
           category: z.string().min(1).optional(),
           phone: z.string().nullable().optional(),
           address: z.string().nullable().optional(),
@@ -166,6 +175,7 @@ router.put(
       const body = z
         .object({
           creditLimit: z.coerce.number().min(0),
+          salesOrderLimit: z.coerce.number().min(0).optional(),
           paymentTermDays: z.coerce.number().int().min(0),
           maxOverdueDaysBeforeBlock: z.coerce.number().int().min(0).nullable().optional(),
         })
@@ -174,6 +184,7 @@ router.put(
       const updated = await upsertCreditProfile({
         customerId: req.params.id,
         creditLimit: body.creditLimit,
+        salesOrderLimit: body.salesOrderLimit ?? 0,
         paymentTermDays: body.paymentTermDays,
         maxOverdueDaysBeforeBlock: body.maxOverdueDaysBeforeBlock ?? null,
       })

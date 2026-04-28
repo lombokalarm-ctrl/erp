@@ -214,3 +214,51 @@ export async function resetUserPassword(userId: string, newPassword: string) {
   return { id: userId }
 }
 
+export async function changeMyPassword(userId: string, currentPassword: string, newPassword: string) {
+  const pool = getPool()
+
+  const currentRes = await pool.query(
+    `
+      select password_hash as "passwordHash"
+      from users
+      where id = $1 and is_active = true
+      limit 1
+    `,
+    [userId],
+  )
+
+  if (!currentRes.rowCount) {
+    throw new ApiError({ code: 'NOT_FOUND', status: 404, message: 'User tidak ditemukan' })
+  }
+
+  const passwordHash = String(currentRes.rows[0].passwordHash)
+  const okCurrent = await bcrypt.compare(currentPassword, passwordHash)
+  if (!okCurrent) {
+    throw new ApiError({
+      code: 'VALIDATION_ERROR',
+      status: 400,
+      message: 'Password lama tidak sesuai',
+    })
+  }
+
+  if (currentPassword === newPassword) {
+    throw new ApiError({
+      code: 'VALIDATION_ERROR',
+      status: 400,
+      message: 'Password baru harus berbeda dari password lama',
+    })
+  }
+
+  const newHash = await bcrypt.hash(newPassword, 12)
+  await pool.query(
+    `
+      update users
+      set password_hash = $2, updated_at = now()
+      where id = $1
+    `,
+    [userId, newHash],
+  )
+
+  return { id: userId }
+}
+
