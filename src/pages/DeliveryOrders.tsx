@@ -208,6 +208,7 @@ export default function DeliveryOrders() {
                 <th className="px-4 py-2">No SO</th>
                 <th className="px-4 py-2">Pelanggan</th>
                 <th className="px-4 py-2">Tanggal SO</th>
+                <th className="px-4 py-2">Status SO</th>
                 <th className="px-4 py-2">Status Kirim</th>
                 <th className="px-4 py-2">Total Harga</th>
                 <th className="px-4 py-2 text-right">Aksi</th>
@@ -219,6 +220,21 @@ export default function DeliveryOrders() {
                   <td className="px-4 py-2 font-medium">{o.orderNo}</td>
                   <td className="px-4 py-2">{o.customerName}</td>
                   <td className="px-4 py-2">{o.orderDate}</td>
+                  <td className="px-4 py-2">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs ${
+                        o.status === "CONFIRMED"
+                          ? "bg-emerald-50 text-emerald-700"
+                          : o.status === "PENDING_APPROVAL"
+                          ? "bg-orange-50 text-orange-700"
+                          : o.status === "CANCELLED"
+                          ? "bg-red-50 text-red-700"
+                          : "bg-zinc-100 text-zinc-700"
+                      }`}
+                    >
+                      {o.status}
+                    </span>
+                  </td>
                   <td className="px-4 py-2">
                     <span className={`rounded-full px-2 py-0.5 text-xs ${o.deliveryStatus === 'DELIVERED' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700'}`}>
                       {o.deliveryStatus}
@@ -245,6 +261,16 @@ export default function DeliveryOrders() {
                           </Button>
                         </>
                       )}
+                      {o.deliveryStatus === 'PENDING' && o.status !== 'CONFIRMED' && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled
+                          title="SO harus CONFIRMED dan invoice harus sudah terbit sebelum bisa dibuat Surat Jalan."
+                        >
+                          Belum Siap
+                        </Button>
+                      )}
                       {o.deliveryStatus === 'DELIVERED' && (
                         <Button size="sm" variant="secondary" onClick={() => handlePrint(o.id)}>
                           Cetak DO
@@ -256,7 +282,7 @@ export default function DeliveryOrders() {
               ))}
               {orders.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-sm text-zinc-500 text-center" colSpan={6}>
+                  <td className="px-4 py-6 text-sm text-zinc-500 text-center" colSpan={7}>
                     Belum ada data.
                   </td>
                 </tr>
