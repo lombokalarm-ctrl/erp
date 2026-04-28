@@ -1,12 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { CloudOff, RefreshCw } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 
 type Customer = { id: string; name: string; code: string; category: string };
-type Product = { id: string; name: string; sku: string; salePrice: string; categoryPrices?: Record<string, number> };
+type Product = {
+  id: string;
+  name: string;
+  sku: string;
+  salePrice: string;
+  categoryPrices?: Record<string, { pcs: number; pack: number; dus: number }>;
+  unitPrices?: { pcs: number; pack: number; dus: number };
+  packSize?: number;
+  dusSize?: number;
+};
 
 type SalesOrderRow = {
   id: string;
@@ -26,13 +36,27 @@ export default function SalesOrders() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<SalesOrderRow[]>([]);
+  const [offlineOrders, setOfflineOrders] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [syncing, setSyncing] = useState(false);
 
   const [customerId, setCustomerId] = useState("");
   const [orderDate, setOrderDate] = useState(today());
   const [items, setItems] = useState<
-    { productId: string; qty: string; unitPrice: string }[]
-  >([{ productId: "", qty: "1", unitPrice: "0" }]);
+    { productId: string; qty: string; uom: "pcs" | "pack" | "dus"; unitPrice: string }[]
+  >([{ productId: "", qty: "1", uom: "pcs", unitPrice: "0" }]);
+
+  function resolveUnitPrice(p: Product | undefined, c: Customer | undefined, uom: "pcs" | "pack" | "dus") {
+    if (!p) return "0";
+    if (c && p.categoryPrices && p.categoryPrices[c.category] && p.categoryPrices[c.category][uom] !== undefined) {
+      const catPrice = p.categoryPrices[c.category][uom];
+      if (catPrice > 0) return String(catPrice);
+    }
+    const up = p.unitPrices?.[uom];
+    if (up !== undefined && up > 0) return String(up);
+    return String(p.salePrice);
+  }
 
   const canSubmit = useMemo(
     () => customerId && items.every((i) => i.productId && Number(i.qty) > 0),
@@ -40,28 +64,141 @@ export default function SalesOrders() {
   );
 
   async function loadInitial() {
-    const [cRes, pRes, soRes] = await Promise.all([
-      apiFetch<{ data: Customer[] }>("/api/v1/customers?page=1&pageSize=100"),
-      apiFetch<{ data: Product[] }>("/api/v1/products?page=1&pageSize=200"),
-      apiFetch<{ data: SalesOrderRow[] }>("/api/v1/sales-orders?page=1&pageSize=50"),
-    ]);
-    setCustomers(cRes.data);
-    setProducts(pRes.data);
-    setOrders(soRes.data);
+    try {
+      const [cRes, pRes, soRes] = await Promise.all([
+        apiFetch<{ data: Customer[] }>("/api/v1/customers?page=1&pageSize=100"),
+        apiFetch<{ data: Product[] }>("/api/v1/products?page=1&pageSize=200"),
+        apiFetch<{ data: SalesOrderRow[] }>("/api/v1/sales-orders?page=1&pageSize=50"),
+      ]);
+      setCustomers(cRes.data);
+      setProducts(pRes.data);
+      setOrders(soRes.data);
+
+      // Save to local storage for offline use
+      localStorage.setItem("offline_customers", JSON.stringify(cRes.data));
+      localStorage.setItem("offline_products", JSON.stringify(pRes.data));
+      setIsOffline(false);
+    } catch (err) {
+      console.warn("Failed to load initial data from network, falling back to local storage", err);
+      setIsOffline(true);
+      const cStr = localStorage.getItem("offline_customers");
+      const pStr = localStorage.getItem("offline_products");
+      if (cStr) setCustomers(JSON.parse(cStr));
+      if (pStr) setProducts(JSON.parse(pStr));
+    }
   }
 
   useEffect(() => {
-    loadInitial().catch(() => {});
+    loadInitial();
+    
+    // Load offline orders from local storage
+    const offline = localStorage.getItem("offline_sales_orders");
+    if (offline) {
+      setOfflineOrders(JSON.parse(offline));
+    }
+
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
+
+  async function handleSubmit() {
+    if (!canSubmit) return;
+    setError(null);
+    
+    const payload = {
+      customerId,
+      orderDate,
+      items: items.map((i) => ({
+        productId: i.productId,
+        qty: Number(i.qty),
+        uom: i.uom,
+        unitPrice: Number(i.unitPrice),
+      })),
+    };
+
+    if (isOffline) {
+      const newOfflineOrders = [...offlineOrders, { ...payload, _id: Date.now().toString() }];
+      setOfflineOrders(newOfflineOrders);
+      localStorage.setItem("offline_sales_orders", JSON.stringify(newOfflineOrders));
+      
+      setCustomerId("");
+      setOrderDate(today());
+      setItems([{ productId: "", qty: "1", uom: "pcs", unitPrice: "0" }]);
+      alert("Order disimpan secara offline. Sinkronisasi saat terhubung ke internet.");
+      return;
+    }
+
+    try {
+      await apiFetch("/api/v1/sales-orders", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      setCustomerId("");
+      setOrderDate(today());
+      setItems([{ productId: "", qty: "1", uom: "pcs", unitPrice: "0" }]);
+      loadInitial();
+    } catch (err: any) {
+      setError(err.message || "Gagal menyimpan order");
+    }
+  }
+
+  async function handleSync() {
+    if (offlineOrders.length === 0) return;
+    setSyncing(true);
+    setError(null);
+    try {
+      for (const order of offlineOrders) {
+        await apiFetch("/api/v1/sales-orders", {
+          method: "POST",
+          body: JSON.stringify({
+            customerId: order.customerId,
+            orderDate: order.orderDate,
+            items: order.items,
+          }),
+        });
+      }
+      setOfflineOrders([]);
+      localStorage.removeItem("offline_sales_orders");
+      alert("Sinkronisasi berhasil!");
+      loadInitial();
+    } catch (err: any) {
+      setError("Gagal melakukan sinkronisasi: " + (err.message || "Unknown error"));
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-lg font-semibold">Sales Order</h1>
-        <p className="mt-1 text-sm text-zinc-600">
-          Membuat order penjualan (belum memotong stok). Stok akan dipotong saat Surat Jalan dibuat.
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">Sales Order</h1>
+          <p className="mt-1 text-sm text-zinc-600">
+            Membuat order penjualan (belum memotong stok). Stok akan dipotong saat Surat Jalan dibuat.
+          </p>
+        </div>
+        {offlineOrders.length > 0 && (
+          <Button variant="secondary" onClick={handleSync} disabled={syncing || isOffline} className="flex items-center gap-2">
+            <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Menyinkronkan...' : `Sync ${offlineOrders.length} Offline Orders`}
+          </Button>
+        )}
       </div>
+
+      {isOffline && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <CloudOff className="h-4 w-4" />
+          <span>Anda sedang offline. Data master menggunakan versi tersimpan. Order akan disimpan di perangkat.</span>
+        </div>
+      )}
 
       {error ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
@@ -84,11 +221,7 @@ export default function SalesOrders() {
                     setItems(prev => prev.map(it => {
                       const p = products.find(x => x.id === it.productId);
                       if (p) {
-                        let newPrice = p.salePrice;
-                        if (p.categoryPrices && p.categoryPrices[c.category] !== undefined) {
-                          newPrice = String(p.categoryPrices[c.category]);
-                        }
-                        return { ...it, unitPrice: newPrice };
+                        return { ...it, unitPrice: resolveUnitPrice(p, c, it.uom) };
                       }
                       return it;
                     }));
@@ -120,10 +253,7 @@ export default function SalesOrders() {
                         const pid = e.target.value;
                         const p = products.find((x) => x.id === pid);
                         const c = customers.find((x) => x.id === customerId);
-                        let newPrice = p?.salePrice;
-                        if (p && c && p.categoryPrices && p.categoryPrices[c.category] !== undefined) {
-                          newPrice = String(p.categoryPrices[c.category]);
-                        }
+                        const newPrice = resolveUnitPrice(p, c, it.uom);
 
                         setItems((prev) =>
                           prev.map((x, i) =>
@@ -151,18 +281,40 @@ export default function SalesOrders() {
                           )
                         }
                       />
-                      <Input
-                        label="Harga"
-                        value={it.unitPrice}
-                        onChange={(e) =>
-                          setItems((prev) =>
-                            prev.map((x, i) =>
-                              i === idx ? { ...x, unitPrice: e.target.value } : x,
-                            ),
-                          )
-                        }
-                      />
+                      <label className="block">
+                        <div className="mb-1 text-xs font-medium text-zinc-600">Satuan</div>
+                        <select
+                          className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                          value={it.uom}
+                          onChange={(e) => {
+                            const nextUom = e.target.value as "pcs" | "pack" | "dus";
+                            const p = products.find((x) => x.id === it.productId);
+                            const c = customers.find((x) => x.id === customerId);
+                            const nextPrice = resolveUnitPrice(p, c, nextUom);
+                            setItems((prev) =>
+                              prev.map((x, i) =>
+                                i === idx ? { ...x, uom: nextUom, unitPrice: nextPrice } : x,
+                              ),
+                            );
+                          }}
+                        >
+                          <option value="pcs">pcs</option>
+                          <option value="pack">pack</option>
+                          <option value="dus">dus</option>
+                        </select>
+                      </label>
                     </div>
+                    <Input
+                      label="Harga"
+                      value={it.unitPrice}
+                      onChange={(e) =>
+                        setItems((prev) =>
+                          prev.map((x, i) =>
+                            i === idx ? { ...x, unitPrice: e.target.value } : x,
+                          ),
+                        )
+                      }
+                    />
                     <div className="flex justify-between">
                       <Button
                         variant="ghost"
@@ -182,7 +334,7 @@ export default function SalesOrders() {
                           variant="secondary"
                           size="sm"
                           type="button"
-                          onClick={() => setItems((prev) => [...prev, { productId: "", qty: "1", unitPrice: "0" }])}
+                          onClick={() => setItems((prev) => [...prev, { productId: "", qty: "1", uom: "pcs", unitPrice: "0" }])}
                         >
                           Tambah Item
                         </Button>
@@ -204,12 +356,13 @@ export default function SalesOrders() {
                     items: items.map((i) => ({
                       productId: i.productId,
                       qty: Number(i.qty),
+                      uom: i.uom,
                       unitPrice: Number(i.unitPrice),
                     })),
                   };
                   await apiFetch("/api/v1/sales-orders", { method: "POST", body: JSON.stringify(payload) });
                   setCustomerId("");
-                  setItems([{ productId: "", qty: "1", unitPrice: "0" }]);
+                  setItems([{ productId: "", qty: "1", uom: "pcs", unitPrice: "0" }]);
                   const soRes = await apiFetch<{ data: SalesOrderRow[] }>("/api/v1/sales-orders?page=1&pageSize=50");
                   setOrders(soRes.data);
                 } catch (e) {

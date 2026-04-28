@@ -21,6 +21,7 @@ import promoRoutes from './promos.js'
 import dashboardRoutes from './dashboard.js'
 import returnRoutes from './returns.js'
 import settingRoutes from './settings.js'
+import regions from './regions.js'
 
 const router = Router()
 
@@ -46,6 +47,7 @@ router.use('/promos', promoRoutes)
 router.use('/dashboard', dashboardRoutes)
 router.use('/returns', returnRoutes)
 router.use('/settings', settingRoutes)
+router.use('/regions', regions)
 
 router.get('/health', (req: Request, res: Response) => {
   res.status(200).json({ data: { ok: true } })

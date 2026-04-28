@@ -8,7 +8,11 @@ export type Product = {
   unit: string
   purchasePrice: string
   salePrice: string
-  categoryPrices?: Record<string, number>
+  categoryPrices?: Record<string, { pcs: number; pack: number; dus: number }>
+  unitPrices?: Record<string, number>
+  packSize: number
+  dusSize: number
+  packPerDus: number
 }
 
 export async function listProducts(params: {
@@ -47,7 +51,11 @@ export async function listProducts(params: {
         unit,
         purchase_price::text as "purchasePrice",
         sale_price::text as "salePrice",
-        category_prices as "categoryPrices"
+        category_prices as "categoryPrices",
+        unit_prices as "unitPrices",
+        pack_size as "packSize",
+        dus_size as "dusSize",
+        pack_per_dus as "packPerDus"
       from products
       ${whereSql}
       order by created_at desc
@@ -73,7 +81,11 @@ export async function getProductById(id: string) {
         unit,
         purchase_price::text as "purchasePrice",
         sale_price::text as "salePrice",
-        category_prices as "categoryPrices"
+        category_prices as "categoryPrices",
+        unit_prices as "unitPrices",
+        pack_size as "packSize",
+        dus_size as "dusSize",
+        pack_per_dus as "packPerDus"
       from products
       where id = $1
       limit 1
@@ -93,13 +105,20 @@ export async function createProduct(input: {
   unit: string
   purchasePrice: number
   salePrice: number
-  categoryPrices?: Record<string, number>
+  categoryPrices?: Record<string, { pcs: number; pack: number; dus: number }>
+  unitPrices?: Record<string, number>
+  packSize?: number
+  packPerDus?: number
+  dusSize?: number
 }) {
   const pool = getPool()
+  const packSize = input.packSize ?? 1
+  const packPerDus = input.packPerDus ?? 1
+  const dusSize = input.dusSize ?? packSize * packPerDus
   const res = await pool.query(
     `
-      insert into products(sku, name, unit, purchase_price, sale_price, category_prices)
-      values ($1, $2, $3, $4, $5, $6)
+      insert into products(sku, name, unit, purchase_price, sale_price, category_prices, unit_prices, pack_size, pack_per_dus, dus_size)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       returning
         id,
         sku,
@@ -107,9 +126,24 @@ export async function createProduct(input: {
         unit,
         purchase_price::text as "purchasePrice",
         sale_price::text as "salePrice",
-        category_prices as "categoryPrices"
+        category_prices as "categoryPrices",
+        unit_prices as "unitPrices",
+        pack_size as "packSize",
+        dus_size as "dusSize",
+        pack_per_dus as "packPerDus"
     `,
-    [input.sku, input.name, input.unit, input.purchasePrice, input.salePrice, JSON.stringify(input.categoryPrices || {})],
+    [
+      input.sku,
+      input.name,
+      input.unit,
+      input.purchasePrice,
+      input.salePrice,
+      JSON.stringify(input.categoryPrices || {}),
+      JSON.stringify(input.unitPrices || { pcs: input.salePrice, pack: 0, dus: 0 }),
+      packSize,
+      packPerDus,
+      dusSize,
+    ],
   )
   return res.rows[0] as Product
 }
@@ -137,11 +171,21 @@ export async function updateProduct(
     unit: string
     purchasePrice: number
     salePrice: number
-    categoryPrices: Record<string, number>
+    categoryPrices: Record<string, { pcs: number; pack: number; dus: number }>
+    unitPrices: Record<string, number>
+    packSize: number
+    packPerDus: number
+    dusSize: number
   }>,
 ) {
   const pool = getPool()
   const current = await getProductById(id)
+  const nextUnitPrices = input.unitPrices
+    ? { ...(current.unitPrices || {}), ...input.unitPrices }
+    : current.unitPrices || {}
+  const nextPackSize = input.packSize ?? current.packSize ?? 1
+  const nextPackPerDus = input.packPerDus ?? current.packPerDus ?? 1
+  const nextDusSize = input.dusSize ?? nextPackSize * nextPackPerDus
 
   const res = await pool.query(
     `
@@ -152,6 +196,10 @@ export async function updateProduct(
           purchase_price = $5,
           sale_price = $6,
           category_prices = $7,
+          unit_prices = $8,
+          pack_size = $9,
+          pack_per_dus = $10,
+          dus_size = $11,
           updated_at = now()
       where id = $1
       returning
@@ -161,7 +209,11 @@ export async function updateProduct(
         unit,
         purchase_price::text as "purchasePrice",
         sale_price::text as "salePrice",
-        category_prices as "categoryPrices"
+        category_prices as "categoryPrices",
+        unit_prices as "unitPrices",
+        pack_size as "packSize",
+        dus_size as "dusSize",
+        pack_per_dus as "packPerDus"
     `,
     [
       id,
@@ -171,6 +223,10 @@ export async function updateProduct(
       input.purchasePrice ?? Number(current.purchasePrice),
       input.salePrice ?? Number(current.salePrice),
       input.categoryPrices ? JSON.stringify(input.categoryPrices) : JSON.stringify(current.categoryPrices || {}),
+      JSON.stringify(nextUnitPrices),
+      nextPackSize,
+      nextPackPerDus,
+      nextDusSize,
     ],
   )
 

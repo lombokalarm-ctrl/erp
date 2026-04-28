@@ -38,6 +38,7 @@ type NavItem = {
 
 type NavGroup = {
   groupLabel: string;
+  anyPerm?: string[];
   items: NavItem[];
 };
 
@@ -65,8 +66,10 @@ export default function AppLayout() {
       },
       {
         groupLabel: "Master Data",
+        anyPerm: ["master_data:read"],
         items: [
           { to: "/customers", label: "Pelanggan", icon: <Users className="h-4 w-4" />, anyPerm: ["customers:read"] },
+          { to: "/regions", label: "Wilayah", icon: <Building className="h-4 w-4" />, anyPerm: ["customers:read"] },
           { to: "/products", label: "Produk", icon: <Package className="h-4 w-4" />, anyPerm: ["products:read"] },
           { to: "/promos", label: "Promo & Diskon", icon: <Tag className="h-4 w-4" />, anyPerm: ["products:read", "sales_orders:write"] },
           { to: "/suppliers", label: "Supplier", icon: <Truck className="h-4 w-4" />, anyPerm: ["suppliers:read"] },
@@ -124,10 +127,14 @@ export default function AppLayout() {
   );
 
   const visibleGroups = useMemo(() => {
-    return groups.map(g => ({
-      groupLabel: g.groupLabel,
-      items: g.items.filter(i => !i.anyPerm || hasAnyPermission(i.anyPerm))
-    })).filter(g => g.items.length > 0);
+    return groups
+      .filter(g => !g.anyPerm || hasAnyPermission(g.anyPerm))
+      .map(g => ({
+        groupLabel: g.groupLabel,
+        anyPerm: g.anyPerm,
+        items: g.items.filter(i => !i.anyPerm || hasAnyPermission(i.anyPerm))
+      }))
+      .filter(g => g.items.length > 0);
   }, [groups, hasAnyPermission]);
 
   return (

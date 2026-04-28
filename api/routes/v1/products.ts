@@ -48,7 +48,21 @@ router.post(
           unit: z.string().min(1).default('pcs'),
           purchasePrice: z.coerce.number().min(0),
           salePrice: z.coerce.number().min(0),
-          categoryPrices: z.record(z.coerce.number().min(0)).optional(),
+          categoryPrices: z.record(z.object({
+            pcs: z.coerce.number().min(0).default(0),
+            pack: z.coerce.number().min(0).default(0),
+            dus: z.coerce.number().min(0).default(0)
+          })).optional(),
+          unitPrices: z
+            .object({
+              pcs: z.coerce.number().min(0).default(0),
+              pack: z.coerce.number().min(0).default(0),
+              dus: z.coerce.number().min(0).default(0),
+            })
+            .optional(),
+          packSize: z.coerce.number().int().min(1).default(1).optional(),
+          packPerDus: z.coerce.number().int().min(1).default(1).optional(),
+          dusSize: z.coerce.number().int().min(1).optional(),
         })
         .parse(req.body)
 
@@ -59,7 +73,11 @@ router.post(
         purchasePrice: body.purchasePrice,
         salePrice: body.salePrice,
         categoryPrices: body.categoryPrices,
-      })
+        unitPrices: body.unitPrices ?? { pcs: body.salePrice, pack: 0, dus: 0 },
+        packSize: body.packSize ?? 1,
+        packPerDus: body.packPerDus ?? 1,
+        dusSize: body.dusSize,
+      } as any)
       await writeAuditLog({
         actorUserId: req.user!.userId,
         action: 'PRODUCT_CREATE',
@@ -101,11 +119,25 @@ router.patch(
           unit: z.string().min(1).optional(),
           purchasePrice: z.coerce.number().min(0).optional(),
           salePrice: z.coerce.number().min(0).optional(),
-          categoryPrices: z.record(z.coerce.number().min(0)).optional(),
+          categoryPrices: z.record(z.object({
+            pcs: z.coerce.number().min(0).default(0),
+            pack: z.coerce.number().min(0).default(0),
+            dus: z.coerce.number().min(0).default(0)
+          })).optional(),
+          unitPrices: z
+            .object({
+              pcs: z.coerce.number().min(0).optional(),
+              pack: z.coerce.number().min(0).optional(),
+              dus: z.coerce.number().min(0).optional(),
+            })
+            .optional(),
+          packSize: z.coerce.number().int().min(1).optional(),
+          packPerDus: z.coerce.number().int().min(1).optional(),
+          dusSize: z.coerce.number().int().min(1).optional(),
         })
         .parse(req.body)
 
-      const updated = await updateProduct(req.params.id, body)
+      const updated = await updateProduct(req.params.id, body as any)
       await writeAuditLog({
         actorUserId: req.user!.userId,
         action: 'PRODUCT_UPDATE',

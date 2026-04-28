@@ -44,6 +44,7 @@ router.post(
               z.object({
                 productId: z.string().uuid(),
                 qty: z.coerce.number().positive(),
+                uom: z.enum(['pcs', 'pack', 'dus']),
                 unitPrice: z.coerce.number().min(0),
               }),
             )
@@ -59,6 +60,7 @@ router.post(
         items: body.items.map((i) => ({
           productId: i.productId,
           qty: i.qty,
+          uom: i.uom,
           unitPrice: i.unitPrice,
         })),
       })

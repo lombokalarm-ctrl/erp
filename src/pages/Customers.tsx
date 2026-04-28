@@ -14,10 +14,17 @@ type Customer = {
   npwpNo?: string | null;
   category: string;
   phone: string | null;
+  email: string | null;
   address: string | null;
-  status: string;
-  salesId?: string | null;
-  salesName?: string | null;
+  regionId: string | null;
+  status: "ACTIVE" | "BLOCKED";
+  salesId: string | null;
+  salesName: string | null;
+};
+
+type Region = {
+  id: string;
+  name: string;
 };
 
 type CreditProfile = {
@@ -44,6 +51,11 @@ export default function Customers() {
   const [status, setStatus] = useState("ACTIVE");
   const [salesId, setSalesId] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [address, setAddress] = useState("");
+  const [regionId, setRegionId] = useState("");
+  const [regions, setRegions] = useState<Region[]>([]);
 
   const [salesList, setSalesList] = useState<{id: string, fullName: string}[]>([]);
   const authUser = useAuthStore(s => s.user);
@@ -61,6 +73,10 @@ export default function Customers() {
     setCategory(c.category);
     setStatus(c.status);
     setSalesId(c.salesId || "");
+    setPhone(c.phone || "");
+    setEmail(c.email || "");
+    setAddress(c.address || "");
+    setRegionId(c.regionId || "");
     setSelected(c);
     loadCredit(c.id).catch(() => setCredit(null));
   }
@@ -75,6 +91,10 @@ export default function Customers() {
     setCategory("RETAIL");
     setStatus("ACTIVE");
     setSalesId("");
+    setPhone("");
+    setEmail("");
+    setAddress("");
+    setRegionId("");
     setSelected(null);
     setCredit(null);
     setError(null);
@@ -114,7 +134,17 @@ export default function Customers() {
   useEffect(() => {
     load();
     loadSales();
+    loadRegions();
   }, []);
+
+  async function loadRegions() {
+    try {
+      const res = await apiFetch<{ data: Region[] }>("/api/v1/regions");
+      setRegions(res.data);
+    } catch (err: any) {
+      console.error(err);
+    }
+  }
 
   async function loadCredit(id: string) {
     const res = await apiFetch<{ data: CreditProfile | null }>(`/api/v1/customers/${id}/credit-profile`);
@@ -155,46 +185,59 @@ export default function Customers() {
                   <th className="px-4 py-2">No KTP</th>
                   <th className="px-4 py-2">No NPWP</th>
                   <th className="px-4 py-2">Kategori</th>
+                  <th className="px-4 py-2">Kontak</th>
+                  <th className="px-4 py-2">Wilayah & Alamat</th>
                   <th className="px-4 py-2">Sales</th>
                   <th className="px-4 py-2">Status</th>
                   <th className="px-4 py-2 text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((c) => (
-                  <tr
-                    key={c.id}
-                    className={`cursor-pointer border-b border-zinc-100 hover:bg-zinc-50 ${selected?.id === c.id ? "bg-zinc-50" : ""}`}
-                    onClick={() => {
-                      if (editingId && editingId !== c.id) return;
-                      setSelected(c);
-                      loadCredit(c.id).catch(() => setCredit(null));
-                    }}
-                  >
-                    <td className="px-4 py-2 font-medium">{c.code}</td>
-                    <td className="px-4 py-2">{c.name}</td>
-                    <td className="px-4 py-2">{c.ownerName || "-"}</td>
-                    <td className="px-4 py-2">{c.ktpNo || "-"}</td>
-                    <td className="px-4 py-2">{c.npwpNo || "-"}</td>
-                    <td className="px-4 py-2">{c.category}</td>
-                    <td className="px-4 py-2 text-zinc-600">{c.salesName || "-"}</td>
-                    <td className="px-4 py-2">
-                      <span className={`rounded-full px-2 py-0.5 text-xs ${c.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-zinc-200 text-zinc-700"}`}>
-                        {c.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button onClick={(e) => { e.stopPropagation(); handleEdit(c); }} className="text-blue-600 hover:text-blue-800 font-medium">Edit</button>
-                        <button onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }} className="text-red-600 hover:text-red-800 font-medium">Hapus</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {items.map((c) => {
+                  const regionName = regions.find(r => r.id === c.regionId)?.name || "-";
+                  return (
+                    <tr
+                      key={c.id}
+                      className={`cursor-pointer border-b border-zinc-100 hover:bg-zinc-50 ${selected?.id === c.id ? "bg-zinc-50" : ""}`}
+                      onClick={() => {
+                        if (editingId && editingId !== c.id) return;
+                        setSelected(c);
+                        loadCredit(c.id).catch(() => setCredit(null));
+                      }}
+                    >
+                      <td className="px-4 py-2 font-medium">{c.code}</td>
+                      <td className="px-4 py-2">{c.name}</td>
+                      <td className="px-4 py-2">{c.ownerName || "-"}</td>
+                      <td className="px-4 py-2">{c.ktpNo || "-"}</td>
+                      <td className="px-4 py-2">{c.npwpNo || "-"}</td>
+                      <td className="px-4 py-2">{c.category}</td>
+                      <td className="px-4 py-2">
+                        <div className="text-xs">{c.phone || "-"}</div>
+                        <div className="text-xs text-zinc-500">{c.email || "-"}</div>
+                      </td>
+                      <td className="px-4 py-2">
+                        <div className="text-xs font-medium">{regionName}</div>
+                        <div className="text-xs text-zinc-500 truncate max-w-[150px]" title={c.address || ""}>{c.address || "-"}</div>
+                      </td>
+                      <td className="px-4 py-2 text-zinc-600">{c.salesName || "-"}</td>
+                      <td className="px-4 py-2">
+                        <span className={`rounded-full px-2 py-0.5 text-xs ${c.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-zinc-200 text-zinc-700"}`}>
+                          {c.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={(e) => { e.stopPropagation(); handleEdit(c); }} className="text-blue-600 hover:text-blue-800 font-medium">Edit</button>
+                          <button onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }} className="text-red-600 hover:text-red-800 font-medium">Hapus</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {items.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={9}>
-                      Belum ada data.
+                    <td className="px-4 py-6 text-center text-sm text-zinc-500" colSpan={11}>
+                      Belum ada pelanggan.
                     </td>
                   </tr>
                 ) : null}
@@ -225,6 +268,29 @@ export default function Customers() {
                 <option value="HOREKA">Hotel, Restoran & Kafe (Horeka)</option>
                 <option value="NASIONAL MODERN RETAIL">Nasional Modern Retail</option>
               </select>
+            </label>
+            <Input label="No Telepon" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <Input label="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <label className="block">
+              <div className="mb-1 text-xs font-medium text-zinc-600">Wilayah</div>
+              <select
+                className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                value={regionId}
+                onChange={(e) => setRegionId(e.target.value)}
+              >
+                <option value="">-- Pilih Wilayah --</option>
+                {regions.map(r => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <div className="mb-1 text-xs font-medium text-zinc-600">Alamat Lengkap</div>
+              <textarea
+                className="w-full rounded-lg border border-zinc-200 bg-white p-3 text-sm min-h-[80px]"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+              />
             </label>
             {!isSalesRole && (
               <label className="block">
@@ -263,8 +329,22 @@ export default function Customers() {
                   onClick={async () => {
                     setError(null);
                     try {
-                      const payload: any = { code, name, ownerName: ownerName || null, ktpNo: ktpNo || null, npwpNo: npwpNo || null, category, status };
-                      if (!isSalesRole) payload.salesId = salesId || null;
+                      const payload: any = {
+                        code,
+                        name,
+                        ownerName: ownerName || undefined,
+                        ktpNo: ktpNo || undefined,
+                        npwpNo: npwpNo || undefined,
+                        category,
+                        phone: phone || undefined,
+                        email: email || undefined,
+                        address: address || undefined,
+                        regionId: regionId || undefined,
+                        status,
+                      };
+                      if (!isSalesRole) {
+                        payload.salesId = salesId || null;
+                      }
 
                       if (editingId) {
                         await apiFetch(`/api/v1/customers/${editingId}`, {

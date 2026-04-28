@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { Camera } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { apiFetch, ApiError } from "@/api/client";
+import { BarcodeScanner } from "@/components/ui/BarcodeScanner";
 
 type SalesOrderRow = {
   id: string;
@@ -23,6 +25,8 @@ export default function DeliveryOrders() {
   const [error, setError] = useState<string | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [deliveryDate, setDeliveryDate] = useState(today());
+  const [showScanner, setShowScanner] = useState(false);
+  const [targetSoId, setTargetSoId] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -160,8 +164,24 @@ export default function DeliveryOrders() {
     }
   }
 
+  function handleScan(decodedText: string) {
+    if (!targetSoId) return;
+    setShowScanner(false);
+    setTargetSoId(null);
+    alert(`SKU ${decodedText} berhasil di-scan untuk Surat Jalan. (Fungsi ini dapat dikembangkan untuk validasi DO parsial).`);
+  }
+
   return (
     <div className="space-y-4">
+      {showScanner && (
+        <BarcodeScanner
+          onScan={handleScan}
+          onClose={() => {
+            setShowScanner(false);
+            setTargetSoId(null);
+          }}
+        />
+      )}
       <div>
         <h1 className="text-lg font-semibold">Surat Jalan (Pengiriman)</h1>
         <p className="mt-1 text-sm text-zinc-600">
@@ -207,10 +227,23 @@ export default function DeliveryOrders() {
                   <td className="px-4 py-2">{o.totalAmount}</td>
                   <td className="px-4 py-2 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      {o.deliveryStatus === 'PENDING' && (
-                        <Button size="sm" disabled={loadingId === o.id} onClick={() => handleDeliver(o.id)}>
-                          {loadingId === o.id ? 'Memproses...' : 'Buat Surat Jalan'}
-                        </Button>
+                      {o.deliveryStatus === 'PENDING' && o.status !== 'CANCELLED' && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Scan Barcode / QR Barang"
+                            onClick={() => {
+                              setTargetSoId(o.id);
+                              setShowScanner(true);
+                            }}
+                          >
+                            <Camera className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" disabled={loadingId === o.id} onClick={() => handleDeliver(o.id)}>
+                            {loadingId === o.id ? 'Memproses...' : 'Buat Surat Jalan'}
+                          </Button>
+                        </>
                       )}
                       {o.deliveryStatus === 'DELIVERED' && (
                         <Button size="sm" variant="secondary" onClick={() => handlePrint(o.id)}>

@@ -12,6 +12,7 @@ const ROLE_SALES = 'Sales'
 const ROLE_GUDANG = 'Gudang'
 
 const permissions = [
+  { code: 'master_data:read', description: 'Akses Menu Master Data' },
   { code: 'users:read', description: 'Read users' },
   { code: 'users:write', description: 'Write users' },
   { code: 'suppliers:read', description: 'Read suppliers' },
@@ -39,6 +40,7 @@ const permissions = [
 const rolePermissionMap: Record<string, string[]> = {
   [ROLE_ADMIN]: permissions.map((p) => p.code),
   [ROLE_MANAGER]: [
+    'master_data:read',
     'customers:read',
     'customers:write',
     'products:read',
@@ -61,6 +63,7 @@ const rolePermissionMap: Record<string, string[]> = {
     'scoring:write',
   ],
   [ROLE_SALES]: [
+    'master_data:read',
     'customers:read',
     'products:read',
     'sales_orders:read',
@@ -68,6 +71,7 @@ const rolePermissionMap: Record<string, string[]> = {
     'invoices:read',
   ],
   [ROLE_GUDANG]: [
+    'master_data:read',
     'products:read',
     'inventory:read',
     'inventory:write',
@@ -132,8 +136,8 @@ async function main() {
       }
     }
 
-    const adminEmail = getEnv('SEED_ADMIN_EMAIL', 'admin@local.test')
-    const adminPassword = getEnv('SEED_ADMIN_PASSWORD', 'admin123')
+    const adminEmail = getEnv('SEED_ADMIN_EMAIL', 'admin@apli.my.id')
+    const adminPassword = getEnv('SEED_ADMIN_PASSWORD', 'adminapli')
     const hash = await bcrypt.hash(adminPassword, 12)
 
     await client.query(

@@ -15,8 +15,8 @@ function today() {
 export default function PurchaseOrders() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [items, setItems] = useState<{ productId: string; qty: string; unitPrice: string }[]>([
-    { productId: "", qty: "1", unitPrice: "0" },
+  const [items, setItems] = useState<{ productId: string; qty: string; uom: "pcs" | "pack" | "dus"; unitPrice: string }[]>([
+    { productId: "", qty: "1", uom: "pcs", unitPrice: "0" },
   ]);
   const [supplierId, setSupplierId] = useState("");
   const [orderDate, setOrderDate] = useState(today());
@@ -103,9 +103,21 @@ export default function PurchaseOrders() {
                       ))}
                     </select>
                     <div className="grid grid-cols-2 gap-2">
-                      <Input label="Qty" value={it.qty} onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, qty: e.target.value } : x)))} />
-                      <Input label="Harga" value={it.unitPrice} onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, unitPrice: e.target.value } : x)))} />
+                      <Input type="number" min="1" label="Qty" value={it.qty} onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, qty: e.target.value } : x)))} />
+                      <label className="block">
+                        <div className="mb-1 text-xs font-medium text-zinc-600">Satuan</div>
+                        <select
+                          className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                          value={it.uom}
+                          onChange={(e) => setItems((prev) => prev.map((x, i) => i === idx ? { ...x, uom: e.target.value as "pcs" | "pack" | "dus" } : x))}
+                        >
+                          <option value="pcs">pcs</option>
+                          <option value="pack">pack</option>
+                          <option value="dus">dus</option>
+                        </select>
+                      </label>
                     </div>
+                    <Input type="number" min="0" label="Harga" value={it.unitPrice} onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, unitPrice: e.target.value } : x)))} />
                     <div className="flex justify-between">
                       <Button
                         variant="ghost"
@@ -121,7 +133,7 @@ export default function PurchaseOrders() {
                           variant="secondary"
                           size="sm"
                           type="button"
-                          onClick={() => setItems((prev) => [...prev, { productId: "", qty: "1", unitPrice: "0" }])}
+                          onClick={() => setItems((prev) => [...prev, { productId: "", qty: "1", uom: "pcs", unitPrice: "0" }])}
                         >
                           Tambah Item
                         </Button>
@@ -142,10 +154,10 @@ export default function PurchaseOrders() {
                     body: JSON.stringify({
                       supplierId,
                       orderDate,
-                      items: items.map((i) => ({ productId: i.productId, qty: Number(i.qty), unitPrice: Number(i.unitPrice) })),
+                      items: items.map((i) => ({ productId: i.productId, qty: Number(i.qty), uom: i.uom, unitPrice: Number(i.unitPrice) })),
                     }),
                   });
-                  setItems([{ productId: "", qty: "1", unitPrice: "0" }]);
+                  setItems([{ productId: "", qty: "1", uom: "pcs", unitPrice: "0" }]);
                   const poRes = await apiFetch<{ data: PoRow[] }>("/api/v1/purchase-orders?page=1&pageSize=50");
                   setRows(poRes.data);
                 } catch (e) {

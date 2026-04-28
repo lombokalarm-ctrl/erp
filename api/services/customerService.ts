@@ -10,7 +10,9 @@ export type Customer = {
   npwpNo?: string | null
   category: string
   phone: string | null
+  email: string | null
   address: string | null
+  regionId: string | null
   status: string
   salesId?: string | null
   salesName?: string | null
@@ -52,7 +54,13 @@ export async function listCustomers(params: {
   const listRes = await pool.query(
     `
       select 
-        c.id, c.code, c.name, c.owner_name as "ownerName", c.ktp_no as "ktpNo", c.npwp_no as "npwpNo", c.category, c.phone, c.address, c.status,
+        c.id, c.code, c.name,
+        c.owner_name as "ownerName",
+        c.ktp_no as "ktpNo",
+        c.npwp_no as "npwpNo",
+        c.category, c.phone, c.email, c.address,
+        c.region_id as "regionId",
+        c.status,
         c.sales_id as "salesId",
         u.full_name as "salesName"
       from customers c
@@ -75,7 +83,13 @@ export async function getCustomerById(id: string) {
   const res = await pool.query(
     `
       select 
-        c.id, c.code, c.name, c.owner_name as "ownerName", c.ktp_no as "ktpNo", c.npwp_no as "npwpNo", c.category, c.phone, c.address, c.status,
+        c.id, c.code, c.name,
+        c.owner_name as "ownerName",
+        c.ktp_no as "ktpNo",
+        c.npwp_no as "npwpNo",
+        c.category, c.phone, c.email, c.address,
+        c.region_id as "regionId",
+        c.status,
         c.sales_id as "salesId",
         u.full_name as "salesName"
       from customers c
@@ -100,16 +114,28 @@ export async function createCustomer(input: {
   npwpNo?: string | null
   category: string
   phone?: string | null
+  email?: string | null
   address?: string | null
+  regionId?: string | null
   status?: string
   salesId?: string | null
 }) {
   const pool = getPool()
   const res = await pool.query(
     `
-      insert into customers(code, name, owner_name, ktp_no, npwp_no, category, phone, address, status, sales_id)
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      returning id, code, name, owner_name as "ownerName", ktp_no as "ktpNo", npwp_no as "npwpNo", category, phone, address, status, sales_id as "salesId"
+      insert into customers(
+        code, name, owner_name, ktp_no, npwp_no,
+        category, phone, email, address, region_id, status, sales_id
+      )
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      returning
+        id, code, name,
+        owner_name as "ownerName",
+        ktp_no as "ktpNo",
+        npwp_no as "npwpNo",
+        category, phone, email, address,
+        region_id as "regionId",
+        status, sales_id as "salesId"
     `,
     [
       input.code,
@@ -119,7 +145,9 @@ export async function createCustomer(input: {
       input.npwpNo ?? null,
       input.category,
       input.phone ?? null,
+      input.email ?? null,
       input.address ?? null,
+      input.regionId ?? null,
       input.status ?? 'ACTIVE',
       input.salesId ?? null,
     ],
@@ -144,44 +172,50 @@ export async function deleteCustomer(id: string) {
 
 export async function updateCustomer(
   id: string,
-  input: Partial<Omit<Customer, 'id' | 'salesName'>>,
+  input: Partial<{
+    code: string
+    name: string
+    ownerName: string | null
+    ktpNo: string | null
+    npwpNo: string | null
+    category: string
+    phone: string | null
+    email: string | null
+    address: string | null
+    regionId: string | null
+    status: 'ACTIVE' | 'BLOCKED'
+    salesId: string | null
+  }>,
 ) {
   const pool = getPool()
-
-  const current = await getCustomerById(id)
-
-  const next = {
-    code: input.code ?? current.code,
-    name: input.name ?? current.name,
-    ownerName: input.ownerName !== undefined ? input.ownerName : current.ownerName,
-    ktpNo: input.ktpNo !== undefined ? input.ktpNo : current.ktpNo,
-    npwpNo: input.npwpNo !== undefined ? input.npwpNo : current.npwpNo,
-    category: input.category ?? current.category,
-    phone: input.phone ?? current.phone,
-    address: input.address ?? current.address,
-    status: input.status ?? current.status,
-    salesId: input.salesId !== undefined ? input.salesId : current.salesId,
+  const sets = []
+  const values = []
+  let i = 1
+  for (const [k, v] of Object.entries(input)) {
+    if (k === 'salesId') {
+      sets.push(`sales_id = $${i++}`)
+      values.push(v)
+    } else if (k === 'regionId') {
+      sets.push(`region_id = $${i++}`)
+      values.push(v)
+    } else if (k === 'ownerName') {
+      sets.push(`owner_name = $${i++}`)
+      values.push(v)
+    } else if (k === 'ktpNo') {
+      sets.push(`ktp_no = $${i++}`)
+      values.push(v)
+    } else if (k === 'npwpNo') {
+      sets.push(`npwp_no = $${i++}`)
+      values.push(v)
+    } else {
+      sets.push(`${k} = $${i++}`)
+      values.push(v)
+    }
   }
+  if (sets.length === 0) return await getCustomerById(id)
 
-  const res = await pool.query(
-    `
-      update customers
-      set code = $2,
-          name = $3,
-          owner_name = $4,
-          ktp_no = $5,
-          npwp_no = $6,
-          category = $7,
-          phone = $8,
-          address = $9,
-          status = $10,
-          sales_id = $11,
-          updated_at = now()
-      where id = $1
-      returning id, code, name, owner_name as "ownerName", ktp_no as "ktpNo", npwp_no as "npwpNo", category, phone, address, status, sales_id as "salesId"
-    `,
-    [id, next.code, next.name, next.ownerName, next.ktpNo, next.npwpNo, next.category, next.phone, next.address, next.status, next.salesId],
-  )
-
-  return res.rows[0] as Customer
+  sets.push(`updated_at = now()`)
+  values.push(id)
+  await pool.query(`update customers set ${sets.join(', ')} where id = $${i}`, values)
+  return await getCustomerById(id)
 }

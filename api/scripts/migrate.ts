@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import dotenv from 'dotenv'
-import { getPool, getRawDb } from '../db/pool.js'
+import { getPool } from '../db/pool.js'
 
 dotenv.config()
 
@@ -40,7 +40,7 @@ async function main() {
     const sql = await fs.readFile(path.join(migrationsDir, filename), 'utf8')
     await client.query('begin')
     try {
-      await getRawDb().exec(sql)
+      await client.query(sql)
       await client.query('insert into schema_migrations(filename) values ($1)', [
         filename,
       ])

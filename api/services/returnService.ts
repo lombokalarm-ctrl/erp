@@ -5,6 +5,7 @@ import { applyInventoryTransaction, getDefaultWarehouseId } from './inventorySer
 export type ReturnInputItem = {
   productId: string
   qty: number
+  uom: 'pcs' | 'pack' | 'dus'
   reason?: string
 }
 
@@ -37,6 +38,36 @@ export async function createReturn(input: ReturnInput) {
   }
 
   return withTransaction(async (client) => {
+    // Resolve UOM conversion for all items
+    const resolvedItems = []
+    for (const it of input.items) {
+      const pRes = await client.query(
+        `select pack_size as "packSize", pack_per_dus as "packPerDus", dus_size as "dusSize" from products where id = $1 limit 1`,
+        [it.productId],
+      )
+      const p = pRes.rows[0] as { packSize?: number; packPerDus?: number; dusSize?: number } | undefined
+      if (!p) throw new Error('Produk tidak ditemukan')
+
+      const packSize = Number(p.packSize ?? 0)
+      const packPerDus = Number(p.packPerDus ?? 0)
+      const dusSize = Number(p.dusSize ?? 0) || (packSize > 0 && packPerDus > 0 ? packSize * packPerDus : 0)
+
+      const uomToPcs = it.uom === 'pcs' ? 1 : it.uom === 'pack' ? packSize : dusSize
+      if (!Number.isFinite(uomToPcs) || uomToPcs < 1) {
+        throw new Error('Konversi satuan produk belum diatur (pack/dus)')
+      }
+      
+      const qty = Math.trunc(it.qty)
+      const qtyPcs = qty * uomToPcs
+
+      resolvedItems.push({
+        ...it,
+        qty,
+        uomToPcs,
+        qtyPcs,
+      })
+    }
+
     // Generate nomor retur
     const prefix = input.type === 'SALES_RETURN' ? 'SR' : 'PR'
     const dateKey = input.returnDate.replace(/-/g, '')
@@ -82,16 +113,16 @@ export async function createReturn(input: ReturnInput) {
     const returnId = retRes.rows[0].id
 
     // Insert Items and Adjust Inventory
-    for (const it of input.items) {
+    for (const it of resolvedItems) {
       await client.query(
-        `insert into return_items (return_id, product_id, qty, reason) values ($1, $2, $3, $4)`,
-        [returnId, it.productId, it.qty, it.reason ?? null]
+        `insert into return_items (return_id, product_id, qty, uom, uom_to_pcs, qty_pcs, reason) values ($1, $2, $3, $4, $5, $6, $7)`,
+        [returnId, it.productId, it.qty, it.uom, it.uomToPcs, it.qtyPcs, it.reason ?? null]
       )
 
       // Logic Inventory:
       // Sales Return (Pelanggan balikin ke kita) -> Stok Bertambah
       // Purchase Return (Kita balikin ke Supplier) -> Stok Berkurang
-      const qtyDelta = input.type === 'SALES_RETURN' ? it.qty : -Math.abs(it.qty)
+      const qtyDelta = input.type === 'SALES_RETURN' ? it.qtyPcs : -Math.abs(it.qtyPcs)
       
       await applyInventoryTransaction({
         warehouseId: whId,
