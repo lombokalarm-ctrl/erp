@@ -44,6 +44,7 @@ export default function Products() {
   });
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
 
   const canCreate = useMemo(() => sku.trim() && name.trim(), [sku, name]);
 
@@ -88,6 +89,12 @@ export default function Products() {
         dus: String(p.categoryPrices?.["NASIONAL MODERN RETAIL"]?.dus || 0) 
       },
     });
+    setIsFormOpen(true);
+  }
+
+  function handleOpenCreate() {
+    handleCancelEdit();
+    setIsFormOpen(true);
   }
 
   function handleCancelEdit() {
@@ -108,6 +115,7 @@ export default function Products() {
       "NASIONAL MODERN RETAIL": { pcs: "0", pack: "0", dus: "0" }
     });
     setError(null);
+    setIsFormOpen(false);
   }
 
   async function handleDelete(id: string) {
@@ -136,6 +144,68 @@ export default function Products() {
     load();
   }, []);
 
+  async function handleSaveProduct() {
+    setError(null);
+    try {
+      const payload = {
+        sku,
+        name,
+        unit,
+        purchasePrice: Number(purchasePrice),
+        salePrice: Number(salePrice),
+        unitPrices: {
+          pcs: Number(unitPrices.pcs) || 0,
+          pack: Number(unitPrices.pack) || 0,
+          dus: Number(unitPrices.dus) || 0,
+        },
+        packSize: Number(packSize) || 1,
+        packPerDus: Number(packPerDus) || 1,
+        categoryPrices: {
+          "RETAIL": {
+            pcs: Number(categoryPrices["RETAIL"].pcs) || 0,
+            pack: Number(categoryPrices["RETAIL"].pack) || 0,
+            dus: Number(categoryPrices["RETAIL"].dus) || 0,
+          },
+          "GROSIR": {
+            pcs: Number(categoryPrices["GROSIR"].pcs) || 0,
+            pack: Number(categoryPrices["GROSIR"].pack) || 0,
+            dus: Number(categoryPrices["GROSIR"].dus) || 0,
+          },
+          "MODERN RETAIL": {
+            pcs: Number(categoryPrices["MODERN RETAIL"].pcs) || 0,
+            pack: Number(categoryPrices["MODERN RETAIL"].pack) || 0,
+            dus: Number(categoryPrices["MODERN RETAIL"].dus) || 0,
+          },
+          "HOREKA": {
+            pcs: Number(categoryPrices["HOREKA"].pcs) || 0,
+            pack: Number(categoryPrices["HOREKA"].pack) || 0,
+            dus: Number(categoryPrices["HOREKA"].dus) || 0,
+          },
+          "NASIONAL MODERN RETAIL": {
+            pcs: Number(categoryPrices["NASIONAL MODERN RETAIL"].pcs) || 0,
+            pack: Number(categoryPrices["NASIONAL MODERN RETAIL"].pack) || 0,
+            dus: Number(categoryPrices["NASIONAL MODERN RETAIL"].dus) || 0,
+          },
+        }
+      };
+      if (editingId) {
+        await apiFetch(`/api/v1/products/${editingId}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch("/api/v1/products", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
+      handleCancelEdit();
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Gagal menyimpan produk");
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
@@ -150,6 +220,7 @@ export default function Products() {
           <Button variant="secondary" onClick={load}>
             Cari
           </Button>
+          <Button onClick={handleOpenCreate}>Tambah Produk Baru</Button>
         </div>
       </div>
 
@@ -157,7 +228,7 @@ export default function Products() {
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_380px]">
+      <div>
         <Card className="overflow-hidden">
           <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold">Daftar Produk</div>
           <div className="overflow-auto">
@@ -207,159 +278,103 @@ export default function Products() {
             </table>
           </div>
         </Card>
+      </div>
 
-        <Card className="p-4 max-h-[calc(100vh-10rem)] overflow-y-auto">
-          <div className="text-sm font-semibold">{editingId ? "Edit Produk" : "Tambah Produk"}</div>
-          <div className="mt-3 grid gap-3">
-            <Input label="SKU" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="SKU-001" />
-            <Input label="Nama" value={name} onChange={(e) => setName(e.target.value)} placeholder="Teh Botol 350ml" />
-            <Input label="Satuan" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="pcs/dus" />
-            <div className="grid grid-cols-2 gap-3">
-              <Input label="Harga Beli (Dasar)" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} />
-              <Input label="Harga Jual (Dasar)" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} />
-            </div>
-
-
-
-            <div className="rounded-lg border border-zinc-200 p-3 mt-2 space-y-3">
-              <div className="text-xs font-semibold text-zinc-600">Konversi Satuan</div>
-              <div className="grid grid-cols-2 gap-3">
-                <Input
-                  label="1 Pack = (pcs)"
-                  value={packSize}
-                  onChange={(e) => setPackSize(e.target.value)}
-                />
-                <Input
-                  label="1 Dus = (pack)"
-                  value={packPerDus}
-                  onChange={(e) => setPackPerDus(e.target.value)}
-                />
-              </div>
-              <Input
-                label="1 Dus = (pcs)"
-                value={String((Number(packSize) || 1) * (Number(packPerDus) || 1))}
-                readOnly
-              />
-            </div>
-            
-            <div className="rounded-lg border border-zinc-200 p-3 mt-2 space-y-3">
-              <div className="text-xs font-semibold text-zinc-600">Harga Per Kategori Pelanggan</div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead>
-                    <tr className="border-b border-zinc-200">
-                      <th className="pb-2 font-medium">Kategori</th>
-                      <th className="pb-2 font-medium">H. Pcs</th>
-                      <th className="pb-2 font-medium">H. Pack</th>
-                      <th className="pb-2 font-medium">H. Dus</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.keys(categoryPrices).map((cat) => (
-                      <tr key={cat} className="border-b border-zinc-100 last:border-0">
-                        <td className="py-2 pr-2 text-xs font-medium text-zinc-700">{cat}</td>
-                        <td className="py-2 pr-2">
-                          <Input
-                            value={categoryPrices[cat].pcs}
-                            onChange={(e) => setCategoryPrices(prev => ({ ...prev, [cat]: { ...prev[cat], pcs: e.target.value } }))}
-                          />
-                        </td>
-                        <td className="py-2 pr-2">
-                          <Input
-                            value={categoryPrices[cat].pack}
-                            onChange={(e) => setCategoryPrices(prev => ({ ...prev, [cat]: { ...prev[cat], pack: e.target.value } }))}
-                          />
-                        </td>
-                        <td className="py-2">
-                          <Input
-                            value={categoryPrices[cat].dus}
-                            onChange={(e) => setCategoryPrices(prev => ({ ...prev, [cat]: { ...prev[cat], dus: e.target.value } }))}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <Button
-                className="flex-1"
-                disabled={!canCreate}
-                onClick={async () => {
-                  setError(null);
-                  try {
-                    const payload = {
-                      sku,
-                      name,
-                      unit,
-                      purchasePrice: Number(purchasePrice),
-                      salePrice: Number(salePrice),
-                      unitPrices: {
-                        pcs: Number(unitPrices.pcs) || 0,
-                        pack: Number(unitPrices.pack) || 0,
-                        dus: Number(unitPrices.dus) || 0,
-                      },
-                      packSize: Number(packSize) || 1,
-                      packPerDus: Number(packPerDus) || 1,
-                      categoryPrices: {
-                        "RETAIL": {
-                          pcs: Number(categoryPrices["RETAIL"].pcs) || 0,
-                          pack: Number(categoryPrices["RETAIL"].pack) || 0,
-                          dus: Number(categoryPrices["RETAIL"].dus) || 0,
-                        },
-                        "GROSIR": {
-                          pcs: Number(categoryPrices["GROSIR"].pcs) || 0,
-                          pack: Number(categoryPrices["GROSIR"].pack) || 0,
-                          dus: Number(categoryPrices["GROSIR"].dus) || 0,
-                        },
-                        "MODERN RETAIL": {
-                          pcs: Number(categoryPrices["MODERN RETAIL"].pcs) || 0,
-                          pack: Number(categoryPrices["MODERN RETAIL"].pack) || 0,
-                          dus: Number(categoryPrices["MODERN RETAIL"].dus) || 0,
-                        },
-                        "HOREKA": {
-                          pcs: Number(categoryPrices["HOREKA"].pcs) || 0,
-                          pack: Number(categoryPrices["HOREKA"].pack) || 0,
-                          dus: Number(categoryPrices["HOREKA"].dus) || 0,
-                        },
-                        "NASIONAL MODERN RETAIL": {
-                          pcs: Number(categoryPrices["NASIONAL MODERN RETAIL"].pcs) || 0,
-                          pack: Number(categoryPrices["NASIONAL MODERN RETAIL"].pack) || 0,
-                          dus: Number(categoryPrices["NASIONAL MODERN RETAIL"].dus) || 0,
-                        },
-                      }
-                    };
-                    if (editingId) {
-                      await apiFetch(`/api/v1/products/${editingId}`, {
-                        method: "PATCH",
-                        body: JSON.stringify(payload),
-                      });
-                    } else {
-                      await apiFetch("/api/v1/products", {
-                        method: "POST",
-                        body: JSON.stringify(payload),
-                      });
-                    }
-                    handleCancelEdit();
-                    await load();
-                  } catch (e) {
-                    setError(e instanceof ApiError ? e.message : "Gagal menyimpan produk");
-                  }
-                }}
+      {isFormOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto p-4">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold">{editingId ? "Edit Produk" : "Tambah Produk Baru"}</div>
+              <button
+                className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
+                onClick={handleCancelEdit}
               >
-                {editingId ? "Update" : "Simpan"}
-              </Button>
-              {editingId && (
+                Tutup
+              </button>
+            </div>
+            <div className="mt-3 grid gap-3">
+              <Input label="SKU" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="SKU-001" />
+              <Input label="Nama" value={name} onChange={(e) => setName(e.target.value)} placeholder="Teh Botol 350ml" />
+              <Input label="Satuan" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="pcs/dus" />
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Harga Beli (Dasar)" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} />
+                <Input label="Harga Jual (Dasar)" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} />
+              </div>
+
+              <div className="rounded-lg border border-zinc-200 p-3 mt-2 space-y-3">
+                <div className="text-xs font-semibold text-zinc-600">Konversi Satuan</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    label="1 Pack = (pcs)"
+                    value={packSize}
+                    onChange={(e) => setPackSize(e.target.value)}
+                  />
+                  <Input
+                    label="1 Dus = (pack)"
+                    value={packPerDus}
+                    onChange={(e) => setPackPerDus(e.target.value)}
+                  />
+                </div>
+                <Input
+                  label="1 Dus = (pcs)"
+                  value={String((Number(packSize) || 1) * (Number(packPerDus) || 1))}
+                  readOnly
+                />
+              </div>
+
+              <div className="rounded-lg border border-zinc-200 p-3 mt-2 space-y-3">
+                <div className="text-xs font-semibold text-zinc-600">Harga Per Kategori Pelanggan</div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead>
+                      <tr className="border-b border-zinc-200">
+                        <th className="pb-2 font-medium">Kategori</th>
+                        <th className="pb-2 font-medium">H. Pcs</th>
+                        <th className="pb-2 font-medium">H. Pack</th>
+                        <th className="pb-2 font-medium">H. Dus</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.keys(categoryPrices).map((cat) => (
+                        <tr key={cat} className="border-b border-zinc-100 last:border-0">
+                          <td className="py-2 pr-2 text-xs font-medium text-zinc-700">{cat}</td>
+                          <td className="py-2 pr-2">
+                            <Input
+                              value={categoryPrices[cat].pcs}
+                              onChange={(e) => setCategoryPrices(prev => ({ ...prev, [cat]: { ...prev[cat], pcs: e.target.value } }))}
+                            />
+                          </td>
+                          <td className="py-2 pr-2">
+                            <Input
+                              value={categoryPrices[cat].pack}
+                              onChange={(e) => setCategoryPrices(prev => ({ ...prev, [cat]: { ...prev[cat], pack: e.target.value } }))}
+                            />
+                          </td>
+                          <td className="py-2">
+                            <Input
+                              value={categoryPrices[cat].dus}
+                              onChange={(e) => setCategoryPrices(prev => ({ ...prev, [cat]: { ...prev[cat], dus: e.target.value } }))}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <Button className="flex-1" disabled={!canCreate} onClick={handleSaveProduct}>
+                  {editingId ? "Update" : "Simpan"}
+                </Button>
                 <Button className="flex-1" variant="secondary" onClick={handleCancelEdit}>
                   Batal
                 </Button>
-              )}
+              </div>
             </div>
-          </div>
-        </Card>
-      </div>
+          </Card>
+        </div>
+      ) : null}
     </div>
   );
 }
