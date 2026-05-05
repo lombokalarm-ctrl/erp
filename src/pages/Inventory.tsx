@@ -37,6 +37,7 @@ export default function Inventory() {
 
   const [productId, setProductId] = useState("");
   const [qtyDelta, setQtyDelta] = useState("0");
+  const [isAdjustmentOpen, setIsAdjustmentOpen] = useState(false);
   const canAdjust = useMemo(() => productId && Number(qtyDelta) !== 0, [productId, qtyDelta]);
 
   async function load() {
@@ -109,9 +110,21 @@ export default function Inventory() {
       </div>
 
       {activeTab === "summary" ? (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_420px]">
+        <div>
         <Card className="overflow-hidden">
-          <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold">Stok Ringkas</div>
+          <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold flex items-center justify-between">
+            <span>Stok Ringkas</span>
+            <Button
+              size="sm"
+              onClick={() => {
+                setQtyDelta("0");
+                setError(null);
+                setIsAdjustmentOpen(true);
+              }}
+            >
+              Stock Adjustment
+            </Button>
+          </div>
           <div className="overflow-auto">
             <table className="min-w-full text-sm">
               <thead className="sticky top-0 bg-white">
@@ -159,46 +172,64 @@ export default function Inventory() {
             </table>
           </div>
         </Card>
-
-        <Card className="p-4">
-          <div className="text-sm font-semibold">Stock Adjustment</div>
-          <div className="mt-1 text-sm text-zinc-600">Qty Delta bisa positif (masuk) atau negatif (keluar).</div>
-          <div className="mt-3 grid gap-3">
-            <label className="block">
-              <div className="mb-1 text-xs font-medium text-zinc-600">Produk</div>
-              <select
-                className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
-                value={productId}
-                onChange={(e) => setProductId(e.target.value)}
-              >
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.sku} - {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Input label="Qty Delta" value={qtyDelta} onChange={(e) => setQtyDelta(e.target.value)} />
-            <Button
-              disabled={!canAdjust}
-              onClick={async () => {
-                setError(null);
-                try {
-                  await apiFetch("/api/v1/inventory/adjustments", {
-                    method: "POST",
-                    body: JSON.stringify({ productId, qtyDelta: Number(qtyDelta) }),
-                  });
-                  setQtyDelta("0");
-                  await load();
-                } catch (e) {
-                  setError(e instanceof ApiError ? e.message : "Gagal melakukan adjustment");
-                }
-              }}
-            >
-              Simpan Adjustment
-            </Button>
-          </div>
-        </Card>
+          {isAdjustmentOpen ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+              <Card className="w-full max-w-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold">Stock Adjustment</div>
+                  <button
+                    className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
+                    onClick={() => setIsAdjustmentOpen(false)}
+                  >
+                    Tutup
+                  </button>
+                </div>
+                <div className="mt-1 text-sm text-zinc-600">Qty Delta bisa positif (masuk) atau negatif (keluar).</div>
+                <div className="mt-3 grid gap-3">
+                  <label className="block">
+                    <div className="mb-1 text-xs font-medium text-zinc-600">Produk</div>
+                    <select
+                      className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                      value={productId}
+                      onChange={(e) => setProductId(e.target.value)}
+                    >
+                      {products.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.sku} - {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <Input label="Qty Delta" value={qtyDelta} onChange={(e) => setQtyDelta(e.target.value)} />
+                  <div className="flex gap-2">
+                    <Button
+                      className="flex-1"
+                      disabled={!canAdjust}
+                      onClick={async () => {
+                        setError(null);
+                        try {
+                          await apiFetch("/api/v1/inventory/adjustments", {
+                            method: "POST",
+                            body: JSON.stringify({ productId, qtyDelta: Number(qtyDelta) }),
+                          });
+                          setQtyDelta("0");
+                          setIsAdjustmentOpen(false);
+                          await load();
+                        } catch (e) {
+                          setError(e instanceof ApiError ? e.message : "Gagal melakukan adjustment");
+                        }
+                      }}
+                    >
+                      Simpan Adjustment
+                    </Button>
+                    <Button className="flex-1" variant="secondary" onClick={() => setIsAdjustmentOpen(false)}>
+                      Batal
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          ) : null}
       </div>
       ) : (
         <Card className="overflow-hidden">

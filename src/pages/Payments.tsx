@@ -19,6 +19,7 @@ export default function Payments() {
   const [note, setNote] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
 
   const remainingNumber = invoiceDetail ? Number(invoiceDetail.remaining) : null;
   const amountNumber = Number(amount);
@@ -74,9 +75,68 @@ export default function Payments() {
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
       ) : null}
 
-      <Card className="p-4">
-        <div className="text-sm font-semibold">Input Pembayaran</div>
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
+      <Card className="overflow-hidden">
+        <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold flex items-center justify-between">
+          <span>Daftar Invoice</span>
+          <Button
+            size="sm"
+            onClick={() => {
+              setError(null);
+              setInvoiceId("");
+              setInvoiceDetail(null);
+              setMethod("CASH");
+              setAmount("0");
+              setPaidAt(new Date().toISOString());
+              setNote("");
+              setFile(null);
+              setIsFormOpen(true);
+            }}
+          >
+            Input Pembayaran
+          </Button>
+        </div>
+        <div className="overflow-auto">
+          <table className="min-w-full text-sm">
+            <thead className="sticky top-0 bg-white">
+              <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
+                <th className="px-4 py-2">Invoice</th>
+                <th className="px-4 py-2">Status</th>
+                <th className="px-4 py-2 text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoices.map((i) => (
+                <tr key={i.id} className="border-b border-zinc-100 hover:bg-zinc-50">
+                  <td className="px-4 py-2 font-medium">{i.invoiceNo}</td>
+                  <td className="px-4 py-2">{i.status}</td>
+                  <td className="px-4 py-2 text-right">{i.totalAmount}</td>
+                </tr>
+              ))}
+              {invoices.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-6 text-sm text-zinc-500" colSpan={3}>
+                    Belum ada data invoice.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {isFormOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <Card className="w-full max-w-3xl p-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold">Input Pembayaran</div>
+              <button
+                className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
+                onClick={() => setIsFormOpen(false)}
+              >
+                Tutup
+              </button>
+            </div>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
           <label className="block md:col-span-2">
             <div className="mb-1 text-xs font-medium text-zinc-600">Invoice</div>
             <select
@@ -198,6 +258,7 @@ export default function Payments() {
                   setPaidAt(new Date().toISOString());
                   setNote("");
                   setFile(null);
+                  setIsFormOpen(false);
                 } catch (e) {
                   setError(e instanceof ApiError ? e.message : "Gagal menyimpan pembayaran");
                 } finally {
@@ -209,7 +270,9 @@ export default function Payments() {
             </Button>
           </div>
         </div>
-      </Card>
+          </Card>
+        </div>
+      ) : null}
     </div>
   );
 }
