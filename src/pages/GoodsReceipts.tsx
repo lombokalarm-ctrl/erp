@@ -25,6 +25,7 @@ export default function GoodsReceipts() {
   const [items, setItems] = useState<{ productId: string; qty: string; uom: "pcs" | "pack" | "dus" }[]>([{ productId: "", qty: "1", uom: "pcs" }]);
   const [showScanner, setShowScanner] = useState(false);
   const [scannerTargetIdx, setScannerTargetIdx] = useState<number | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
 
   const canSubmit = useMemo(
     () => warehouseId && items.every((i) => i.productId && Number(i.qty) > 0),
@@ -81,10 +82,61 @@ export default function GoodsReceipts() {
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[420px_1fr]">
-        <Card className="p-4">
-          <div className="text-sm font-semibold">Buat GRN</div>
-          <div className="mt-3 grid gap-3">
+      <Card className="overflow-hidden">
+        <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold flex items-center justify-between">
+          <span>Daftar GRN</span>
+          <Button
+            size="sm"
+            onClick={() => {
+              setError(null);
+              setIsFormOpen(true);
+            }}
+          >
+            Tambah GRN
+          </Button>
+        </div>
+        <div className="overflow-auto">
+          <table className="min-w-full text-sm">
+            <thead className="sticky top-0 bg-white">
+              <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
+                <th className="px-4 py-2">No</th>
+                <th className="px-4 py-2">Tanggal</th>
+                <th className="px-4 py-2">Gudang</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id} className="border-b border-zinc-100 hover:bg-zinc-50">
+                  <td className="px-4 py-2 font-medium">{r.grnNo}</td>
+                  <td className="px-4 py-2">{r.receivedDate}</td>
+                  <td className="px-4 py-2">{r.warehouseCode}</td>
+                </tr>
+              ))}
+              {rows.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-6 text-sm text-zinc-500" colSpan={3}>
+                    Belum ada data.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {isFormOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <Card className="w-full max-w-2xl p-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold">Buat GRN</div>
+              <button
+                className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
+                onClick={() => setIsFormOpen(false)}
+              >
+                Tutup
+              </button>
+            </div>
+            <div className="mt-3 grid gap-3">
             <label className="block">
               <div className="mb-1 text-xs font-medium text-zinc-600">Gudang</div>
               <select
@@ -191,6 +243,7 @@ export default function GoodsReceipts() {
                     }),
                   });
                   setItems([{ productId: "", qty: "1", uom: "pcs" }]);
+                  setIsFormOpen(false);
                   await load();
                 } catch (e) {
                   setError(e instanceof ApiError ? e.message : "Gagal membuat GRN");
@@ -201,38 +254,8 @@ export default function GoodsReceipts() {
             </Button>
           </div>
         </Card>
-
-        <Card className="overflow-hidden">
-          <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold">Daftar GRN</div>
-          <div className="overflow-auto">
-            <table className="min-w-full text-sm">
-              <thead className="sticky top-0 bg-white">
-                <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
-                  <th className="px-4 py-2">No</th>
-                  <th className="px-4 py-2">Tanggal</th>
-                  <th className="px-4 py-2">Gudang</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id} className="border-b border-zinc-100 hover:bg-zinc-50">
-                    <td className="px-4 py-2 font-medium">{r.grnNo}</td>
-                    <td className="px-4 py-2">{r.receivedDate}</td>
-                    <td className="px-4 py-2">{r.warehouseCode}</td>
-                  </tr>
-                ))}
-                {rows.length === 0 ? (
-                  <tr>
-                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={3}>
-                      Belum ada data.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }

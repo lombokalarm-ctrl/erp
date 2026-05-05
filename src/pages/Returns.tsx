@@ -40,6 +40,7 @@ export default function Returns() {
     { productId: "", qty: "1", uom: "pcs", reason: "" },
   ]);
   const [saving, setSaving] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
 
   const canSubmit = useMemo(
     () => partnerId && items.every((i) => i.productId && Number(i.qty) > 0),
@@ -84,6 +85,7 @@ export default function Returns() {
       setReferenceNo("");
       setNotes("");
       setItems([{ productId: "", qty: "1", uom: "pcs", reason: "" }]);
+      setIsFormOpen(false);
       loadInitial();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Gagal memproses retur");
@@ -108,10 +110,71 @@ export default function Returns() {
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[420px_1fr]">
-        <Card className="p-4">
-          <div className="text-sm font-semibold mb-3 border-b pb-2">Buat Tiket Retur</div>
-          <div className="grid gap-3">
+      <Card className="overflow-hidden">
+        <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold flex items-center justify-between">
+          <span>Riwayat Retur</span>
+          <Button
+            size="sm"
+            onClick={() => {
+              setError(null);
+              setIsFormOpen(true);
+            }}
+          >
+            Buat Tiket Retur
+          </Button>
+        </div>
+        <div className="overflow-auto max-h-[600px]">
+          <table className="min-w-full text-sm">
+            <thead className="sticky top-0 bg-white">
+              <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
+                <th className="px-4 py-2">No Retur</th>
+                <th className="px-4 py-2">Tipe</th>
+                <th className="px-4 py-2">Partner</th>
+                <th className="px-4 py-2">Tanggal</th>
+                <th className="px-4 py-2">Ref</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id} className="border-b border-zinc-100 hover:bg-zinc-50">
+                  <td className="px-4 py-2 font-medium text-indigo-600">{r.returnNo}</td>
+                  <td className="px-4 py-2">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      r.type === 'SALES_RETURN' ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'
+                    }`}>
+                      {r.type === 'SALES_RETURN' ? 'IN (Cust)' : 'OUT (Supp)'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2 truncate max-w-[120px]">{r.customerName || r.supplierName || '-'}</td>
+                  <td className="px-4 py-2 text-zinc-600">{r.returnDate}</td>
+                  <td className="px-4 py-2 text-xs text-zinc-500">{r.referenceNo || '-'}</td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr>
+                  <td className="px-4 py-6 text-center text-zinc-500" colSpan={5}>
+                    Belum ada riwayat retur barang.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {isFormOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <Card className="w-full max-w-2xl p-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold border-b pb-2">Buat Tiket Retur</div>
+              <button
+                className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
+                onClick={() => setIsFormOpen(false)}
+              >
+                Tutup
+              </button>
+            </div>
+            <div className="grid gap-3 mt-3">
             <label className="block">
               <div className="mb-1 text-xs font-medium text-zinc-600">Tipe Retur</div>
               <select
@@ -246,48 +309,8 @@ export default function Returns() {
             </Button>
           </div>
         </Card>
-
-        <Card className="overflow-hidden">
-          <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold">Riwayat Retur</div>
-          <div className="overflow-auto max-h-[600px]">
-            <table className="min-w-full text-sm">
-              <thead className="sticky top-0 bg-white">
-                <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
-                  <th className="px-4 py-2">No Retur</th>
-                  <th className="px-4 py-2">Tipe</th>
-                  <th className="px-4 py-2">Partner</th>
-                  <th className="px-4 py-2">Tanggal</th>
-                  <th className="px-4 py-2">Ref</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id} className="border-b border-zinc-100 hover:bg-zinc-50">
-                    <td className="px-4 py-2 font-medium text-indigo-600">{r.returnNo}</td>
-                    <td className="px-4 py-2">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        r.type === 'SALES_RETURN' ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'
-                      }`}>
-                        {r.type === 'SALES_RETURN' ? 'IN (Cust)' : 'OUT (Supp)'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 truncate max-w-[120px]">{r.customerName || r.supplierName || '-'}</td>
-                    <td className="px-4 py-2 text-zinc-600">{r.returnDate}</td>
-                    <td className="px-4 py-2 text-xs text-zinc-500">{r.referenceNo || '-'}</td>
-                  </tr>
-                ))}
-                {rows.length === 0 && (
-                  <tr>
-                    <td className="px-4 py-6 text-center text-zinc-500" colSpan={5}>
-                      Belum ada riwayat retur barang.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }

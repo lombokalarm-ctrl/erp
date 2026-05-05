@@ -40,6 +40,7 @@ export default function SalesOrders() {
   const [error, setError] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [syncing, setSyncing] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
 
   const [customerId, setCustomerId] = useState("");
   const [orderDate, setOrderDate] = useState(today());
@@ -131,6 +132,7 @@ export default function SalesOrders() {
       setCustomerId("");
       setOrderDate(today());
       setItems([{ productId: "", qty: "1", uom: "pcs", unitPrice: "0" }]);
+      setIsFormOpen(false);
       alert("Order disimpan secara offline. Sinkronisasi saat terhubung ke internet.");
       return;
     }
@@ -144,6 +146,7 @@ export default function SalesOrders() {
       setCustomerId("");
       setOrderDate(today());
       setItems([{ productId: "", qty: "1", uom: "pcs", unitPrice: "0" }]);
+      setIsFormOpen(false);
       loadInitial();
     } catch (err: any) {
       setError(err.message || "Gagal menyimpan order");
@@ -186,11 +189,31 @@ export default function SalesOrders() {
           </p>
         </div>
         {offlineOrders.length > 0 && (
-          <Button variant="secondary" onClick={handleSync} disabled={syncing || isOffline} className="flex items-center gap-2">
-            <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Menyinkronkan...' : `Sync ${offlineOrders.length} Offline Orders`}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => {
+                setError(null);
+                setIsFormOpen(true);
+              }}
+            >
+              Tambah Sales Order
+            </Button>
+            <Button variant="secondary" onClick={handleSync} disabled={syncing || isOffline} className="flex items-center gap-2">
+              <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Menyinkronkan...' : `Sync ${offlineOrders.length} Offline Orders`}
+            </Button>
+          </div>
         )}
+        {offlineOrders.length === 0 ? (
+          <Button
+            onClick={() => {
+              setError(null);
+              setIsFormOpen(true);
+            }}
+          >
+            Tambah Sales Order
+          </Button>
+        ) : null}
       </div>
 
       {isOffline && (
@@ -204,10 +227,72 @@ export default function SalesOrders() {
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[420px_1fr]">
-        <Card className="p-4">
-          <div className="text-sm font-semibold">Buat Sales Order</div>
-          <div className="mt-3 grid gap-3">
+      <Card className="overflow-hidden">
+        <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold">Daftar Sales Order</div>
+        <div className="overflow-auto">
+          <table className="min-w-full text-sm">
+            <thead className="sticky top-0 bg-white">
+              <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
+                <th className="px-4 py-2">No</th>
+                <th className="px-4 py-2">Pelanggan</th>
+                <th className="px-4 py-2">Tanggal</th>
+                <th className="px-4 py-2">Status Kirim</th>
+                <th className="px-4 py-2">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.map((o) => (
+                <tr key={o.id} className="border-b border-zinc-100 hover:bg-zinc-50">
+                  <td className="px-4 py-2 font-medium text-blue-600">
+                    {o.orderNo}
+                  </td>
+                  <td className="px-4 py-2">{o.customerName}</td>
+                  <td className="px-4 py-2 text-zinc-600">{o.orderDate}</td>
+                  <td className="px-4 py-2">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        o.status === "DRAFT"
+                          ? "bg-zinc-100 text-zinc-700"
+                          : o.status === "PENDING_APPROVAL"
+                          ? "bg-orange-100 text-orange-700"
+                          : o.status === "CONFIRMED"
+                          ? "bg-blue-100 text-blue-700"
+                          : o.status === "DELIVERED"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-red-100 text-red-700"
+                      }`}
+                    >
+                      {o.status === "PENDING_APPROVAL" ? "MENUNGGU PERSETUJUAN" : o.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2 text-right font-medium">Rp {o.totalAmount}</td>
+                </tr>
+              ))}
+              {orders.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-6 text-sm text-zinc-500" colSpan={5}>
+                    Belum ada data.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {isFormOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <Card className="w-full max-w-2xl p-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold">Buat Sales Order</div>
+              <button
+                className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
+                onClick={() => setIsFormOpen(false)}
+              >
+                Tutup
+              </button>
+            </div>
+            <div className="mt-3 grid gap-3">
             <label className="block">
               <div className="mb-1 text-xs font-medium text-zinc-600">Pelanggan</div>
               <select
@@ -347,91 +432,14 @@ export default function SalesOrders() {
 
             <Button
               disabled={!canSubmit}
-              onClick={async () => {
-                setError(null);
-                try {
-                  const payload = {
-                    customerId,
-                    orderDate,
-                    items: items.map((i) => ({
-                      productId: i.productId,
-                      qty: Number(i.qty),
-                      uom: i.uom,
-                      unitPrice: Number(i.unitPrice),
-                    })),
-                  };
-                  await apiFetch("/api/v1/sales-orders", { method: "POST", body: JSON.stringify(payload) });
-                  setCustomerId("");
-                  setItems([{ productId: "", qty: "1", uom: "pcs", unitPrice: "0" }]);
-                  const soRes = await apiFetch<{ data: SalesOrderRow[] }>("/api/v1/sales-orders?page=1&pageSize=50");
-                  setOrders(soRes.data);
-                } catch (e) {
-                  if (e instanceof ApiError) {
-                    setError(e.message);
-                    return;
-                  }
-                  setError("Gagal membuat SO");
-                }
-              }}
+              onClick={handleSubmit}
             >
               Simpan SO
             </Button>
           </div>
         </Card>
-
-        <Card className="overflow-hidden">
-          <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold">Daftar Sales Order</div>
-          <div className="overflow-auto">
-            <table className="min-w-full text-sm">
-              <thead className="sticky top-0 bg-white">
-                <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
-                  <th className="px-4 py-2">No</th>
-                  <th className="px-4 py-2">Pelanggan</th>
-                  <th className="px-4 py-2">Tanggal</th>
-                  <th className="px-4 py-2">Status Kirim</th>
-                  <th className="px-4 py-2">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {orders.map((o) => (
-                  <tr key={o.id} className="border-b border-zinc-100 hover:bg-zinc-50">
-                    <td className="px-4 py-2 font-medium text-blue-600">
-                      {o.orderNo}
-                    </td>
-                    <td className="px-4 py-2">{o.customerName}</td>
-                    <td className="px-4 py-2 text-zinc-600">{o.orderDate}</td>
-                    <td className="px-4 py-2">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                          o.status === "DRAFT"
-                            ? "bg-zinc-100 text-zinc-700"
-                            : o.status === "PENDING_APPROVAL"
-                            ? "bg-orange-100 text-orange-700"
-                            : o.status === "CONFIRMED"
-                            ? "bg-blue-100 text-blue-700"
-                            : o.status === "DELIVERED"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-red-100 text-red-700"
-                        }`}
-                      >
-                        {o.status === "PENDING_APPROVAL" ? "MENUNGGU PERSETUJUAN" : o.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-right font-medium">Rp {o.totalAmount}</td>
-                  </tr>
-                ))}
-                {orders.length === 0 ? (
-                  <tr>
-                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={5}>
-                      Belum ada data.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }
