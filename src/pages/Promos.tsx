@@ -215,11 +215,12 @@ export default function Promos() {
       </Card>
 
       {isFormOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <Card className="w-full max-w-2xl p-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <Card className="w-full max-w-3xl p-5 max-h-[92vh] overflow-y-auto shadow-2xl">
             <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold">
-                {editingId ? "Edit Promo" : "Tambah Promo Baru"}
+              <div>
+                <div className="text-base font-semibold">{editingId ? "Edit Promo" : "Tambah Promo Baru"}</div>
+                <p className="text-xs text-zinc-500">Atur produk, tipe diskon, nilai, dan periode promo.</p>
               </div>
               <button
                 className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
@@ -306,11 +307,11 @@ export default function Promos() {
                 <span>Promo Aktif</span>
               </label>
 
-              <div className="flex gap-2 pt-2">
-                <Button disabled={saving || !productId || !name || !discountValue} onClick={handleSave} className="flex-1">
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button variant="secondary" onClick={handleCancel}>Batal</Button>
+                <Button disabled={saving || !productId || !name || !discountValue} onClick={handleSave}>
                   {saving ? "Menyimpan..." : "Simpan"}
                 </Button>
-                <Button variant="secondary" onClick={handleCancel}>Batal</Button>
               </div>
             </div>
           </Card>

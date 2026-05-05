@@ -281,10 +281,13 @@ export default function Products() {
       </div>
 
       {isFormOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <Card className="w-full max-w-4xl max-h-[92vh] overflow-y-auto p-5 shadow-2xl">
             <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold">{editingId ? "Edit Produk" : "Tambah Produk Baru"}</div>
+              <div>
+                <div className="text-base font-semibold">{editingId ? "Edit Produk" : "Tambah Produk Baru"}</div>
+                <p className="text-xs text-zinc-500">Atur SKU, harga, konversi satuan, dan harga per kategori pelanggan.</p>
+              </div>
               <button
                 className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
                 onClick={handleCancelEdit}
@@ -363,12 +366,12 @@ export default function Products() {
                 </div>
               </div>
 
-              <div className="flex gap-2 pt-2">
-                <Button className="flex-1" disabled={!canCreate} onClick={handleSaveProduct}>
-                  {editingId ? "Update" : "Simpan"}
-                </Button>
-                <Button className="flex-1" variant="secondary" onClick={handleCancelEdit}>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button variant="secondary" onClick={handleCancelEdit}>
                   Batal
+                </Button>
+                <Button disabled={!canCreate} onClick={handleSaveProduct}>
+                  {editingId ? "Update" : "Simpan"}
                 </Button>
               </div>
             </div>

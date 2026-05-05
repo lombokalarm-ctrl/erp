@@ -125,10 +125,13 @@ export default function Payments() {
       </Card>
 
       {isFormOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <Card className="w-full max-w-3xl p-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <Card className="w-full max-w-3xl p-5 max-h-[92vh] overflow-y-auto shadow-2xl">
             <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold">Input Pembayaran</div>
+              <div>
+                <div className="text-base font-semibold">Input Pembayaran</div>
+                <p className="text-xs text-zinc-500">Pilih invoice, masukkan nominal, lalu simpan transaksi bayar.</p>
+              </div>
               <button
                 className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
                 onClick={() => setIsFormOpen(false)}
@@ -215,60 +218,63 @@ export default function Payments() {
             />
           </label>
 
-          <div className="md:col-span-2">
-            <Button
-              disabled={!canSubmit || saving}
-              onClick={async () => {
-                setSaving(true);
-                setError(null);
-                try {
-                  const res = await apiFetch<{ data: { payment: { id: string } } }>(
-                    "/api/v1/payments",
-                    {
-                      method: "POST",
-                      body: JSON.stringify({
-                        invoiceId,
-                        method,
-                        amount: Number(amount),
-                        paidAt,
-                        note: note || undefined,
-                      }),
-                    },
-                  );
+              <div className="md:col-span-2 flex items-center justify-end gap-2 pt-2">
+                <Button variant="secondary" onClick={() => setIsFormOpen(false)} disabled={saving}>
+                  Batal
+                </Button>
+                <Button
+                  disabled={!canSubmit || saving}
+                  onClick={async () => {
+                    setSaving(true);
+                    setError(null);
+                    try {
+                      const res = await apiFetch<{ data: { payment: { id: string } } }>(
+                        "/api/v1/payments",
+                        {
+                          method: "POST",
+                          body: JSON.stringify({
+                            invoiceId,
+                            method,
+                            amount: Number(amount),
+                            paidAt,
+                            note: note || undefined,
+                          }),
+                        },
+                      );
 
-                  const paymentId = res.data.payment.id;
-                  if (file) {
-                    const tokenRaw = localStorage.getItem("erp_auth_v1");
-                    const token = tokenRaw ? (JSON.parse(tokenRaw).token as string) : null;
-                    const fd = new FormData();
-                    fd.append("file", file);
-                    const uploadRes = await fetch(`/api/v1/payments/${paymentId}/proof`, {
-                      method: "POST",
-                      body: fd,
-                      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-                    });
-                    if (!uploadRes.ok) {
-                      throw new ApiError("UPLOAD_FAILED", "Upload bukti gagal");
+                      const paymentId = res.data.payment.id;
+                      if (file) {
+                        const tokenRaw = localStorage.getItem("erp_auth_v1");
+                        const token = tokenRaw ? (JSON.parse(tokenRaw).token as string) : null;
+                        const fd = new FormData();
+                        fd.append("file", file);
+                        const uploadRes = await fetch(`/api/v1/payments/${paymentId}/proof`, {
+                          method: "POST",
+                          body: fd,
+                          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+                        });
+                        if (!uploadRes.ok) {
+                          throw new ApiError("UPLOAD_FAILED", "Upload bukti gagal");
+                        }
+                      }
+
+                      setInvoiceId("");
+                      setMethod("CASH");
+                      setAmount("0");
+                      setPaidAt(new Date().toISOString());
+                      setNote("");
+                      setFile(null);
+                      setIsFormOpen(false);
+                    } catch (e) {
+                      setError(e instanceof ApiError ? e.message : "Gagal menyimpan pembayaran");
+                    } finally {
+                      setSaving(false);
                     }
-                  }
-
-                  setInvoiceId("");
-                  setMethod("CASH");
-                  setAmount("0");
-                  setPaidAt(new Date().toISOString());
-                  setNote("");
-                  setFile(null);
-                  setIsFormOpen(false);
-                } catch (e) {
-                  setError(e instanceof ApiError ? e.message : "Gagal menyimpan pembayaran");
-                } finally {
-                  setSaving(false);
-                }
-              }}
-            >
-              {saving ? "Menyimpan..." : "Simpan Pembayaran"}
-            </Button>
-          </div>
+                  }}
+                >
+                  {saving ? "Menyimpan..." : "Simpan Pembayaran"}
+                </Button>
+              </div>
         </div>
           </Card>
         </div>

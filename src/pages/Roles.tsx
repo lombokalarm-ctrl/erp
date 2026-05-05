@@ -189,11 +189,12 @@ export default function Roles() {
       </Card>
 
       {isFormOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <Card className="w-full max-w-2xl p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <Card className="w-full max-w-3xl p-5 max-h-[92vh] overflow-y-auto shadow-2xl">
             <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold">
-                {editingId ? "Edit Role" : "Tambah Role Baru"}
+              <div>
+                <div className="text-base font-semibold">{editingId ? "Edit Role" : "Tambah Role Baru"}</div>
+                <p className="text-xs text-zinc-500">Atur nama role dan checklist hak akses menu.</p>
               </div>
               <button
                 className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
@@ -234,12 +235,12 @@ export default function Roles() {
                 </div>
               </div>
 
-              <div className="flex gap-2 pt-2">
-                <Button disabled={saving || !name.trim()} onClick={handleSave} className="flex-1">
-                  {saving ? "Menyimpan..." : "Simpan"}
-                </Button>
+              <div className="flex items-center justify-end gap-2 pt-2">
                 <Button variant="secondary" onClick={handleCancel}>
                   Batal
+                </Button>
+                <Button disabled={saving || !name.trim()} onClick={handleSave}>
+                  {saving ? "Menyimpan..." : "Simpan"}
                 </Button>
               </div>
             </div>

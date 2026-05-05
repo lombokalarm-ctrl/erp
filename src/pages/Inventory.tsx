@@ -173,10 +173,13 @@ export default function Inventory() {
           </div>
         </Card>
           {isAdjustmentOpen ? (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-              <Card className="w-full max-w-lg p-4">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+              <Card className="w-full max-w-2xl p-5 shadow-2xl">
                 <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold">Stock Adjustment</div>
+                  <div>
+                    <div className="text-base font-semibold">Stock Adjustment</div>
+                    <p className="text-xs text-zinc-500">Masukkan perubahan stok untuk koreksi data persediaan.</p>
+                  </div>
                   <button
                     className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
                     onClick={() => setIsAdjustmentOpen(false)}
@@ -201,9 +204,11 @@ export default function Inventory() {
                     </select>
                   </label>
                   <Input label="Qty Delta" value={qtyDelta} onChange={(e) => setQtyDelta(e.target.value)} />
-                  <div className="flex gap-2">
+                  <div className="flex items-center justify-end gap-2 pt-2">
+                    <Button variant="secondary" onClick={() => setIsAdjustmentOpen(false)}>
+                      Batal
+                    </Button>
                     <Button
-                      className="flex-1"
                       disabled={!canAdjust}
                       onClick={async () => {
                         setError(null);
@@ -221,9 +226,6 @@ export default function Inventory() {
                       }}
                     >
                       Simpan Adjustment
-                    </Button>
-                    <Button className="flex-1" variant="secondary" onClick={() => setIsAdjustmentOpen(false)}>
-                      Batal
                     </Button>
                   </div>
                 </div>

@@ -521,10 +521,13 @@ export default function Customers() {
       </div>
 
       {isFormOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <Card className="w-full max-w-2xl max-h-[90vh] overflow-auto p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <Card className="w-full max-w-3xl max-h-[92vh] overflow-auto p-5 shadow-2xl">
             <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold">{editingId ? "Edit Pelanggan" : "Tambah Pelanggan Baru"}</div>
+              <div>
+                <div className="text-base font-semibold">{editingId ? "Edit Pelanggan" : "Tambah Pelanggan Baru"}</div>
+                <p className="text-xs text-zinc-500">Lengkapi informasi identitas, wilayah, dan PIC sales pelanggan.</p>
+              </div>
               <button
                 className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
                 onClick={handleCancelEdit}
@@ -605,12 +608,12 @@ export default function Customers() {
                   </select>
                 </label>
               ) : null}
-              <div className="flex gap-2 pt-2">
-                <Button className="flex-1" disabled={!canCreate} onClick={handleSaveCustomer}>
-                  {editingId ? "Update" : "Simpan"}
-                </Button>
-                <Button className="flex-1" variant="secondary" onClick={handleCancelEdit}>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button variant="secondary" onClick={handleCancelEdit}>
                   Batal
+                </Button>
+                <Button disabled={!canCreate} onClick={handleSaveCustomer}>
+                  {editingId ? "Update" : "Simpan"}
                 </Button>
               </div>
             </div>

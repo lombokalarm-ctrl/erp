@@ -124,10 +124,13 @@ export default function Suppliers() {
         </Card>
       </div>
       {isFormOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <Card className="w-full max-w-lg p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <Card className="w-full max-w-2xl p-5 shadow-2xl">
             <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold">{editingId ? "Edit Supplier" : "Tambah Supplier"}</div>
+              <div>
+                <div className="text-base font-semibold">{editingId ? "Edit Supplier" : "Tambah Supplier"}</div>
+                <p className="text-xs text-zinc-500">Isi kode dan nama supplier untuk master pembelian.</p>
+              </div>
               <button
                 className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
                 onClick={handleCancelEdit}
@@ -139,9 +142,11 @@ export default function Suppliers() {
               <Input label="Kode" value={code} onChange={(e) => setCode(e.target.value)} placeholder="SUP-001" />
               <Input label="Nama" value={name} onChange={(e) => setName(e.target.value)} placeholder="PT Pabrik" />
 
-              <div className="flex gap-2 pt-2">
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button variant="secondary" onClick={handleCancelEdit}>
+                  Batal
+                </Button>
                 <Button
-                  className="flex-1"
                   disabled={!canCreate}
                   onClick={async () => {
                     setError(null);
@@ -159,9 +164,6 @@ export default function Suppliers() {
                   }}
                 >
                   {editingId ? "Update" : "Simpan"}
-                </Button>
-                <Button className="flex-1" variant="secondary" onClick={handleCancelEdit}>
-                  Batal
                 </Button>
               </div>
             </div>
