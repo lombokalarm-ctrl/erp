@@ -103,10 +103,13 @@ export default function PurchaseOrders() {
       </Card>
 
       {isFormOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <Card className="w-full max-w-2xl p-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <Card className="w-full max-w-3xl p-5 max-h-[92vh] overflow-y-auto shadow-2xl">
             <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold">Buat PO</div>
+              <div>
+                <div className="text-base font-semibold">Buat Purchase Order</div>
+                <p className="text-xs text-zinc-500">Pilih supplier, tanggal, lalu item pembelian.</p>
+              </div>
               <button
                 className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
                 onClick={() => setIsFormOpen(false)}
@@ -115,21 +118,21 @@ export default function PurchaseOrders() {
               </button>
             </div>
             <div className="mt-3 grid gap-3">
-            <label className="block">
-              <div className="mb-1 text-xs font-medium text-zinc-600">Supplier</div>
-              <select
-                className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
-                value={supplierId}
-                onChange={(e) => setSupplierId(e.target.value)}
-              >
-                <option value="">Pilih supplier</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.code} - {s.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <label className="block">
+                <div className="mb-1 text-xs font-medium text-zinc-600">Supplier</div>
+                <select
+                  className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                  value={supplierId}
+                  onChange={(e) => setSupplierId(e.target.value)}
+                >
+                  <option value="">Pilih supplier</option>
+                  {suppliers.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.code} - {s.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
             <Input label="Tanggal" type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
 
@@ -200,31 +203,36 @@ export default function PurchaseOrders() {
               </div>
             </div>
 
-            <Button
-              disabled={!canSubmit}
-              onClick={async () => {
-                setError(null);
-                try {
-                  await apiFetch("/api/v1/purchase-orders", {
-                    method: "POST",
-                    body: JSON.stringify({
-                      supplierId,
-                      orderDate,
-                      items: items.map((i) => ({ productId: i.productId, qty: Number(i.qty), uom: i.uom, unitPrice: Number(i.unitPrice) })),
-                    }),
-                  });
-                  setItems([{ productId: "", qty: "1", uom: "pcs", unitPrice: "0" }]);
-                  const poRes = await apiFetch<{ data: PoRow[] }>("/api/v1/purchase-orders?page=1&pageSize=50");
-                  setRows(poRes.data);
-                  setIsFormOpen(false);
-                } catch (e) {
-                  setError(e instanceof ApiError ? e.message : "Gagal membuat PO");
-                }
-              }}
-            >
-              Simpan PO
-            </Button>
-          </div>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button variant="secondary" onClick={() => setIsFormOpen(false)}>
+                  Batal
+                </Button>
+                <Button
+                  disabled={!canSubmit}
+                  onClick={async () => {
+                    setError(null);
+                    try {
+                      await apiFetch("/api/v1/purchase-orders", {
+                        method: "POST",
+                        body: JSON.stringify({
+                          supplierId,
+                          orderDate,
+                          items: items.map((i) => ({ productId: i.productId, qty: Number(i.qty), uom: i.uom, unitPrice: Number(i.unitPrice) })),
+                        }),
+                      });
+                      setItems([{ productId: "", qty: "1", uom: "pcs", unitPrice: "0" }]);
+                      const poRes = await apiFetch<{ data: PoRow[] }>("/api/v1/purchase-orders?page=1&pageSize=50");
+                      setRows(poRes.data);
+                      setIsFormOpen(false);
+                    } catch (e) {
+                      setError(e instanceof ApiError ? e.message : "Gagal membuat PO");
+                    }
+                  }}
+                >
+                  Simpan PO
+                </Button>
+              </div>
+            </div>
         </Card>
         </div>
       ) : null}

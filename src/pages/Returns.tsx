@@ -163,10 +163,13 @@ export default function Returns() {
       </Card>
 
       {isFormOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <Card className="w-full max-w-2xl p-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <Card className="w-full max-w-3xl p-5 max-h-[92vh] overflow-y-auto shadow-2xl">
             <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold border-b pb-2">Buat Tiket Retur</div>
+              <div>
+                <div className="text-base font-semibold">Buat Tiket Retur</div>
+                <p className="text-xs text-zinc-500">Pilih tipe retur, partner, lalu detail barang.</p>
+              </div>
               <button
                 className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
                 onClick={() => setIsFormOpen(false)}
@@ -175,20 +178,20 @@ export default function Returns() {
               </button>
             </div>
             <div className="grid gap-3 mt-3">
-            <label className="block">
-              <div className="mb-1 text-xs font-medium text-zinc-600">Tipe Retur</div>
-              <select
-                className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
-                value={type}
-                onChange={(e) => {
-                  setType(e.target.value as any);
-                  setPartnerId("");
-                }}
-              >
-                <option value="SALES_RETURN">Dari Pelanggan (Sales Return)</option>
-                <option value="PURCHASE_RETURN">Ke Supplier (Purchase Return)</option>
-              </select>
-            </label>
+              <label className="block">
+                <div className="mb-1 text-xs font-medium text-zinc-600">Tipe Retur</div>
+                <select
+                  className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                  value={type}
+                  onChange={(e) => {
+                    setType(e.target.value as any);
+                    setPartnerId("");
+                  }}
+                >
+                  <option value="SALES_RETURN">Dari Pelanggan (Sales Return)</option>
+                  <option value="PURCHASE_RETURN">Ke Supplier (Purchase Return)</option>
+                </select>
+              </label>
 
             <label className="block">
               <div className="mb-1 text-xs font-medium text-zinc-600">
@@ -304,10 +307,15 @@ export default function Returns() {
               </div>
             </div>
 
-            <Button disabled={!canSubmit || saving} onClick={handleSubmit} className="mt-2">
-              {saving ? "Menyimpan..." : "Simpan Retur"}
-            </Button>
-          </div>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button variant="secondary" onClick={() => setIsFormOpen(false)} disabled={saving}>
+                  Batal
+                </Button>
+                <Button disabled={!canSubmit || saving} onClick={handleSubmit}>
+                  {saving ? "Menyimpan..." : "Simpan Retur"}
+                </Button>
+              </div>
+            </div>
         </Card>
         </div>
       ) : null}

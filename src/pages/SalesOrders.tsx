@@ -281,10 +281,13 @@ export default function SalesOrders() {
       </Card>
 
       {isFormOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <Card className="w-full max-w-2xl p-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <Card className="w-full max-w-3xl p-5 max-h-[92vh] overflow-y-auto shadow-2xl">
             <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold">Buat Sales Order</div>
+              <div>
+                <div className="text-base font-semibold">Buat Sales Order</div>
+                <p className="text-xs text-zinc-500">Lengkapi pelanggan, tanggal, lalu item order.</p>
+              </div>
               <button
                 className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
                 onClick={() => setIsFormOpen(false)}
@@ -293,34 +296,34 @@ export default function SalesOrders() {
               </button>
             </div>
             <div className="mt-3 grid gap-3">
-            <label className="block">
-              <div className="mb-1 text-xs font-medium text-zinc-600">Pelanggan</div>
-              <select
-                className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
-                value={customerId}
-                onChange={(e) => {
-                  const newCustId = e.target.value;
-                  setCustomerId(newCustId);
-                  const c = customers.find(x => x.id === newCustId);
-                  if (c) {
-                    setItems(prev => prev.map(it => {
-                      const p = products.find(x => x.id === it.productId);
-                      if (p) {
-                        return { ...it, unitPrice: resolveUnitPrice(p, c, it.uom) };
-                      }
-                      return it;
-                    }));
-                  }
-                }}
-              >
-                <option value="">Pilih pelanggan</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.code} - {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <label className="block">
+                <div className="mb-1 text-xs font-medium text-zinc-600">Pelanggan</div>
+                <select
+                  className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                  value={customerId}
+                  onChange={(e) => {
+                    const newCustId = e.target.value;
+                    setCustomerId(newCustId);
+                    const c = customers.find(x => x.id === newCustId);
+                    if (c) {
+                      setItems(prev => prev.map(it => {
+                        const p = products.find(x => x.id === it.productId);
+                        if (p) {
+                          return { ...it, unitPrice: resolveUnitPrice(p, c, it.uom) };
+                        }
+                        return it;
+                      }));
+                    }
+                  }}
+                >
+                  <option value="">Pilih pelanggan</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.code} - {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
             <Input label="Tanggal" type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
 
@@ -430,13 +433,15 @@ export default function SalesOrders() {
               </div>
             </div>
 
-            <Button
-              disabled={!canSubmit}
-              onClick={handleSubmit}
-            >
-              Simpan SO
-            </Button>
-          </div>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button variant="secondary" onClick={() => setIsFormOpen(false)}>
+                  Batal
+                </Button>
+                <Button disabled={!canSubmit} onClick={handleSubmit}>
+                  Simpan SO
+                </Button>
+              </div>
+            </div>
         </Card>
         </div>
       ) : null}

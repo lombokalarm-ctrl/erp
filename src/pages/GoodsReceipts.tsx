@@ -125,10 +125,13 @@ export default function GoodsReceipts() {
       </Card>
 
       {isFormOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <Card className="w-full max-w-2xl p-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <Card className="w-full max-w-3xl p-5 max-h-[92vh] overflow-y-auto shadow-2xl">
             <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold">Buat GRN</div>
+              <div>
+                <div className="text-base font-semibold">Buat Goods Receipt</div>
+                <p className="text-xs text-zinc-500">Catat penerimaan barang masuk per gudang.</p>
+              </div>
               <button
                 className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
                 onClick={() => setIsFormOpen(false)}
@@ -137,21 +140,21 @@ export default function GoodsReceipts() {
               </button>
             </div>
             <div className="mt-3 grid gap-3">
-            <label className="block">
-              <div className="mb-1 text-xs font-medium text-zinc-600">Gudang</div>
-              <select
-                className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
-                value={warehouseId}
-                onChange={(e) => setWarehouseId(e.target.value)}
-              >
-                <option value="">Pilih gudang</option>
-                {warehouses.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.code} - {w.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <label className="block">
+                <div className="mb-1 text-xs font-medium text-zinc-600">Gudang</div>
+                <select
+                  className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                  value={warehouseId}
+                  onChange={(e) => setWarehouseId(e.target.value)}
+                >
+                  <option value="">Pilih gudang</option>
+                  {warehouses.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.code} - {w.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
             <Input label="Tanggal Terima" type="date" value={receivedDate} onChange={(e) => setReceivedDate(e.target.value)} />
 
@@ -229,30 +232,35 @@ export default function GoodsReceipts() {
               </div>
             </div>
 
-            <Button
-              disabled={!canSubmit}
-              onClick={async () => {
-                setError(null);
-                try {
-                  await apiFetch("/api/v1/goods-receipts", {
-                    method: "POST",
-                    body: JSON.stringify({
-                      warehouseId,
-                      receivedDate,
-                      items: items.map((i) => ({ productId: i.productId, qty: Number(i.qty), uom: i.uom })),
-                    }),
-                  });
-                  setItems([{ productId: "", qty: "1", uom: "pcs" }]);
-                  setIsFormOpen(false);
-                  await load();
-                } catch (e) {
-                  setError(e instanceof ApiError ? e.message : "Gagal membuat GRN");
-                }
-              }}
-            >
-              Simpan GRN
-            </Button>
-          </div>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button variant="secondary" onClick={() => setIsFormOpen(false)}>
+                  Batal
+                </Button>
+                <Button
+                  disabled={!canSubmit}
+                  onClick={async () => {
+                    setError(null);
+                    try {
+                      await apiFetch("/api/v1/goods-receipts", {
+                        method: "POST",
+                        body: JSON.stringify({
+                          warehouseId,
+                          receivedDate,
+                          items: items.map((i) => ({ productId: i.productId, qty: Number(i.qty), uom: i.uom })),
+                        }),
+                      });
+                      setItems([{ productId: "", qty: "1", uom: "pcs" }]);
+                      setIsFormOpen(false);
+                      await load();
+                    } catch (e) {
+                      setError(e instanceof ApiError ? e.message : "Gagal membuat GRN");
+                    }
+                  }}
+                >
+                  Simpan GRN
+                </Button>
+              </div>
+            </div>
         </Card>
         </div>
       ) : null}
