@@ -47,7 +47,7 @@ export default function Regions() {
   return (
     <div className="space-y-4">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-zinc-900">Daftar Wilayah</h1>
+        <h1 className="text-lg font-semibold text-zinc-900">Daftar Wilayah</h1>
         <Button
           onClick={() => {
             setName("");
@@ -60,17 +60,18 @@ export default function Regions() {
       </div>
       <div className="overflow-auto">
         <Card className="overflow-hidden">
+          <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold">Daftar Wilayah</div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
+            <table className="min-w-full text-sm text-left">
               <thead className="sticky top-0 bg-white">
                 <tr className="border-b border-zinc-200 text-xs font-semibold text-zinc-500">
-                  <th className="px-4 py-2">Nama Wilayah</th>
+                  <th className="px-4 py-3">Nama Wilayah</th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((r) => (
                   <tr key={r.id} className="border-b border-zinc-100 hover:bg-zinc-50">
-                    <td className="px-4 py-2 font-medium">{r.name}</td>
+                    <td className="px-4 py-3 font-medium">{r.name}</td>
                   </tr>
                 ))}
                 {items.length === 0 ? (

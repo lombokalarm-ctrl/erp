@@ -158,7 +158,7 @@ export default function Promos() {
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-zinc-50">
+            <thead className="sticky top-0 bg-white">
               <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
                 <th className="px-4 py-3">Produk</th>
                 <th className="px-4 py-3">Program Promo</th>

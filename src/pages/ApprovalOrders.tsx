@@ -74,9 +74,10 @@ export default function ApprovalOrders() {
       ) : null}
 
       <Card className="overflow-hidden">
+        <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold">Daftar Antrean Approval</div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-zinc-50">
+            <thead className="sticky top-0 bg-white">
               <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
                 <th className="px-4 py-3">Tanggal Request</th>
                 <th className="px-4 py-3">Sales Order</th>
