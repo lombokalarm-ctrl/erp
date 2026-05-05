@@ -12,6 +12,25 @@ function roundCurrency(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100
 }
 
+async function hasColumn(
+  client: { query: (sql: string, values?: unknown[]) => Promise<{ rowCount: number }> },
+  table: string,
+  column: string,
+) {
+  const res = await client.query(
+    `
+      select 1
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = $1
+        and column_name = $2
+      limit 1
+    `,
+    [table, column],
+  )
+  return res.rowCount > 0
+}
+
 export async function getPaymentDetail(id: string) {
   const pool = getPool()
   const res = await pool.query(
@@ -90,30 +109,35 @@ export async function createPayment(input: {
       })
     }
 
-    const insertSql = `
-      insert into payments(
-        invoice_id,
-        method,
-        amount,
-        paid_at,
-        note,
-        proof_file_id,
-        created_by
-      )
-      values ($1,$2,$3,$4,$5,$6,$7)
-      returning *
-    `
-    const insertParams = (
-      method: string,
-    ) => [
+    const supportsProofFileId = await hasColumn(client, 'payments', 'proof_file_id')
+    const supportsCreatedBy = await hasColumn(client, 'payments', 'created_by')
+    const paymentColumns = ['invoice_id', 'method', 'amount', 'paid_at', 'note']
+    const baseParams: unknown[] = [
       input.invoiceId,
-      method,
+      null, // method placeholder
       normalizedAmount,
       input.paidAt,
       input.note ?? null,
-      input.proofFileId ?? null,
-      input.createdBy,
     ]
+    if (supportsProofFileId) {
+      paymentColumns.push('proof_file_id')
+      baseParams.push(input.proofFileId ?? null)
+    }
+    if (supportsCreatedBy) {
+      paymentColumns.push('created_by')
+      baseParams.push(input.createdBy)
+    }
+    const placeholders = paymentColumns.map((_, i) => `$${i + 1}`).join(',')
+    const insertSql = `
+      insert into payments(${paymentColumns.join(',')})
+      values (${placeholders})
+      returning *
+    `
+    const insertParams = (method: string) => {
+      const params = [...baseParams]
+      params[1] = method
+      return params
+    }
 
     let payment: any
     try {
@@ -140,15 +164,21 @@ export async function createPayment(input: {
     const nextStatus = remainingAfter <= 0 ? 'PAID' : overdue ? 'OVERDUE' : 'UNPAID'
 
     try {
+      const supportsInvoiceUpdatedAt = await hasColumn(client, 'invoices', 'updated_at')
       await client.query(
-        `update invoices set status = $2, updated_at = now() where id = $1`,
+        supportsInvoiceUpdatedAt
+          ? `update invoices set status = $2, updated_at = now() where id = $1`
+          : `update invoices set status = $2 where id = $1`,
         [input.invoiceId, nextStatus],
       )
     } catch (err) {
       // Legacy schema may reject OVERDUE; fall back to UNPAID to keep payment flow functional.
       if (nextStatus === 'OVERDUE' && isPgError(err) && (err.code === '23514' || err.code === '22P02')) {
+        const supportsInvoiceUpdatedAt = await hasColumn(client, 'invoices', 'updated_at')
         await client.query(
-          `update invoices set status = $2, updated_at = now() where id = $1`,
+          supportsInvoiceUpdatedAt
+            ? `update invoices set status = $2, updated_at = now() where id = $1`
+            : `update invoices set status = $2 where id = $1`,
           [input.invoiceId, 'UNPAID'],
         )
       } else {
