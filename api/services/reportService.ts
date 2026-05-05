@@ -94,12 +94,12 @@ export async function getCollectionReport(params: { startDate?: string; endDate?
   const methodRes = await pool.query(
     `
       select 
-        p.method,
+        upper(p.method) as method,
         count(p.id)::int as "count",
         coalesce(sum(p.amount), 0)::text as "total"
       from payments p
       where ${dateCondition}
-      group by p.method
+      group by upper(p.method)
     `,
     values
   )
@@ -121,8 +121,8 @@ export async function getCollectionReport(params: { startDate?: string; endDate?
     `
       select 
         date_trunc('day', p.paid_at)::date::text as "date",
-        coalesce(sum(case when p.method = 'CASH' then p.amount else 0 end), 0)::text as "cash",
-        coalesce(sum(case when p.method = 'TRANSFER' then p.amount else 0 end), 0)::text as "transfer",
+        coalesce(sum(case when upper(p.method) = 'CASH' then p.amount else 0 end), 0)::text as "cash",
+        coalesce(sum(case when upper(p.method) = 'TRANSFER' then p.amount else 0 end), 0)::text as "transfer",
         coalesce(sum(p.amount), 0)::text as "total"
       from payments p
       where ${dateCondition}
@@ -139,7 +139,7 @@ export async function getCollectionReport(params: { startDate?: string; endDate?
       select 
         p.id,
         p.paid_at as "paidAt",
-        p.method,
+        upper(p.method) as method,
         p.amount::text as "amount",
         i.invoice_no as "invoiceNo",
         c.name as "customerName"

@@ -36,7 +36,7 @@ router.get(
           select
             p.id,
             p.invoice_id as "invoiceId",
-            p.method,
+            upper(p.method) as method,
             p.amount::text as amount,
             p.paid_at as "paidAt",
             p.note,
