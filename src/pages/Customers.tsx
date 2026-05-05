@@ -35,6 +35,14 @@ type CreditProfile = {
   maxOverdueDaysBeforeBlock: number | null;
 };
 
+const CATEGORY_OPTIONS = [
+  "RETAIL",
+  "GROSIR",
+  "MODERN RETAIL",
+  "HOREKA",
+  "NASIONAL MODERN RETAIL",
+] as const;
+
 export default function Customers() {
   const [q, setQ] = useState("");
   const [items, setItems] = useState<Customer[]>([]);
@@ -69,8 +77,44 @@ export default function Customers() {
   const [salesList, setSalesList] = useState<{id: string, fullName: string}[]>([]);
   const authUser = useAuthStore(s => s.user);
   const isSalesRole = authUser?.role === "Sales";
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "BLOCKED">("ALL");
+  const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
+  const [sortBy, setSortBy] = useState<"name" | "code" | "category" | "status">("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const canCreate = useMemo(() => code.trim() && name.trim(), [code, name]);
+  const filteredItems = useMemo(() => {
+    const filtered = items.filter((c) => {
+      const statusMatch = statusFilter === "ALL" || c.status === statusFilter;
+      const categoryMatch = categoryFilter === "ALL" || c.category === categoryFilter;
+      return statusMatch && categoryMatch;
+    });
+    const factor = sortDir === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      const av = String(a[sortBy] ?? "").toLowerCase();
+      const bv = String(b[sortBy] ?? "").toLowerCase();
+      return av.localeCompare(bv) * factor;
+    });
+  }, [items, statusFilter, categoryFilter, sortBy, sortDir]);
+
+  function handleOpenCreate() {
+    setEditingId(null);
+    setCode("");
+    setName("");
+    setOwnerName("");
+    setKtpNo("");
+    setNpwpNo("");
+    setCategory("RETAIL");
+    setStatus("ACTIVE");
+    setSalesId("");
+    setPhone("");
+    setEmail("");
+    setAddress("");
+    setRegionId("");
+    setError(null);
+    setIsFormOpen(true);
+  }
 
   function handleEdit(c: Customer) {
     setEditingId(c.id);
@@ -88,6 +132,7 @@ export default function Customers() {
     setRegionId(c.regionId || "");
     setSelected(c);
     loadCredit(c.id).catch(() => setCredit(null));
+    setIsFormOpen(true);
   }
 
   function handleCancelEdit() {
@@ -107,6 +152,7 @@ export default function Customers() {
     setSelected(null);
     setCredit(null);
     setError(null);
+    setIsFormOpen(false);
   }
 
   async function handleDelete(id: string) {
@@ -158,6 +204,44 @@ export default function Customers() {
   async function loadCredit(id: string) {
     const res = await apiFetch<{ data: CreditProfile | null }>(`/api/v1/customers/${id}/credit-profile`);
     setCredit(res.data);
+  }
+
+  async function handleSaveCustomer() {
+    setError(null);
+    try {
+      const payload: any = {
+        code,
+        name,
+        ownerName: ownerName || undefined,
+        ktpNo: ktpNo || undefined,
+        npwpNo: npwpNo || undefined,
+        category,
+        phone: phone || undefined,
+        email: email || undefined,
+        address: address || undefined,
+        regionId: regionId || undefined,
+        status,
+      };
+      if (!isSalesRole) {
+        payload.salesId = salesId || null;
+      }
+
+      if (editingId) {
+        await apiFetch(`/api/v1/customers/${editingId}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch("/api/v1/customers", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
+      handleCancelEdit();
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Gagal menyimpan pelanggan");
+    }
   }
 
   function downloadTemplate() {
@@ -244,15 +328,55 @@ export default function Customers() {
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
         <div>
           <h1 className="text-lg font-semibold">Pelanggan</h1>
-          <p className="mt-1 text-sm text-zinc-600">Kelola toko/retail beserta limit kredit dan tempo.</p>
+          <p className="mt-1 text-sm text-zinc-600">Kelola data pelanggan, filter cepat, dan sortir mudah dalam satu halaman.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <div className="w-full md:w-72">
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari kode / nama..." />
           </div>
+          <select
+            className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as "ALL" | "ACTIVE" | "BLOCKED")}
+          >
+            <option value="ALL">Semua Status</option>
+            <option value="ACTIVE">ACTIVE</option>
+            <option value="BLOCKED">BLOCKED</option>
+          </select>
+          <select
+            className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+          >
+            <option value="ALL">Semua Kategori</option>
+            {CATEGORY_OPTIONS.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+          <select
+            className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as "name" | "code" | "category" | "status")}
+          >
+            <option value="name">Sort Nama</option>
+            <option value="code">Sort Kode</option>
+            <option value="category">Sort Kategori</option>
+            <option value="status">Sort Status</option>
+          </select>
+          <select
+            className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+            value={sortDir}
+            onChange={(e) => setSortDir(e.target.value as "asc" | "desc")}
+          >
+            <option value="asc">A-Z</option>
+            <option value="desc">Z-A</option>
+          </select>
           <Button variant="secondary" onClick={load}>
             Cari
           </Button>
+          <Button onClick={handleOpenCreate}>Tambah Pelanggan Baru</Button>
         </div>
       </div>
 
@@ -306,7 +430,7 @@ export default function Customers() {
         ) : null}
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_380px]">
+      <div className="space-y-4">
         <Card className="overflow-hidden">
           <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold">Daftar Pelanggan</div>
           <div className="overflow-auto">
@@ -327,7 +451,7 @@ export default function Customers() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((c) => {
+                {filteredItems.map((c) => {
                   const regionName = regions.find(r => r.id === c.regionId)?.name || "-";
                   return (
                     <tr
@@ -368,10 +492,10 @@ export default function Customers() {
                     </tr>
                   );
                 })}
-                {items.length === 0 ? (
+                {filteredItems.length === 0 ? (
                   <tr>
                     <td className="px-4 py-6 text-center text-sm text-zinc-500" colSpan={11}>
-                      Belum ada pelanggan.
+                      Tidak ada data sesuai filter.
                     </td>
                   </tr>
                 ) : null}
@@ -380,9 +504,34 @@ export default function Customers() {
           </div>
         </Card>
 
-        <div className="space-y-4">
-          <Card className="p-4">
-            <div className="text-sm font-semibold">{editingId ? "Edit Pelanggan" : "Tambah Pelanggan"}</div>
+        <Card className="p-4">
+          <div className="text-sm font-semibold">Limit Kredit & Sales Order</div>
+          <div className="mt-1 text-sm text-zinc-600">
+            {selected ? `Untuk: ${selected.name}` : "Pilih pelanggan dari tabel untuk mengatur limit kredit dan limit sales order."}
+          </div>
+          {selected ? (
+            <CreditEditor
+              key={selected.id}
+              customerId={selected.id}
+              initial={credit}
+              onSaved={() => loadCredit(selected.id)}
+            />
+          ) : null}
+        </Card>
+      </div>
+
+      {isFormOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <Card className="w-full max-w-2xl max-h-[90vh] overflow-auto p-4">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold">{editingId ? "Edit Pelanggan" : "Tambah Pelanggan Baru"}</div>
+              <button
+                className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
+                onClick={handleCancelEdit}
+              >
+                Tutup
+              </button>
+            </div>
             <div className="mt-3 grid gap-3">
               <Input label="Kode" value={code} onChange={(e) => setCode(e.target.value)} placeholder="CUST-001" />
               <Input label="Nama" value={name} onChange={(e) => setName(e.target.value)} placeholder="Toko Sumber Rejeki" />
@@ -390,141 +539,84 @@ export default function Customers() {
               <Input label="No KTP" value={ktpNo} onChange={(e) => setKtpNo(e.target.value)} placeholder="3273xxxxxxxxxxxx" />
               <Input label="No NPWP" value={npwpNo} onChange={(e) => setNpwpNo(e.target.value)} placeholder="xx.xxx.xxx.x-xxx.xxx" />
               <label className="block">
-              <div className="mb-1 text-xs font-medium text-zinc-600">Kategori</div>
-              <select
-                className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                <option value="RETAIL">Retail</option>
-                <option value="GROSIR">Grosir</option>
-                <option value="MODERN RETAIL">Modern Retail</option>
-                <option value="HOREKA">Hotel, Restoran & Kafe (Horeka)</option>
-                <option value="NASIONAL MODERN RETAIL">Nasional Modern Retail</option>
-              </select>
-            </label>
-            <Input label="No Telepon" value={phone} onChange={(e) => setPhone(e.target.value)} />
-            <Input label="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <label className="block">
-              <div className="mb-1 text-xs font-medium text-zinc-600">Wilayah</div>
-              <select
-                className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
-                value={regionId}
-                onChange={(e) => setRegionId(e.target.value)}
-              >
-                <option value="">-- Pilih Wilayah --</option>
-                {regions.map(r => (
-                  <option key={r.id} value={r.id}>{r.name}</option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <div className="mb-1 text-xs font-medium text-zinc-600">Alamat Lengkap</div>
-              <textarea
-                className="w-full rounded-lg border border-zinc-200 bg-white p-3 text-sm min-h-[80px]"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-              />
-            </label>
-            {!isSalesRole && (
-              <label className="block">
-                <div className="mb-1 text-xs font-medium text-zinc-600">Sales PIC</div>
+                <div className="mb-1 text-xs font-medium text-zinc-600">Kategori</div>
                 <select
                   className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
-                  value={salesId}
-                  onChange={(e) => setSalesId(e.target.value)}
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
                 >
-                  <option value="">-- Tidak Ada --</option>
-                  {salesList.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.fullName}
+                  {CATEGORY_OPTIONS.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
                     </option>
                   ))}
                 </select>
               </label>
-            )}
-            {editingId && (
+              <Input label="No Telepon" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <Input label="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
               <label className="block">
-                <div className="mb-1 text-xs font-medium text-zinc-600">Status</div>
+                <div className="mb-1 text-xs font-medium text-zinc-600">Wilayah</div>
                 <select
                   className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
+                  value={regionId}
+                  onChange={(e) => setRegionId(e.target.value)}
                 >
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="BLOCKED">BLOCKED</option>
+                  <option value="">-- Pilih Wilayah --</option>
+                  {regions.map(r => (
+                    <option key={r.id} value={r.id}>{r.name}</option>
+                  ))}
                 </select>
               </label>
-            )}
+              <label className="block">
+                <div className="mb-1 text-xs font-medium text-zinc-600">Alamat Lengkap</div>
+                <textarea
+                  className="w-full rounded-lg border border-zinc-200 bg-white p-3 text-sm min-h-[80px]"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                />
+              </label>
+              {!isSalesRole ? (
+                <label className="block">
+                  <div className="mb-1 text-xs font-medium text-zinc-600">Sales PIC</div>
+                  <select
+                    className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                    value={salesId}
+                    onChange={(e) => setSalesId(e.target.value)}
+                  >
+                    <option value="">-- Tidak Ada --</option>
+                    {salesList.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.fullName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {editingId ? (
+                <label className="block">
+                  <div className="mb-1 text-xs font-medium text-zinc-600">Status</div>
+                  <select
+                    className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                  >
+                    <option value="ACTIVE">ACTIVE</option>
+                    <option value="BLOCKED">BLOCKED</option>
+                  </select>
+                </label>
+              ) : null}
               <div className="flex gap-2 pt-2">
-                <Button
-                  className="flex-1"
-                  disabled={!canCreate}
-                  onClick={async () => {
-                    setError(null);
-                    try {
-                      const payload: any = {
-                        code,
-                        name,
-                        ownerName: ownerName || undefined,
-                        ktpNo: ktpNo || undefined,
-                        npwpNo: npwpNo || undefined,
-                        category,
-                        phone: phone || undefined,
-                        email: email || undefined,
-                        address: address || undefined,
-                        regionId: regionId || undefined,
-                        status,
-                      };
-                      if (!isSalesRole) {
-                        payload.salesId = salesId || null;
-                      }
-
-                      if (editingId) {
-                        await apiFetch(`/api/v1/customers/${editingId}`, {
-                          method: "PATCH",
-                          body: JSON.stringify(payload),
-                        });
-                      } else {
-                        await apiFetch("/api/v1/customers", {
-                          method: "POST",
-                          body: JSON.stringify(payload),
-                        });
-                      }
-                      handleCancelEdit();
-                      await load();
-                    } catch (e) {
-                      setError(e instanceof ApiError ? e.message : "Gagal menyimpan pelanggan");
-                    }
-                  }}
-                >
+                <Button className="flex-1" disabled={!canCreate} onClick={handleSaveCustomer}>
                   {editingId ? "Update" : "Simpan"}
                 </Button>
-                {editingId && (
-                  <Button className="flex-1" variant="secondary" onClick={handleCancelEdit}>
-                    Batal
-                  </Button>
-                )}
+                <Button className="flex-1" variant="secondary" onClick={handleCancelEdit}>
+                  Batal
+                </Button>
               </div>
             </div>
           </Card>
-
-          <Card className="p-4">
-            <div className="text-sm font-semibold">Limit Kredit & Sales Order</div>
-            <div className="mt-1 text-sm text-zinc-600">
-              {selected ? `Untuk: ${selected.name}` : "Pilih pelanggan untuk mengatur limit kredit dan limit sales order."}
-            </div>
-            {selected ? (
-              <CreditEditor
-                key={selected.id}
-                customerId={selected.id}
-                initial={credit}
-                onSaved={() => loadCredit(selected.id)}
-              />
-            ) : null}
-          </Card>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }
