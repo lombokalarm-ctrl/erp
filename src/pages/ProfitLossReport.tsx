@@ -191,19 +191,19 @@ export default function ProfitLossReport() {
                 <table className="min-w-full text-sm">
                   <thead className="sticky top-0 bg-white">
                     <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
-                      <th className="px-4 py-2">Kategori</th>
-                      <th className="px-4 py-2 text-right">Net Sales</th>
-                      <th className="px-4 py-2 text-right">HPP</th>
-                      <th className="px-4 py-2 text-right">Laba Kotor</th>
+                      <th className="px-4 py-3">Kategori</th>
+                      <th className="px-4 py-3 text-right">Net Sales</th>
+                      <th className="px-4 py-3 text-right">HPP</th>
+                      <th className="px-4 py-3 text-right">Laba Kotor</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.byCategory.map((c, idx) => (
                       <tr key={idx} className="border-b border-zinc-100 hover:bg-zinc-50">
-                        <td className="px-4 py-2 font-medium">{c.categoryName}</td>
-                        <td className="px-4 py-2 text-right">{formatRp(c.netSales)}</td>
-                        <td className="px-4 py-2 text-right text-orange-600">{formatRp(c.cogs)}</td>
-                        <td className="px-4 py-2 text-right font-medium text-emerald-600">{formatRp(c.grossProfit)}</td>
+                        <td className="px-4 py-3 font-medium">{c.categoryName}</td>
+                        <td className="px-4 py-3 text-right">{formatRp(c.netSales)}</td>
+                        <td className="px-4 py-3 text-right text-orange-600">{formatRp(c.cogs)}</td>
+                        <td className="px-4 py-3 text-right font-medium text-emerald-600">{formatRp(c.grossProfit)}</td>
                       </tr>
                     ))}
                     {data.byCategory.length === 0 ? (

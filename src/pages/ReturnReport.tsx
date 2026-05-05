@@ -161,7 +161,7 @@ export default function ReturnReport() {
             </div>
             <div className="overflow-auto max-h-[500px]">
               <table className="min-w-full text-sm">
-                <thead className="sticky top-0 bg-white shadow-sm z-10">
+                <thead className="sticky top-0 bg-white">
                   <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
                     <th className="px-4 py-3">Tanggal / No Retur</th>
                     <th className="px-4 py-3">Tipe / Partner</th>

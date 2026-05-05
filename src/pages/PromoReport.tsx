@@ -134,7 +134,7 @@ export default function PromoReport() {
               </div>
               <div className="overflow-auto max-h-[400px]">
                 <table className="min-w-full text-sm">
-                  <thead className="sticky top-0 bg-white shadow-sm">
+                  <thead className="sticky top-0 bg-white">
                     <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
                       <th className="px-4 py-3">Nama Barang</th>
                       <th className="px-4 py-3 text-right">Qty Terjual</th>

@@ -174,23 +174,23 @@ export default function CollectionReport() {
                 <table className="min-w-full text-sm">
                   <thead className="sticky top-0 bg-white">
                     <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
-                      <th className="px-4 py-2">Tanggal</th>
-                      <th className="px-4 py-2">Pelanggan</th>
-                      <th className="px-4 py-2 text-right">Nominal</th>
+                      <th className="px-4 py-3">Tanggal</th>
+                      <th className="px-4 py-3">Pelanggan</th>
+                      <th className="px-4 py-3 text-right">Nominal</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.latestPayments.map((p) => (
                       <tr key={p.id} className="border-b border-zinc-100 hover:bg-zinc-50">
-                        <td className="px-4 py-2">
+                        <td className="px-4 py-3">
                           <div className="font-medium">{new Date(p.paidAt).toLocaleDateString("id-ID")}</div>
                           <div className="text-xs text-zinc-500">{p.method}</div>
                         </td>
-                        <td className="px-4 py-2">
+                        <td className="px-4 py-3">
                           <div className="truncate w-32">{p.customerName}</div>
                           <div className="text-xs text-zinc-500">{p.invoiceNo}</div>
                         </td>
-                        <td className="px-4 py-2 text-right font-medium text-emerald-600">Rp {p.amount}</td>
+                        <td className="px-4 py-3 text-right font-medium text-emerald-600">Rp {p.amount}</td>
                       </tr>
                     ))}
                     {data.latestPayments.length === 0 ? (
