@@ -1,5 +1,6 @@
 import { getPool } from '../db/pool.js'
 import { ApiError } from '../lib/http.js'
+import { upsertCreditProfile } from './customerCreditService.js'
 
 export type Customer = {
   id: string
@@ -218,4 +219,198 @@ export async function updateCustomer(
   values.push(id)
   await pool.query(`update customers set ${sets.join(', ')} where id = $${i}`, values)
   return await getCustomerById(id)
+}
+
+export type CustomerImportRow = {
+  code: string
+  name: string
+  ownerName?: string | null
+  ktpNo?: string | null
+  npwpNo?: string | null
+  category?: string | null
+  phone?: string | null
+  email?: string | null
+  address?: string | null
+  regionId?: string | null
+  regionName?: string | null
+  status?: string | null
+  salesId?: string | null
+  salesEmail?: string | null
+  creditLimit?: number | null
+  salesOrderLimit?: number | null
+  paymentTermDays?: number | null
+}
+
+function normalizeCategory(input?: string | null) {
+  if (!input) return 'RETAIL'
+  const value = input.trim().toUpperCase()
+  const allowed = ['RETAIL', 'GROSIR', 'MODERN RETAIL', 'HOREKA', 'NASIONAL MODERN RETAIL']
+  if (!allowed.includes(value)) {
+    throw new Error(
+      `Kategori "${input}" tidak valid. Gunakan: ${allowed.join(', ')}`,
+    )
+  }
+  return value
+}
+
+function normalizeStatus(input?: string | null) {
+  if (!input) return 'ACTIVE'
+  const value = input.trim().toUpperCase()
+  if (!['ACTIVE', 'BLOCKED'].includes(value)) {
+    throw new Error('Status harus ACTIVE atau BLOCKED')
+  }
+  return value as 'ACTIVE' | 'BLOCKED'
+}
+
+export async function importCustomers(rows: CustomerImportRow[]) {
+  const pool = getPool()
+  const prepared = rows.filter((r) => r.code?.trim() || r.name?.trim())
+  const salesEmailSet = Array.from(
+    new Set(
+      prepared
+        .map((r) => r.salesEmail?.trim().toLowerCase())
+        .filter((v): v is string => Boolean(v)),
+    ),
+  )
+  const regionNameSet = Array.from(
+    new Set(
+      prepared
+        .map((r) => r.regionName?.trim().toLowerCase())
+        .filter((v): v is string => Boolean(v)),
+    ),
+  )
+
+  const salesByEmail = new Map<string, string>()
+  if (salesEmailSet.length > 0) {
+    const salesRes = await pool.query(
+      `
+        select id, lower(email) as email
+        from users
+        where lower(email) = any($1)
+      `,
+      [salesEmailSet],
+    )
+    for (const row of salesRes.rows as Array<{ id: string; email: string }>) {
+      salesByEmail.set(row.email, row.id)
+    }
+  }
+
+  const regionByName = new Map<string, string>()
+  if (regionNameSet.length > 0) {
+    const regionRes = await pool.query(
+      `
+        select id, lower(name) as name
+        from regions
+        where lower(name) = any($1)
+      `,
+      [regionNameSet],
+    )
+    for (const row of regionRes.rows as Array<{ id: string; name: string }>) {
+      regionByName.set(row.name, row.id)
+    }
+  }
+
+  let created = 0
+  let updated = 0
+  const errors: Array<{ row: number; message: string; code?: string }> = []
+
+  for (let i = 0; i < prepared.length; i++) {
+    const row = prepared[i]
+    const rowNo = i + 2
+    try {
+      const code = row.code?.trim()
+      const name = row.name?.trim()
+      if (!code || !name) {
+        throw new Error('Kolom code dan name wajib diisi')
+      }
+
+      const category = normalizeCategory(row.category)
+      const status = normalizeStatus(row.status)
+
+      let salesId = row.salesId?.trim() || null
+      if (!salesId && row.salesEmail?.trim()) {
+        const byEmail = salesByEmail.get(row.salesEmail.trim().toLowerCase())
+        if (!byEmail) {
+          throw new Error(`Sales email "${row.salesEmail}" tidak ditemukan`)
+        }
+        salesId = byEmail
+      }
+
+      let regionId = row.regionId?.trim() || null
+      if (!regionId && row.regionName?.trim()) {
+        const byRegionName = regionByName.get(row.regionName.trim().toLowerCase())
+        if (!byRegionName) {
+          throw new Error(`Wilayah "${row.regionName}" tidak ditemukan`)
+        }
+        regionId = byRegionName
+      }
+
+      const existingRes = await pool.query(
+        `select id from customers where lower(code) = lower($1) limit 1`,
+        [code],
+      )
+      const existingId = existingRes.rows[0]?.id as string | undefined
+      let customerId = existingId
+
+      if (existingId) {
+        await updateCustomer(existingId, {
+          code,
+          name,
+          ownerName: row.ownerName?.trim() || null,
+          ktpNo: row.ktpNo?.trim() || null,
+          npwpNo: row.npwpNo?.trim() || null,
+          category,
+          phone: row.phone?.trim() || null,
+          email: row.email?.trim() || null,
+          address: row.address?.trim() || null,
+          regionId,
+          status,
+          salesId,
+        })
+        updated += 1
+      } else {
+        const createdCustomer = await createCustomer({
+          code,
+          name,
+          ownerName: row.ownerName?.trim() || null,
+          ktpNo: row.ktpNo?.trim() || null,
+          npwpNo: row.npwpNo?.trim() || null,
+          category,
+          phone: row.phone?.trim() || null,
+          email: row.email?.trim() || null,
+          address: row.address?.trim() || null,
+          regionId,
+          status,
+          salesId,
+        })
+        customerId = createdCustomer.id
+        created += 1
+      }
+
+      const hasCredit =
+        row.creditLimit != null || row.salesOrderLimit != null || row.paymentTermDays != null
+      if (hasCredit && customerId) {
+        await upsertCreditProfile({
+          customerId,
+          creditLimit: Number(row.creditLimit ?? 0),
+          salesOrderLimit: Number(row.salesOrderLimit ?? 0),
+          paymentTermDays: Number(row.paymentTermDays ?? 0),
+        })
+      }
+    } catch (err: any) {
+      errors.push({
+        row: rowNo,
+        code: row.code,
+        message: err instanceof ApiError ? err.message : String(err?.message ?? err),
+      })
+    }
+  }
+
+  return {
+    total: prepared.length,
+    created,
+    updated,
+    failed: errors.length,
+    errors,
+  }
 }

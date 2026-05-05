@@ -1,10 +1,13 @@
 import { Router, type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod'
-import { ok } from '../../lib/http.js'
+import multer from 'multer'
+import * as XLSX from 'xlsx'
+import { ApiError, ok } from '../../lib/http.js'
 import { authenticate, authorizeAny } from '../../middlewares/auth.js'
 import {
   createCustomer,
   getCustomerById,
+  importCustomers,
   listCustomers,
   updateCustomer,
   deleteCustomer,
@@ -16,6 +19,29 @@ import {
 import { writeAuditLog } from '../../services/auditService.js'
 
 const router = Router()
+const importUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+})
+
+function normalizeHeader(value: string) {
+  return value.toLowerCase().trim().replace(/\s+/g, '_')
+}
+
+function toNullableString(value: unknown) {
+  if (value == null) return null
+  const str = String(value).trim()
+  return str ? str : null
+}
+
+function toNullableNumber(value: unknown) {
+  if (value == null) return null
+  const raw = String(value).trim()
+  if (!raw) return null
+  const normalized = raw.replace(/\./g, '').replace(',', '.')
+  const n = Number(normalized)
+  return Number.isFinite(n) ? n : null
+}
 
 router.get(
   '/',
@@ -94,6 +120,117 @@ router.post(
         payload: { code: created.code, name: created.name },
       })
       ok(res, created)
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+router.post(
+  '/import',
+  authenticate,
+  authorizeAny(['customers:write']),
+  importUpload.single('file'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.file) {
+        throw new ApiError({
+          code: 'VALIDATION_ERROR',
+          status: 400,
+          message: 'File wajib diunggah',
+        })
+      }
+      const filename = req.file.originalname.toLowerCase()
+      if (!filename.endsWith('.csv') && !filename.endsWith('.xlsx') && !filename.endsWith('.xls')) {
+        throw new ApiError({
+          code: 'VALIDATION_ERROR',
+          status: 400,
+          message: 'Format file harus .csv, .xlsx, atau .xls',
+        })
+      }
+
+      const workbook = XLSX.read(req.file.buffer, { type: 'buffer' })
+      const sheetName = workbook.SheetNames[0]
+      if (!sheetName) {
+        throw new ApiError({
+          code: 'VALIDATION_ERROR',
+          status: 400,
+          message: 'File tidak memiliki sheet',
+        })
+      }
+      const sheet = workbook.Sheets[sheetName]
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+        defval: '',
+      })
+
+      const mappedRows = rows.map((raw) => {
+        const normalized: Record<string, unknown> = {}
+        for (const [key, value] of Object.entries(raw)) {
+          normalized[normalizeHeader(key)] = value
+        }
+        return {
+          code: String(normalized.code ?? '').trim(),
+          name: String(normalized.name ?? normalized.nama ?? '').trim(),
+          ownerName: toNullableString(
+            normalized.owner_name ?? normalized.nama_pemilik ?? normalized.ownername,
+          ),
+          ktpNo: toNullableString(normalized.ktp_no ?? normalized.no_ktp ?? normalized.ktpno),
+          npwpNo: toNullableString(normalized.npwp_no ?? normalized.no_npwp ?? normalized.npwpno),
+          category: toNullableString(normalized.category ?? normalized.kategori),
+          phone: toNullableString(normalized.phone ?? normalized.no_telp ?? normalized.no_hp),
+          email: toNullableString(normalized.email),
+          address: toNullableString(normalized.address ?? normalized.alamat),
+          regionId: toNullableString(normalized.region_id),
+          regionName: toNullableString(normalized.region_name ?? normalized.wilayah),
+          status: toNullableString(normalized.status),
+          salesId: toNullableString(normalized.sales_id),
+          salesEmail: toNullableString(normalized.sales_email),
+          creditLimit: toNullableNumber(normalized.credit_limit),
+          salesOrderLimit: toNullableNumber(normalized.sales_order_limit),
+          paymentTermDays: toNullableNumber(
+            normalized.payment_term_days ?? normalized.tempo_hari,
+          ),
+        }
+      })
+
+      const result = await importCustomers(mappedRows)
+      await writeAuditLog({
+        actorUserId: req.user!.userId,
+        action: 'CUSTOMER_IMPORT',
+        entity: 'customers',
+        payload: {
+          filename: req.file.originalname,
+          total: result.total,
+          created: result.created,
+          updated: result.updated,
+          failed: result.failed,
+        },
+      })
+      ok(
+        res,
+        {
+          ...result,
+          expectedColumns: [
+            'code',
+            'name',
+            'owner_name',
+            'ktp_no',
+            'npwp_no',
+            'category',
+            'phone',
+            'email',
+            'address',
+            'region_id',
+            'region_name',
+            'status',
+            'sales_id',
+            'sales_email',
+            'credit_limit',
+            'sales_order_limit',
+            'payment_term_days',
+          ],
+        },
+      )
     } catch (err) {
       next(err)
     }

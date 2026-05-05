@@ -41,6 +41,15 @@ export default function Customers() {
   const [selected, setSelected] = useState<Customer | null>(null);
   const [credit, setCredit] = useState<CreditProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importSummary, setImportSummary] = useState<{
+    total: number;
+    created: number;
+    updated: number;
+    failed: number;
+    errors?: { row: number; message: string; code?: string }[];
+  } | null>(null);
 
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
@@ -151,6 +160,85 @@ export default function Customers() {
     setCredit(res.data);
   }
 
+  function downloadTemplate() {
+    const headers = [
+      "code",
+      "name",
+      "owner_name",
+      "ktp_no",
+      "npwp_no",
+      "category",
+      "phone",
+      "email",
+      "address",
+      "region_name",
+      "status",
+      "sales_email",
+      "credit_limit",
+      "sales_order_limit",
+      "payment_term_days",
+    ];
+    const sample = [
+      "CUST-001",
+      "Toko Maju Jaya",
+      "Budi Santoso",
+      "3273010101010001",
+      "12.345.678.9-012.345",
+      "RETAIL",
+      "081234567890",
+      "owner@tokomaju.id",
+      "Jl. Merdeka No. 1",
+      "Bandung Timur",
+      "ACTIVE",
+      "sales1@apli.my.id",
+      "5000000",
+      "2000000",
+      "30",
+    ];
+    const csv = `${headers.join(",")}\n${sample.join(",")}\n`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "template-import-pelanggan.csv";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleImport() {
+    if (!importFile) {
+      setError("Pilih file CSV/XLSX terlebih dahulu");
+      return;
+    }
+    setImporting(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append("file", importFile);
+      const res = await apiFetch<{
+        data: {
+          total: number;
+          created: number;
+          updated: number;
+          failed: number;
+          errors?: { row: number; message: string; code?: string }[];
+        };
+      }>("/api/v1/customers/import", {
+        method: "POST",
+        body: form,
+      });
+      setImportSummary(res.data);
+      setImportFile(null);
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Import pelanggan gagal");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
@@ -171,6 +259,52 @@ export default function Customers() {
       {error ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
       ) : null}
+
+      <Card className="p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <div className="text-sm font-semibold">Import Pelanggan (CSV/Excel)</div>
+            <p className="mt-1 text-xs text-zinc-600">
+              Kolom wajib: <span className="font-medium">code</span>, <span className="font-medium">name</span>.
+              Kolom lain opsional: owner_name, ktp_no, npwp_no, category, phone, email, address,
+              region_name, status, sales_email, credit_limit, sales_order_limit, payment_term_days.
+            </p>
+          </div>
+          <Button variant="secondary" onClick={downloadTemplate}>
+            Unduh Template CSV
+          </Button>
+        </div>
+        <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-center">
+          <input
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            onChange={(e) => setImportFile(e.target.files?.[0] ?? null)}
+            className="block w-full rounded-lg border border-zinc-200 bg-white p-2 text-sm md:max-w-md"
+          />
+          <Button onClick={handleImport} disabled={!importFile || importing}>
+            {importing ? "Mengimpor..." : "Import File"}
+          </Button>
+        </div>
+        {importSummary ? (
+          <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs">
+            <div>
+              Total: <span className="font-semibold">{importSummary.total}</span> | Dibuat:{" "}
+              <span className="font-semibold text-emerald-700">{importSummary.created}</span> | Diperbarui:{" "}
+              <span className="font-semibold text-blue-700">{importSummary.updated}</span> | Gagal:{" "}
+              <span className="font-semibold text-red-700">{importSummary.failed}</span>
+            </div>
+            {importSummary.errors?.length ? (
+              <div className="mt-2 max-h-36 overflow-auto rounded border border-red-100 bg-white p-2 text-red-700">
+                {importSummary.errors.slice(0, 20).map((err, idx) => (
+                  <div key={idx}>
+                    Baris {err.row}: {err.message}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_380px]">
         <Card className="overflow-hidden">
