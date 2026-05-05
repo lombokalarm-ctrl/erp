@@ -67,21 +67,21 @@ export default function Receivables() {
           <table className="min-w-full text-sm">
             <thead className="sticky top-0 bg-white">
               <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
-                <th className="px-4 py-2">Invoice</th>
-                <th className="px-4 py-2">Pelanggan</th>
-                <th className="px-4 py-2">Jatuh Tempo</th>
-                <th className="px-4 py-2">Sisa</th>
-                <th className="px-4 py-2">Status</th>
+                <th className="px-4 py-3">Invoice</th>
+                <th className="px-4 py-3">Pelanggan</th>
+                <th className="px-4 py-3">Jatuh Tempo</th>
+                <th className="px-4 py-3">Sisa</th>
+                <th className="px-4 py-3">Status</th>
               </tr>
             </thead>
             <tbody>
               {items.map((r) => (
                 <tr key={r.id} className="border-b border-zinc-100 hover:bg-zinc-50">
-                  <td className="px-4 py-2 font-medium">{r.invoiceNo}</td>
-                  <td className="px-4 py-2">{r.customerName}</td>
-                  <td className="px-4 py-2">{r.dueDate}</td>
-                  <td className="px-4 py-2">{r.remainingAmount}</td>
-                  <td className="px-4 py-2">{r.status}</td>
+                  <td className="px-4 py-3 font-medium">{r.invoiceNo}</td>
+                  <td className="px-4 py-3">{r.customerName}</td>
+                  <td className="px-4 py-3">{r.dueDate}</td>
+                  <td className="px-4 py-3">{r.remainingAmount}</td>
+                  <td className="px-4 py-3">{r.status}</td>
                 </tr>
               ))}
               {items.length === 0 ? (

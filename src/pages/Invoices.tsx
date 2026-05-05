@@ -63,24 +63,24 @@ export default function Invoices() {
           <table className="min-w-full text-sm">
             <thead className="sticky top-0 bg-white">
               <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
-                <th className="px-4 py-2">No</th>
-                <th className="px-4 py-2">Tanggal</th>
-                <th className="px-4 py-2">Jatuh Tempo</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2">Total</th>
+                <th className="px-4 py-3">No</th>
+                <th className="px-4 py-3">Tanggal</th>
+                <th className="px-4 py-3">Jatuh Tempo</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Total</th>
               </tr>
             </thead>
             <tbody>
               {items.map((i) => (
                 <tr key={i.id} className="border-b border-zinc-100 hover:bg-zinc-50">
-                  <td className="px-4 py-2 font-medium">
+                  <td className="px-4 py-3 font-medium">
                     <Link className="text-zinc-900 underline decoration-zinc-300 underline-offset-4 hover:decoration-zinc-500" to={`/invoices/${i.id}`}>
                       {i.invoiceNo}
                     </Link>
                   </td>
-                  <td className="px-4 py-2">{i.invoiceDate}</td>
-                  <td className="px-4 py-2">{i.dueDate}</td>
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-3">{i.invoiceDate}</td>
+                  <td className="px-4 py-3">{i.dueDate}</td>
+                  <td className="px-4 py-3">
                     <span className={`rounded-full px-2 py-0.5 text-xs ${
                       i.status === "PAID"
                         ? "bg-emerald-50 text-emerald-700"
@@ -91,7 +91,7 @@ export default function Invoices() {
                       {i.status}
                     </span>
                   </td>
-                  <td className="px-4 py-2">{i.totalAmount}</td>
+                  <td className="px-4 py-3">{i.totalAmount}</td>
                 </tr>
               ))}
               {items.length === 0 ? (

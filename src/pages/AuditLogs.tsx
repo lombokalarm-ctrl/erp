@@ -42,19 +42,19 @@ export default function AuditLogs() {
           <table className="min-w-full text-sm">
             <thead className="sticky top-0 bg-white">
               <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
-                <th className="px-4 py-2">Waktu</th>
-                <th className="px-4 py-2">User</th>
-                <th className="px-4 py-2">Action</th>
-                <th className="px-4 py-2">Entity</th>
+                <th className="px-4 py-3">Waktu</th>
+                <th className="px-4 py-3">User</th>
+                <th className="px-4 py-3">Action</th>
+                <th className="px-4 py-3">Entity</th>
               </tr>
             </thead>
             <tbody>
               {items.map((l) => (
                 <tr key={l.id} className="border-b border-zinc-100 hover:bg-zinc-50">
-                  <td className="px-4 py-2">{new Date(l.createdAt).toLocaleString("id-ID")}</td>
-                  <td className="px-4 py-2">{l.actorEmail ?? "-"}</td>
-                  <td className="px-4 py-2 font-medium">{l.action}</td>
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-3">{new Date(l.createdAt).toLocaleString("id-ID")}</td>
+                  <td className="px-4 py-3">{l.actorEmail ?? "-"}</td>
+                  <td className="px-4 py-3 font-medium">{l.action}</td>
+                  <td className="px-4 py-3">
                     {l.entity} {l.entityId ? `(${l.entityId.slice(0, 8)})` : ""}
                   </td>
                 </tr>

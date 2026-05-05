@@ -102,19 +102,19 @@ export default function SalesPerformance() {
           <table className="min-w-full text-sm">
             <thead className="sticky top-0 bg-white">
               <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
-                <th className="px-4 py-2">Nama Sales</th>
-                <th className="px-4 py-2 text-right">Pelanggan Aktif</th>
-                <th className="px-4 py-2 text-right">Jumlah Order</th>
-                <th className="px-4 py-2 text-right">Total Penjualan (Omzet)</th>
+                <th className="px-4 py-3">Nama Sales</th>
+                <th className="px-4 py-3 text-right">Pelanggan Aktif</th>
+                <th className="px-4 py-3 text-right">Jumlah Order</th>
+                <th className="px-4 py-3 text-right">Total Penjualan (Omzet)</th>
               </tr>
             </thead>
             <tbody>
               {items.map((row) => (
                 <tr key={row.salesId} className="border-b border-zinc-100 hover:bg-zinc-50">
-                  <td className="px-4 py-2 font-medium">{row.salesName}</td>
-                  <td className="px-4 py-2 text-right">{row.totalCustomers} Toko</td>
-                  <td className="px-4 py-2 text-right">{row.totalOrders} Transaksi</td>
-                  <td className="px-4 py-2 text-right font-medium text-emerald-600">Rp {row.totalRevenue}</td>
+                  <td className="px-4 py-3 font-medium">{row.salesName}</td>
+                  <td className="px-4 py-3 text-right">{row.totalCustomers} Toko</td>
+                  <td className="px-4 py-3 text-right">{row.totalOrders} Transaksi</td>
+                  <td className="px-4 py-3 text-right font-medium text-emerald-600">Rp {row.totalRevenue}</td>
                 </tr>
               ))}
               {items.length === 0 ? (
