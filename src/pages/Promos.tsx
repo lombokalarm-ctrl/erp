@@ -35,6 +35,7 @@ export default function Promos() {
   const [endDate, setEndDate] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
 
   async function load() {
     setError(null);
@@ -64,7 +65,7 @@ export default function Promos() {
     setStartDate(p.startDate ? p.startDate.slice(0, 10) : "");
     setEndDate(p.endDate ? p.endDate.slice(0, 10) : "");
     setIsActive(p.isActive);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setIsFormOpen(true);
   }
 
   function handleCancel() {
@@ -78,6 +79,7 @@ export default function Promos() {
     setEndDate("");
     setIsActive(true);
     setError(null);
+    setIsFormOpen(false);
   }
 
   async function handleSave() {
@@ -141,13 +143,92 @@ export default function Promos() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <div className="md:col-span-1">
-          <Card className="p-4">
-            <div className="mb-4 text-sm font-semibold">
-              {editingId ? "Edit Promo" : "Tambah Promo Baru"}
+      <Card className="overflow-hidden">
+        <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold flex items-center justify-between">
+          <span>Daftar Promo</span>
+          <Button
+            size="sm"
+            onClick={() => {
+              handleCancel();
+              setIsFormOpen(true);
+            }}
+          >
+            Tambah Promo
+          </Button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-zinc-50">
+              <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
+                <th className="px-4 py-3">Produk</th>
+                <th className="px-4 py-3">Program Promo</th>
+                <th className="px-4 py-3">Diskon</th>
+                <th className="px-4 py-3">Periode</th>
+                <th className="px-4 py-3 text-center">Status</th>
+                <th className="px-4 py-3 text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {promos.map((p) => (
+                <tr key={p.id} className="border-b border-zinc-100 hover:bg-zinc-50">
+                  <td className="px-4 py-3">
+                    <div className="font-medium">{p.productName}</div>
+                    <div className="text-xs text-zinc-500">{p.productSku}</div>
+                  </td>
+                  <td className="px-4 py-3">{p.name}</td>
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-emerald-600">
+                      {p.promoType === 'PERCENTAGE' ? `${p.discountValue}%` : `Rp ${p.discountValue}`}
+                    </div>
+                    <div className="text-xs text-zinc-500">Min: {p.minQty} pcs</div>
+                  </td>
+                  <td className="px-4 py-3 text-xs">
+                    {p.startDate ? new Date(p.startDate).toLocaleDateString('id-ID') : 'Selamanya'}
+                    {' - '}
+                    {p.endDate ? new Date(p.endDate).toLocaleDateString('id-ID') : 'Selamanya'}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] ${p.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-zinc-200 text-zinc-600'}`}>
+                      {p.isActive ? 'Aktif' : 'Nonaktif'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Button size="sm" variant="secondary" onClick={() => handleEdit(p)}>
+                      Edit
+                    </Button>
+                    <Button size="sm" variant="secondary" className="ml-2 bg-red-50 text-red-600 hover:bg-red-100" onClick={() => handleDelete(p.id)}>
+                      Hapus
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+              {promos.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-6 text-center text-zinc-500">
+                    Belum ada data promo
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {isFormOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <Card className="w-full max-w-2xl p-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold">
+                {editingId ? "Edit Promo" : "Tambah Promo Baru"}
+              </div>
+              <button
+                className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
+                onClick={handleCancel}
+              >
+                Tutup
+              </button>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-3 mt-3">
               <label className="block">
                 <div className="mb-1 text-xs font-medium text-zinc-600">Produk</div>
                 <select
@@ -164,10 +245,10 @@ export default function Promos() {
                 </select>
               </label>
 
-              <Input 
-                label="Nama Program Promo" 
-                value={name} 
-                onChange={(e) => setName(e.target.value)} 
+              <Input
+                label="Nama Program Promo"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 placeholder="Contoh: Diskon Akhir Tahun"
               />
 
@@ -184,40 +265,40 @@ export default function Promos() {
                   </select>
                 </label>
 
-                <Input 
-                  label="Nilai Diskon" 
+                <Input
+                  label="Nilai Diskon"
                   type="number"
-                  value={discountValue} 
-                  onChange={(e) => setDiscountValue(e.target.value)} 
+                  value={discountValue}
+                  onChange={(e) => setDiscountValue(e.target.value)}
                   placeholder={promoType === 'PERCENTAGE' ? "Contoh: 10" : "Contoh: 5000"}
                 />
               </div>
 
-              <Input 
-                label="Minimal Beli (Qty)" 
+              <Input
+                label="Minimal Beli (Qty)"
                 type="number"
-                value={minQty} 
-                onChange={(e) => setMinQty(e.target.value)} 
+                value={minQty}
+                onChange={(e) => setMinQty(e.target.value)}
               />
 
               <div className="grid grid-cols-2 gap-2">
-                <Input 
-                  label="Mulai Tanggal" 
+                <Input
+                  label="Mulai Tanggal"
                   type="date"
-                  value={startDate} 
-                  onChange={(e) => setStartDate(e.target.value)} 
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
                 />
-                <Input 
-                  label="Sampai Tanggal" 
+                <Input
+                  label="Sampai Tanggal"
                   type="date"
-                  value={endDate} 
-                  onChange={(e) => setEndDate(e.target.value)} 
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
                 />
               </div>
 
               <label className="flex items-center gap-2 text-sm text-zinc-700">
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   checked={isActive}
                   onChange={(e) => setIsActive(e.target.checked)}
                   className="rounded border-zinc-300"
@@ -229,75 +310,12 @@ export default function Promos() {
                 <Button disabled={saving || !productId || !name || !discountValue} onClick={handleSave} className="flex-1">
                   {saving ? "Menyimpan..." : "Simpan"}
                 </Button>
-                {editingId && (
-                  <Button variant="secondary" onClick={handleCancel}>Batal</Button>
-                )}
+                <Button variant="secondary" onClick={handleCancel}>Batal</Button>
               </div>
             </div>
           </Card>
         </div>
-
-        <div className="md:col-span-2">
-          <Card className="overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-zinc-50">
-                  <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
-                    <th className="px-4 py-3">Produk</th>
-                    <th className="px-4 py-3">Program Promo</th>
-                    <th className="px-4 py-3">Diskon</th>
-                    <th className="px-4 py-3">Periode</th>
-                    <th className="px-4 py-3 text-center">Status</th>
-                    <th className="px-4 py-3 text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {promos.map((p) => (
-                    <tr key={p.id} className="border-b border-zinc-100 hover:bg-zinc-50">
-                      <td className="px-4 py-3">
-                        <div className="font-medium">{p.productName}</div>
-                        <div className="text-xs text-zinc-500">{p.productSku}</div>
-                      </td>
-                      <td className="px-4 py-3">{p.name}</td>
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-emerald-600">
-                          {p.promoType === 'PERCENTAGE' ? `${p.discountValue}%` : `Rp ${p.discountValue}`}
-                        </div>
-                        <div className="text-xs text-zinc-500">Min: {p.minQty} pcs</div>
-                      </td>
-                      <td className="px-4 py-3 text-xs">
-                        {p.startDate ? new Date(p.startDate).toLocaleDateString('id-ID') : 'Selamanya'}
-                        {' - '}
-                        {p.endDate ? new Date(p.endDate).toLocaleDateString('id-ID') : 'Selamanya'}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] ${p.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-zinc-200 text-zinc-600'}`}>
-                          {p.isActive ? 'Aktif' : 'Nonaktif'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <Button size="sm" variant="secondary" onClick={() => handleEdit(p)}>
-                          Edit
-                        </Button>
-                        <Button size="sm" variant="secondary" className="ml-2 bg-red-50 text-red-600 hover:bg-red-100" onClick={() => handleDelete(p.id)}>
-                          Hapus
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                  {promos.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="px-4 py-6 text-center text-zinc-500">
-                        Belum ada data promo
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </div>
-      </div>
+      ) : null}
     </div>
   );
 }

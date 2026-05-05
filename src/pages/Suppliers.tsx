@@ -14,6 +14,7 @@ export default function Suppliers() {
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   
   const canCreate = useMemo(() => code.trim() && name.trim(), [code, name]);
 
@@ -21,6 +22,7 @@ export default function Suppliers() {
     setEditingId(s.id);
     setCode(s.code);
     setName(s.name);
+    setIsFormOpen(true);
   }
 
   function handleCancelEdit() {
@@ -28,6 +30,12 @@ export default function Suppliers() {
     setCode("");
     setName("");
     setError(null);
+    setIsFormOpen(false);
+  }
+
+  function handleOpenCreate() {
+    handleCancelEdit();
+    setIsFormOpen(true);
   }
 
   async function handleDelete(id: string) {
@@ -70,6 +78,7 @@ export default function Suppliers() {
           <Button variant="secondary" onClick={load}>
             Cari
           </Button>
+          <Button onClick={handleOpenCreate}>Tambah Supplier</Button>
         </div>
       </div>
 
@@ -77,7 +86,7 @@ export default function Suppliers() {
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_380px]">
+      <div>
         <Card className="overflow-hidden">
           <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold">Daftar Supplier</div>
           <div className="overflow-auto">
@@ -113,43 +122,52 @@ export default function Suppliers() {
             </table>
           </div>
         </Card>
-
-        <Card className="p-4">
-          <div className="text-sm font-semibold">{editingId ? "Edit Supplier" : "Tambah Supplier"}</div>
-          <div className="mt-3 grid gap-3">
-            <Input label="Kode" value={code} onChange={(e) => setCode(e.target.value)} placeholder="SUP-001" />
-            <Input label="Nama" value={name} onChange={(e) => setName(e.target.value)} placeholder="PT Pabrik" />
-            
-            <div className="flex gap-2 pt-2">
-              <Button
-                className="flex-1"
-                disabled={!canCreate}
-                onClick={async () => {
-                  setError(null);
-                  try {
-                    if (editingId) {
-                      await apiFetch(`/api/v1/suppliers/${editingId}`, { method: "PATCH", body: JSON.stringify({ code, name }) });
-                    } else {
-                      await apiFetch("/api/v1/suppliers", { method: "POST", body: JSON.stringify({ code, name }) });
-                    }
-                    handleCancelEdit();
-                    await load();
-                  } catch (e) {
-                    setError(e instanceof ApiError ? e.message : "Gagal menyimpan supplier");
-                  }
-                }}
+      </div>
+      {isFormOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <Card className="w-full max-w-lg p-4">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold">{editingId ? "Edit Supplier" : "Tambah Supplier"}</div>
+              <button
+                className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
+                onClick={handleCancelEdit}
               >
-                {editingId ? "Update" : "Simpan"}
-              </Button>
-              {editingId && (
+                Tutup
+              </button>
+            </div>
+            <div className="mt-3 grid gap-3">
+              <Input label="Kode" value={code} onChange={(e) => setCode(e.target.value)} placeholder="SUP-001" />
+              <Input label="Nama" value={name} onChange={(e) => setName(e.target.value)} placeholder="PT Pabrik" />
+
+              <div className="flex gap-2 pt-2">
+                <Button
+                  className="flex-1"
+                  disabled={!canCreate}
+                  onClick={async () => {
+                    setError(null);
+                    try {
+                      if (editingId) {
+                        await apiFetch(`/api/v1/suppliers/${editingId}`, { method: "PATCH", body: JSON.stringify({ code, name }) });
+                      } else {
+                        await apiFetch("/api/v1/suppliers", { method: "POST", body: JSON.stringify({ code, name }) });
+                      }
+                      handleCancelEdit();
+                      await load();
+                    } catch (e) {
+                      setError(e instanceof ApiError ? e.message : "Gagal menyimpan supplier");
+                    }
+                  }}
+                >
+                  {editingId ? "Update" : "Simpan"}
+                </Button>
                 <Button className="flex-1" variant="secondary" onClick={handleCancelEdit}>
                   Batal
                 </Button>
-              )}
+              </div>
             </div>
-          </div>
-        </Card>
-      </div>
+          </Card>
+        </div>
+      ) : null}
     </div>
   );
 }

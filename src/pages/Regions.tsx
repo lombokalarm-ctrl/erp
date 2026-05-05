@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Plus } from "lucide-react";
 import { apiFetch } from "../api/client";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
@@ -14,6 +13,7 @@ export default function Regions() {
   const [items, setItems] = useState<Region[]>([]);
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
 
   async function load() {
     try {
@@ -37,6 +37,7 @@ export default function Regions() {
         body: JSON.stringify({ name }),
       });
       setName("");
+      setIsFormOpen(false);
       load();
     } catch (err: any) {
       setError(err.message);
@@ -44,11 +45,20 @@ export default function Regions() {
   }
 
   return (
-    <div className="flex h-full gap-4">
-      <div className="flex-1 overflow-auto">
-        <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-zinc-900">Daftar Wilayah</h1>
-        </div>
+    <div className="space-y-4">
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-xl font-bold text-zinc-900">Daftar Wilayah</h1>
+        <Button
+          onClick={() => {
+            setName("");
+            setError(null);
+            setIsFormOpen(true);
+          }}
+        >
+          Tambah Wilayah
+        </Button>
+      </div>
+      <div className="overflow-auto">
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
@@ -75,23 +85,37 @@ export default function Regions() {
           </div>
         </Card>
       </div>
-
-      <div className="w-80 shrink-0">
-        <Card className="p-4">
-          <div className="text-sm font-semibold">Tambah Wilayah</div>
-          {error && (
-            <div className="mt-2 rounded-lg bg-red-50 p-2 text-xs text-red-600">
-              {error}
+      {isFormOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <Card className="w-full max-w-md p-4">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold">Tambah Wilayah</div>
+              <button
+                className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
+                onClick={() => setIsFormOpen(false)}
+              >
+                Tutup
+              </button>
             </div>
-          )}
-          <div className="mt-4 space-y-3">
-            <Input label="Nama Wilayah" value={name} onChange={(e) => setName(e.target.value)} />
-            <Button className="w-full" onClick={handleSave}>
-              Simpan
-            </Button>
-          </div>
-        </Card>
-      </div>
+            {error && (
+              <div className="mt-2 rounded-lg bg-red-50 p-2 text-xs text-red-600">
+                {error}
+              </div>
+            )}
+            <div className="mt-4 space-y-3">
+              <Input label="Nama Wilayah" value={name} onChange={(e) => setName(e.target.value)} />
+              <div className="flex gap-2">
+                <Button className="flex-1" onClick={handleSave}>
+                  Simpan
+                </Button>
+                <Button className="flex-1" variant="secondary" onClick={() => setIsFormOpen(false)}>
+                  Batal
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      ) : null}
     </div>
   );
 }
