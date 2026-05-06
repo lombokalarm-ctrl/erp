@@ -238,7 +238,11 @@ export async function createSalesOrder(params: {
     if (status === 'PENDING_APPROVAL') {
       const reasons: string[] = []
       if (creditCheck.exceedsLimit) reasons.push(`Limit Kredit: ${creditCheck.creditLimit}, Proyeksi Tagihan: ${creditCheck.projected}`)
-      if (creditCheck.exceedsSalesOrderLimit) reasons.push(`Limit SO per Pelanggan: ${creditCheck.salesOrderLimit}, Total SO: ${totalAmount}`)
+      if (creditCheck.exceedsSalesOrderLimit) {
+        reasons.push(
+          `Limit Jumlah Nota: ${creditCheck.salesOrderLimit}, Dokumen Aktif Proyeksi: ${creditCheck.projectedOpenDocumentCount} (Invoice Belum Lunas: ${creditCheck.openInvoiceCount}, SO Aktif Belum Invoice: ${creditCheck.openSoWithoutInvoiceCount})`,
+        )
+      }
       await client.query(
         `insert into sales_order_approvals(sales_order_id, requested_by, status, notes) values ($1, $2, 'PENDING', $3)`,
         [salesOrder.id, params.createdBy, `Overlimit (${reasons.join(' | ')})`]
@@ -490,7 +494,11 @@ export async function updateSalesOrder(params: {
     if (status === 'PENDING_APPROVAL') {
       const reasons: string[] = []
       if (creditCheck.exceedsLimit) reasons.push(`Limit Kredit: ${creditCheck.creditLimit}, Proyeksi Tagihan: ${creditCheck.projected}`)
-      if (creditCheck.exceedsSalesOrderLimit) reasons.push(`Limit SO per Pelanggan: ${creditCheck.salesOrderLimit}, Total SO: ${totalAmount}`)
+      if (creditCheck.exceedsSalesOrderLimit) {
+        reasons.push(
+          `Limit Jumlah Nota: ${creditCheck.salesOrderLimit}, Dokumen Aktif Proyeksi: ${creditCheck.projectedOpenDocumentCount} (Invoice Belum Lunas: ${creditCheck.openInvoiceCount}, SO Aktif Belum Invoice: ${creditCheck.openSoWithoutInvoiceCount})`,
+        )
+      }
       const notes = `Overlimit (${reasons.join(' | ')})`
 
       const pendingRes = await client.query(

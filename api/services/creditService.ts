@@ -39,6 +39,44 @@ export async function getCustomerOutstanding(customerId: string) {
   }
 }
 
+export async function getCustomerOpenDocumentCount(customerId: string) {
+  const pool = getPool()
+  const res = await pool.query(
+    `
+      select
+        (
+          select count(*)::int
+          from invoices i
+          where i.customer_id = $1
+            and greatest(
+              0,
+              i.total_amount
+                - coalesce((select sum(p.amount) from payments p where p.invoice_id = i.id), 0)
+                - coalesce((select sum(cna.amount) from credit_note_applies cna where cna.invoice_id = i.id), 0)
+            ) > 0
+        ) as open_invoice_count,
+        (
+          select count(*)::int
+          from sales_orders so
+          where so.customer_id = $1
+            and so.status in ('CONFIRMED', 'DELIVERED')
+            and not exists (
+              select 1 from invoices i2 where i2.sales_order_id = so.id
+            )
+        ) as open_so_without_invoice_count
+    `,
+    [customerId],
+  )
+
+  const openInvoiceCount = Number(res.rows[0]?.open_invoice_count ?? 0)
+  const openSoWithoutInvoiceCount = Number(res.rows[0]?.open_so_without_invoice_count ?? 0)
+  return {
+    openInvoiceCount,
+    openSoWithoutInvoiceCount,
+    openDocumentCount: openInvoiceCount + openSoWithoutInvoiceCount,
+  }
+}
+
 export async function getCustomerCreditProfile(customerId: string) {
   const pool = getPool()
   const res = await pool.query(
@@ -70,31 +108,74 @@ export async function validateCreditOrThrow(params: {
 }) {
   const profile = await getCustomerCreditProfile(params.customerId)
   const ar = await getCustomerOutstanding(params.customerId)
+  const docs = await getCustomerOpenDocumentCount(params.customerId)
   const projected = ar.outstanding + params.newInvoiceAmount
-  const exceedsSalesOrderLimit = profile.salesOrderLimit > 0 && params.newInvoiceAmount > profile.salesOrderLimit
+  const projectedOpenDocumentCount = docs.openDocumentCount + 1
+  const exceedsSalesOrderLimit =
+    profile.salesOrderLimit > 0 && projectedOpenDocumentCount > profile.salesOrderLimit
+
+  const exceedsLimit = profile.creditLimit > 0 && projected > profile.creditLimit
 
   if (profile.creditLimit <= 0) {
-    return { creditLimit: profile.creditLimit, salesOrderLimit: profile.salesOrderLimit, outstanding: ar.outstanding, projected, exceedsLimit: false, exceedsSalesOrderLimit }
+    if ((exceedsLimit || exceedsSalesOrderLimit) && !params.allowOverLimit && !params.isDraft) {
+      throw new ApiError({
+        code: 'CONFLICT',
+        status: 409,
+        message: 'Limit pelanggan terlampaui',
+        details: {
+          reason: exceedsSalesOrderLimit ? 'SALES_ORDER_LIMIT_EXCEEDED' : 'CREDIT_LIMIT_EXCEEDED',
+          creditLimit: profile.creditLimit,
+          salesOrderLimit: profile.salesOrderLimit,
+          outstanding: ar.outstanding,
+          projected,
+          openInvoiceCount: docs.openInvoiceCount,
+          openSoWithoutInvoiceCount: docs.openSoWithoutInvoiceCount,
+          projectedOpenDocumentCount,
+        },
+      })
+    }
+    return {
+      creditLimit: profile.creditLimit,
+      salesOrderLimit: profile.salesOrderLimit,
+      outstanding: ar.outstanding,
+      projected,
+      exceedsLimit,
+      exceedsSalesOrderLimit,
+      openInvoiceCount: docs.openInvoiceCount,
+      openSoWithoutInvoiceCount: docs.openSoWithoutInvoiceCount,
+      projectedOpenDocumentCount,
+    }
   }
 
-  const exceedsLimit = projected > profile.creditLimit
-
   // If overlimit and not allowed, we throw only if it's NOT a draft order needing approval
-  if (exceedsLimit && !params.allowOverLimit && !params.isDraft) {
+  if ((exceedsLimit || exceedsSalesOrderLimit) && !params.allowOverLimit && !params.isDraft) {
     throw new ApiError({
       code: 'CONFLICT',
       status: 409,
-      message: 'Limit kredit terlampaui',
+      message: exceedsSalesOrderLimit ? 'Limit jumlah nota terlampaui' : 'Limit kredit terlampaui',
       details: {
-        reason: 'CREDIT_LIMIT_EXCEEDED',
+        reason: exceedsSalesOrderLimit ? 'SALES_ORDER_LIMIT_EXCEEDED' : 'CREDIT_LIMIT_EXCEEDED',
         creditLimit: profile.creditLimit,
         salesOrderLimit: profile.salesOrderLimit,
         outstanding: ar.outstanding,
         projected,
+        openInvoiceCount: docs.openInvoiceCount,
+        openSoWithoutInvoiceCount: docs.openSoWithoutInvoiceCount,
+        projectedOpenDocumentCount,
       },
     })
   }
 
-  return { creditLimit: profile.creditLimit, salesOrderLimit: profile.salesOrderLimit, outstanding: ar.outstanding, projected, exceedsLimit, exceedsSalesOrderLimit }
+  return {
+    creditLimit: profile.creditLimit,
+    salesOrderLimit: profile.salesOrderLimit,
+    outstanding: ar.outstanding,
+    projected,
+    exceedsLimit,
+    exceedsSalesOrderLimit,
+    openInvoiceCount: docs.openInvoiceCount,
+    openSoWithoutInvoiceCount: docs.openSoWithoutInvoiceCount,
+    projectedOpenDocumentCount,
+  }
 }
 
