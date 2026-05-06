@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
+import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 
@@ -266,20 +267,19 @@ export default function Promos() {
                   </select>
                 </label>
 
-                <Input
+                <NumericInput
                   label="Nilai Diskon"
-                  type="number"
+                  mode={promoType === "PERCENTAGE" ? "decimal" : "currency"}
                   value={discountValue}
-                  onChange={(e) => setDiscountValue(e.target.value)}
+                  onValueChange={setDiscountValue}
                   placeholder={promoType === 'PERCENTAGE' ? "Contoh: 10" : "Contoh: 5000"}
                 />
               </div>
 
-              <Input
+              <NumericInput
                 label="Minimal Beli (Qty)"
-                type="number"
                 value={minQty}
-                onChange={(e) => setMinQty(e.target.value)}
+                onValueChange={(v) => setMinQty(v || "0")}
               />
 
               <div className="grid grid-cols-2 gap-2">

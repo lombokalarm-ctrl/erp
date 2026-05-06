@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
+import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { RotateCcw } from "lucide-react";
@@ -327,15 +328,14 @@ export default function Returns() {
                       ))}
                     </select>
                     <div className="flex gap-2">
-                      <Input
+                      <NumericInput
+                        label="Qty"
                         className="w-20"
                         placeholder="Qty"
-                        type="number"
-                        min="1"
                         value={it.qty}
-                        onChange={(e) =>
+                        onValueChange={(v) =>
                           setItems((prev) =>
-                            prev.map((x, i) => (i === idx ? { ...x, qty: e.target.value } : x))
+                            prev.map((x, i) => (i === idx ? { ...x, qty: v || "0" } : x))
                           )
                         }
                       />

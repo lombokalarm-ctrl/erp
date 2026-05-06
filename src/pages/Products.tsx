@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
+import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 
@@ -300,22 +301,32 @@ export default function Products() {
               <Input label="Nama" value={name} onChange={(e) => setName(e.target.value)} placeholder="Teh Botol 350ml" />
               <Input label="Satuan" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="pcs/dus" />
               <div className="grid grid-cols-2 gap-3">
-                <Input label="Harga Beli (Dasar)" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} />
-                <Input label="Harga Jual (Dasar)" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} />
+                <NumericInput
+                  label="Harga Beli (Dasar)"
+                  mode="currency"
+                  value={purchasePrice}
+                  onValueChange={(v) => setPurchasePrice(v || "0")}
+                />
+                <NumericInput
+                  label="Harga Jual (Dasar)"
+                  mode="currency"
+                  value={salePrice}
+                  onValueChange={(v) => setSalePrice(v || "0")}
+                />
               </div>
 
               <div className="rounded-lg border border-zinc-200 p-3 mt-2 space-y-3">
                 <div className="text-xs font-semibold text-zinc-600">Konversi Satuan</div>
                 <div className="grid grid-cols-2 gap-3">
-                  <Input
+                  <NumericInput
                     label="1 Pack = (pcs)"
                     value={packSize}
-                    onChange={(e) => setPackSize(e.target.value)}
+                    onValueChange={(v) => setPackSize(v || "1")}
                   />
-                  <Input
+                  <NumericInput
                     label="1 Dus = (pack)"
                     value={packPerDus}
-                    onChange={(e) => setPackPerDus(e.target.value)}
+                    onValueChange={(v) => setPackPerDus(v || "1")}
                   />
                 </div>
                 <Input
@@ -342,21 +353,24 @@ export default function Products() {
                         <tr key={cat} className="border-b border-zinc-100 last:border-0">
                           <td className="py-2 pr-2 text-xs font-medium text-zinc-700">{cat}</td>
                           <td className="py-2 pr-2">
-                            <Input
+                            <NumericInput
                               value={categoryPrices[cat].pcs}
-                              onChange={(e) => setCategoryPrices(prev => ({ ...prev, [cat]: { ...prev[cat], pcs: e.target.value } }))}
+                              mode="currency"
+                              onValueChange={(v) => setCategoryPrices(prev => ({ ...prev, [cat]: { ...prev[cat], pcs: v || "0" } }))}
                             />
                           </td>
                           <td className="py-2 pr-2">
-                            <Input
+                            <NumericInput
                               value={categoryPrices[cat].pack}
-                              onChange={(e) => setCategoryPrices(prev => ({ ...prev, [cat]: { ...prev[cat], pack: e.target.value } }))}
+                              mode="currency"
+                              onValueChange={(v) => setCategoryPrices(prev => ({ ...prev, [cat]: { ...prev[cat], pack: v || "0" } }))}
                             />
                           </td>
                           <td className="py-2">
-                            <Input
+                            <NumericInput
                               value={categoryPrices[cat].dus}
-                              onChange={(e) => setCategoryPrices(prev => ({ ...prev, [cat]: { ...prev[cat], dus: e.target.value } }))}
+                              mode="currency"
+                              onValueChange={(v) => setCategoryPrices(prev => ({ ...prev, [cat]: { ...prev[cat], dus: v || "0" } }))}
                             />
                           </td>
                         </tr>

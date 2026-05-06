@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
+import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 
@@ -194,14 +195,11 @@ export default function Payments() {
             </select>
           </label>
 
-          <Input
+          <NumericInput
             label="Nominal"
-            type="number"
-            min={0}
-            max={remainingNumber ?? undefined}
-            step="0.01"
+            mode="currency"
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onValueChange={(v) => setAmount(v || "0")}
             error={amountError}
           />
 

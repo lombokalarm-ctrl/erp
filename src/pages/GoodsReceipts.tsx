@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Camera } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
+import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { BarcodeScanner } from "@/components/ui/BarcodeScanner";
@@ -192,7 +193,13 @@ export default function GoodsReceipts() {
                       </Button>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      <Input type="number" min="1" label="Qty" value={it.qty} onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, qty: e.target.value } : x)))} />
+                      <NumericInput
+                        label="Qty"
+                        value={it.qty}
+                        onValueChange={(v) =>
+                          setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, qty: v || "0" } : x)))
+                        }
+                      />
                       <label className="block">
                         <div className="mb-1 text-xs font-medium text-zinc-600">Satuan</div>
                         <select

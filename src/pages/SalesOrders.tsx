@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CloudOff, RefreshCw } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
+import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { useSettingsStore } from "@/stores/settingsStore";
@@ -597,12 +598,12 @@ export default function SalesOrders() {
                       ))}
                     </select>
                     <div className="grid grid-cols-2 gap-2">
-                      <Input
+                      <NumericInput
                         label="Qty"
                         value={it.qty}
-                        onChange={(e) =>
+                        onValueChange={(v) =>
                           setItems((prev) =>
-                            prev.map((x, i) => (i === idx ? { ...x, qty: e.target.value } : x)),
+                            prev.map((x, i) => (i === idx ? { ...x, qty: v || "0" } : x)),
                           )
                         }
                       />
@@ -629,13 +630,14 @@ export default function SalesOrders() {
                         </select>
                       </label>
                     </div>
-                    <Input
+                    <NumericInput
                       label="Harga"
+                      mode="currency"
                       value={it.unitPrice}
-                      onChange={(e) =>
+                      onValueChange={(v) =>
                         setItems((prev) =>
                           prev.map((x, i) =>
-                            i === idx ? { ...x, unitPrice: e.target.value } : x,
+                            i === idx ? { ...x, unitPrice: v || "0" } : x,
                           ),
                         )
                       }

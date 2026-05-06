@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
+import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { useAuthStore } from "@/stores/authStore";
@@ -37,12 +38,6 @@ type CreditProfile = {
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, "");
-}
-
-function formatRupiahDigits(value: string) {
-  const digits = onlyDigits(value);
-  if (!digits) return "";
-  return new Intl.NumberFormat("id-ID").format(Number(digits));
 }
 
 const CATEGORY_OPTIONS = [
@@ -582,31 +577,23 @@ export default function Customers() {
               </label>
               <Input label="No Telepon" value={phone} onChange={(e) => setPhone(e.target.value)} />
               <Input label="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-              <label className="block">
-                <div className="mb-1 text-xs font-medium text-zinc-600">Limit Kredit (Rp)</div>
-                <input
-                  className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
-                  type="text"
-                  inputMode="numeric"
-                  value={formatRupiahDigits(creditLimit)}
-                  onChange={(e) => setCreditLimit(onlyDigits(e.target.value) || "0")}
-                  placeholder="0"
-                />
-              </label>
-              <Input
-                label="Limit Sales Order (Jumlah Nota)"
-                type="number"
-                min="0"
-                value={salesOrderLimit}
-                onChange={(e) => setSalesOrderLimit(e.target.value)}
+              <NumericInput
+                label="Limit Kredit (Rp)"
+                mode="currency"
+                value={creditLimit}
+                onValueChange={(v) => setCreditLimit(v || "0")}
                 placeholder="0"
               />
-              <Input
+              <NumericInput
+                label="Limit Sales Order (Jumlah Nota)"
+                value={salesOrderLimit}
+                onValueChange={(v) => setSalesOrderLimit(v || "0")}
+                placeholder="0"
+              />
+              <NumericInput
                 label="Tempo Pembayaran (hari)"
-                type="number"
-                min="0"
                 value={paymentTermDays}
-                onChange={(e) => setPaymentTermDays(e.target.value)}
+                onValueChange={(v) => setPaymentTermDays(v || "0")}
                 placeholder="0"
               />
               <label className="block">

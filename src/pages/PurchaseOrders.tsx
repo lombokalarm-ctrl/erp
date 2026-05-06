@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
+import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 
@@ -162,7 +163,13 @@ export default function PurchaseOrders() {
                       ))}
                     </select>
                     <div className="grid grid-cols-2 gap-2">
-                      <Input type="number" min="1" label="Qty" value={it.qty} onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, qty: e.target.value } : x)))} />
+                      <NumericInput
+                        label="Qty"
+                        value={it.qty}
+                        onValueChange={(v) =>
+                          setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, qty: v || "0" } : x)))
+                        }
+                      />
                       <label className="block">
                         <div className="mb-1 text-xs font-medium text-zinc-600">Satuan</div>
                         <select
@@ -176,7 +183,14 @@ export default function PurchaseOrders() {
                         </select>
                       </label>
                     </div>
-                    <Input type="number" min="0" label="Harga" value={it.unitPrice} onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, unitPrice: e.target.value } : x)))} />
+                    <NumericInput
+                      label="Harga"
+                      mode="currency"
+                      value={it.unitPrice}
+                      onValueChange={(v) =>
+                        setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, unitPrice: v || "0" } : x)))
+                      }
+                    />
                     <div className="flex justify-between">
                       <Button
                         variant="ghost"

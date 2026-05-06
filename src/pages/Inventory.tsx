@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
+import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 
@@ -203,7 +204,12 @@ export default function Inventory() {
                       ))}
                     </select>
                   </label>
-                  <Input label="Qty Delta" value={qtyDelta} onChange={(e) => setQtyDelta(e.target.value)} />
+                  <NumericInput
+                    label="Qty Delta"
+                    value={qtyDelta}
+                    allowNegative
+                    onValueChange={(v) => setQtyDelta(v || "0")}
+                  />
                   <div className="flex items-center justify-end gap-2 pt-2">
                     <Button variant="secondary" onClick={() => setIsAdjustmentOpen(false)}>
                       Batal
