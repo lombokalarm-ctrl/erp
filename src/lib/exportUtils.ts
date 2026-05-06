@@ -1,3 +1,14 @@
+import { useSettingsStore } from "@/stores/settingsStore";
+
+function escapeHtml(value?: string | null) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export function exportToCSV(filename: string, headers: string[], rows: (string | number)[][]) {
   const csvContent = [
     headers.join(","),
@@ -27,6 +38,11 @@ export function exportToCSV(filename: string, headers: string[], rows: (string |
 }
 
 export function printTable(title: string, headers: string[], rows: (string | number)[][]) {
+  const company = useSettingsStore.getState().company;
+  const companyName = escapeHtml(company?.name || "PT. ERP DISTRIBUTOR F&B");
+  const companyAddress = escapeHtml(company?.address || "Alamat belum diatur").replace(/\r?\n/g, "<br/>");
+  const companyPhone = escapeHtml(company?.phone || "-");
+
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
     alert("Pop-up diblokir. Izinkan pop-up untuk mencetak.");
@@ -40,6 +56,9 @@ export function printTable(title: string, headers: string[], rows: (string | num
         <style>
           @page { size: A4 portrait; margin: 0.5in; }
           body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 12px; color: #333; margin: 0; padding: 20px; }
+          .header { border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 14px; }
+          .company-name { font-size: 14px; font-weight: 700; color: #000; }
+          .company-meta { font-size: 11px; color: #555; margin-top: 2px; }
           h1 { text-align: center; margin-bottom: 20px; font-size: 18px; text-transform: uppercase; }
           table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
           th, td { border: 1px solid #ddd; padding: 8px 10px; text-align: left; }
@@ -52,6 +71,11 @@ export function printTable(title: string, headers: string[], rows: (string | num
         </style>
       </head>
       <body>
+        <div class="header">
+          <div class="company-name">${companyName}</div>
+          <div class="company-meta">${companyAddress}</div>
+          <div class="company-meta">Telp: ${companyPhone}</div>
+        </div>
         <h1>${title}</h1>
         <table>
           <thead>

@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 type InvoiceState = {
   id: string;
@@ -24,11 +25,22 @@ type Payment = {
   note: string | null;
 };
 
+function escapeHtml(value?: string | null) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export default function InvoiceDetail() {
   const { id } = useParams<{ id: string }>();
   const [invoice, setInvoice] = useState<InvoiceState | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const company = useSettingsStore((s) => s.company);
+  const fetchCompany = useSettingsStore((s) => s.fetchCompany);
 
   const badge = useMemo(() => {
     if (!invoice) return null;
@@ -61,6 +73,9 @@ export default function InvoiceDetail() {
     try {
       const res = await apiFetch<{ data: any }>(`/api/v1/invoices/${id}/detail`);
       const inv = res.data;
+      const companyName = escapeHtml(company?.name || "PT. ERP DISTRIBUTOR F&B");
+      const companyAddress = escapeHtml(company?.address || "Alamat belum diatur").replace(/\r?\n/g, "<br/>");
+      const companyPhone = escapeHtml(company?.phone || "-");
 
       const printWindow = window.open('', '_blank');
       if (!printWindow) {
@@ -97,9 +112,9 @@ export default function InvoiceDetail() {
           <body>
             <div class="header">
               <div>
-                <strong>PT. ERP DISTRIBUTOR F&B</strong><br/>
-                Jl. Raya Distribusi No. 123<br/>
-                Telp: (021) 12345678
+                <strong>${companyName}</strong><br/>
+                ${companyAddress}<br/>
+                Telp: ${companyPhone}
               </div>
               <div class="title">
                 INVOICE (TAGIHAN)
@@ -185,6 +200,9 @@ export default function InvoiceDetail() {
     try {
       const res = await apiFetch<{ data: any }>(`/api/v1/payments/${paymentId}/detail`);
       const p = res.data;
+      const companyName = escapeHtml(company?.name || "PT. ERP DISTRIBUTOR F&B");
+      const companyAddress = escapeHtml(company?.address || "Alamat belum diatur").replace(/\r?\n/g, "<br/>");
+      const companyPhone = escapeHtml(company?.phone || "-");
 
       const printWindow = window.open('', '_blank');
       if (!printWindow) {
@@ -213,9 +231,9 @@ export default function InvoiceDetail() {
           <body>
             <div class="header">
               <div>
-                <strong>PT. ERP DISTRIBUTOR F&B</strong><br/>
-                Jl. Raya Distribusi No. 123<br/>
-                Telp: (021) 12345678
+                <strong>${companyName}</strong><br/>
+                ${companyAddress}<br/>
+                Telp: ${companyPhone}
               </div>
               <div class="title">
                 BUKTI PEMBAYARAN<br/>(KUITANSI)
@@ -267,7 +285,8 @@ export default function InvoiceDetail() {
 
   useEffect(() => {
     load();
-  }, [id]);
+    fetchCompany();
+  }, [id, fetchCompany]);
 
   return (
     <div className="space-y-4">
