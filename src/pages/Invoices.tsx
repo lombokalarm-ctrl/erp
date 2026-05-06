@@ -4,6 +4,7 @@ import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
+import { formatCurrency } from "@/lib/numberFormat";
 
 type InvoiceRow = {
   id: string;
@@ -101,10 +102,10 @@ export default function Invoices() {
                       {i.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3">{i.totalAmount}</td>
-                  <td className="px-4 py-3">{paid.toFixed(2)}</td>
-                  <td className="px-4 py-3">{credited.toFixed(2)}</td>
-                  <td className="px-4 py-3 font-medium">{remaining.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right">{formatCurrency(total)}</td>
+                  <td className="px-4 py-3 text-right">{formatCurrency(paid)}</td>
+                  <td className="px-4 py-3 text-right">{formatCurrency(credited)}</td>
+                  <td className="px-4 py-3 text-right font-medium">{formatCurrency(remaining)}</td>
                   </tr>
                 );
               })}

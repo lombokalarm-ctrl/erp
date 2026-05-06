@@ -6,6 +6,7 @@ import { apiFetch, ApiError } from "@/api/client";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { exportToCSV, printTable } from "@/lib/exportUtils";
 import { Printer, Download } from "lucide-react";
+import { formatCurrency, formatCurrencyCompact } from "@/lib/numberFormat";
 
 type CollectionReportData = {
   summary: {
@@ -126,15 +127,15 @@ export default function CollectionReport() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Card className="p-4">
               <div className="text-xs font-medium text-zinc-500">Total Uang Masuk</div>
-              <div className="mt-2 text-xl font-bold text-emerald-600">Rp {data.summary.totalAmount}</div>
+              <div className="mt-2 text-xl font-bold text-emerald-600">{formatCurrency(data.summary.totalAmount)}</div>
             </Card>
             <Card className="p-4">
               <div className="text-xs font-medium text-zinc-500">Cash</div>
-              <div className="mt-2 text-xl font-bold">Rp {data.summary.cashAmount}</div>
+              <div className="mt-2 text-xl font-bold">{formatCurrency(data.summary.cashAmount)}</div>
             </Card>
             <Card className="p-4">
               <div className="text-xs font-medium text-zinc-500">Transfer</div>
-              <div className="mt-2 text-xl font-bold">Rp {data.summary.transferAmount}</div>
+              <div className="mt-2 text-xl font-bold">{formatCurrency(data.summary.transferAmount)}</div>
             </Card>
             <Card className="p-4">
               <div className="text-xs font-medium text-zinc-500">Transaksi Pembayaran</div>
@@ -151,8 +152,8 @@ export default function CollectionReport() {
                     <BarChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="date" tick={{fontSize: 12}} />
-                      <YAxis tickFormatter={(val) => `Rp${val/1000}k`} tick={{fontSize: 12}} width={80} />
-                      <Tooltip formatter={(value: number) => [`Rp ${value}`, '']} />
+                      <YAxis tickFormatter={(val) => formatCurrencyCompact(val)} tick={{fontSize: 12}} width={100} />
+                      <Tooltip formatter={(value: number) => [formatCurrency(value), ""]} />
                       <Legend />
                       <Bar dataKey="Cash" stackId="a" fill="#10b981" />
                       <Bar dataKey="Transfer" stackId="a" fill="#3b82f6" />
@@ -190,7 +191,7 @@ export default function CollectionReport() {
                           <div className="truncate w-32">{p.customerName}</div>
                           <div className="text-xs text-zinc-500">{p.invoiceNo}</div>
                         </td>
-                        <td className="px-4 py-3 text-right font-medium text-emerald-600">Rp {p.amount}</td>
+                        <td className="px-4 py-3 text-right font-medium text-emerald-600">{formatCurrency(p.amount)}</td>
                       </tr>
                     ))}
                     {data.latestPayments.length === 0 ? (

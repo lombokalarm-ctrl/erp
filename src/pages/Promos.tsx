@@ -4,6 +4,7 @@ import Input from "@/components/ui/Input";
 import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
+import { formatCurrency } from "@/lib/numberFormat";
 
 type Promo = {
   id: string;
@@ -179,7 +180,7 @@ export default function Promos() {
                   <td className="px-4 py-3">{p.name}</td>
                   <td className="px-4 py-3">
                     <div className="font-medium text-emerald-600">
-                      {p.promoType === 'PERCENTAGE' ? `${p.discountValue}%` : `Rp ${p.discountValue}`}
+                      {p.promoType === 'PERCENTAGE' ? `${p.discountValue}%` : formatCurrency(p.discountValue)}
                     </div>
                     <div className="text-xs text-zinc-500">Min: {p.minQty} pcs</div>
                   </td>

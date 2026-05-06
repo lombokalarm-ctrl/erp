@@ -6,14 +6,7 @@ import { apiFetch, ApiError } from "@/api/client";
 import { exportToCSV, printTable } from "@/lib/exportUtils";
 import { Printer, Download } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-
-function formatRp(n: number | string) {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    maximumFractionDigits: 0,
-  }).format(Number(n));
-}
+import { formatCurrency, formatCurrencyCompact } from "@/lib/numberFormat";
 
 type ProfitLossData = {
   summary: {
@@ -131,19 +124,19 @@ export default function ProfitLossReport() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Card className="p-4 bg-zinc-50">
               <div className="text-xs font-medium text-zinc-500">Penjualan Kotor</div>
-              <div className="mt-2 text-xl font-semibold">{formatRp(data.summary.grossSales)}</div>
+              <div className="mt-2 text-xl font-semibold">{formatCurrency(data.summary.grossSales)}</div>
             </Card>
             <Card className="p-4 bg-red-50/50">
               <div className="text-xs font-medium text-red-600">Total Potongan/Diskon</div>
-              <div className="mt-2 text-xl font-semibold text-red-700">- {formatRp(data.summary.totalDiscounts)}</div>
+              <div className="mt-2 text-xl font-semibold text-red-700">- {formatCurrency(data.summary.totalDiscounts)}</div>
             </Card>
             <Card className="p-4 bg-emerald-50/50">
               <div className="text-xs font-medium text-emerald-600">Penjualan Bersih (Net Sales)</div>
-              <div className="mt-2 text-xl font-bold text-emerald-700">{formatRp(data.summary.netSales)}</div>
+              <div className="mt-2 text-xl font-bold text-emerald-700">{formatCurrency(data.summary.netSales)}</div>
             </Card>
             <Card className="p-4 bg-orange-50/50">
               <div className="text-xs font-medium text-orange-600">Harga Pokok Penjualan (HPP)</div>
-              <div className="mt-2 text-xl font-semibold text-orange-700">- {formatRp(data.summary.cogs)}</div>
+              <div className="mt-2 text-xl font-semibold text-orange-700">- {formatCurrency(data.summary.cogs)}</div>
             </Card>
           </div>
 
@@ -151,7 +144,7 @@ export default function ProfitLossReport() {
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
               <div>
                 <div className="text-sm font-medium text-emerald-100">Laba Kotor (Gross Profit)</div>
-                <div className="text-4xl font-bold mt-1">{formatRp(data.summary.grossProfit)}</div>
+                <div className="text-4xl font-bold mt-1">{formatCurrency(data.summary.grossProfit)}</div>
               </div>
               <div className="text-right">
                 <div className="text-sm font-medium text-emerald-100">Margin Laba Kotor</div>
@@ -169,8 +162,8 @@ export default function ProfitLossReport() {
                     <LineChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="date" tick={{fontSize: 12}} />
-                      <YAxis tickFormatter={(val) => `Rp${val/1000}k`} tick={{fontSize: 12}} width={80} />
-                      <Tooltip formatter={(value: number) => [formatRp(value), '']} />
+                      <YAxis tickFormatter={(val) => formatCurrencyCompact(val)} tick={{fontSize: 12}} width={100} />
+                      <Tooltip formatter={(value: number) => [formatCurrency(value), ""]} />
                       <Line type="monotone" dataKey="Laba Kotor" stroke="#059669" strokeWidth={2} dot={{ r: 4 }} />
                       <Line type="monotone" dataKey="Net Sales" stroke="#9ca3af" strokeWidth={2} strokeDasharray="3 3" dot={false} />
                     </LineChart>
@@ -201,9 +194,9 @@ export default function ProfitLossReport() {
                     {data.byCategory.map((c, idx) => (
                       <tr key={idx} className="border-b border-zinc-100 hover:bg-zinc-50">
                         <td className="px-4 py-3 font-medium">{c.categoryName}</td>
-                        <td className="px-4 py-3 text-right">{formatRp(c.netSales)}</td>
-                        <td className="px-4 py-3 text-right text-orange-600">{formatRp(c.cogs)}</td>
-                        <td className="px-4 py-3 text-right font-medium text-emerald-600">{formatRp(c.grossProfit)}</td>
+                        <td className="px-4 py-3 text-right">{formatCurrency(c.netSales)}</td>
+                        <td className="px-4 py-3 text-right text-orange-600">{formatCurrency(c.cogs)}</td>
+                        <td className="px-4 py-3 text-right font-medium text-emerald-600">{formatCurrency(c.grossProfit)}</td>
                       </tr>
                     ))}
                     {data.byCategory.length === 0 ? (

@@ -5,6 +5,7 @@ import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { exportToCSV, printTable } from "@/lib/exportUtils";
 import { Printer, Download } from "lucide-react";
+import { formatCurrency } from "@/lib/numberFormat";
 
 type SalesPerformanceRow = {
   salesId: string;
@@ -114,7 +115,7 @@ export default function SalesPerformance() {
                   <td className="px-4 py-3 font-medium">{row.salesName}</td>
                   <td className="px-4 py-3 text-right">{row.totalCustomers} Toko</td>
                   <td className="px-4 py-3 text-right">{row.totalOrders} Transaksi</td>
-                  <td className="px-4 py-3 text-right font-medium text-emerald-600">Rp {row.totalRevenue}</td>
+                  <td className="px-4 py-3 text-right font-medium text-emerald-600">{formatCurrency(row.totalRevenue)}</td>
                 </tr>
               ))}
               {items.length === 0 ? (

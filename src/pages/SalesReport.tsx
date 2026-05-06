@@ -6,6 +6,7 @@ import { apiFetch, ApiError } from "@/api/client";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { exportToCSV, printTable } from "@/lib/exportUtils";
 import { Printer, Download } from "lucide-react";
+import { formatCurrency, formatCurrencyCompact } from "@/lib/numberFormat";
 
 type SalesReportData = {
   summary: {
@@ -117,7 +118,7 @@ export default function SalesReport() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Card className="p-4">
               <div className="text-xs font-medium text-zinc-500">Total Omzet Penjualan</div>
-              <div className="mt-2 text-2xl font-bold text-emerald-600">Rp {data.summary.totalRevenue}</div>
+              <div className="mt-2 text-2xl font-bold text-emerald-600">{formatCurrency(data.summary.totalRevenue)}</div>
             </Card>
             <Card className="p-4">
               <div className="text-xs font-medium text-zinc-500">Total Transaksi</div>
@@ -134,8 +135,8 @@ export default function SalesReport() {
                     <LineChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="date" tick={{fontSize: 12}} />
-                      <YAxis tickFormatter={(val) => `Rp${val/1000}k`} tick={{fontSize: 12}} width={80} />
-                      <Tooltip formatter={(value: number) => [`Rp ${value}`, 'Omzet']} />
+                      <YAxis tickFormatter={(val) => formatCurrencyCompact(val)} tick={{fontSize: 12}} width={100} />
+                      <Tooltip formatter={(value: number) => [formatCurrency(value), "Omzet"]} />
                       <Line type="monotone" dataKey="revenue" stroke="#059669" strokeWidth={2} dot={{ r: 4 }} />
                     </LineChart>
                   </ResponsiveContainer>
@@ -168,7 +169,7 @@ export default function SalesReport() {
                           <div className="text-xs text-zinc-500">{p.sku}</div>
                         </td>
                         <td className="px-4 py-3 text-right">{p.qtySold}</td>
-                        <td className="px-4 py-3 text-right font-medium text-emerald-600">Rp {p.revenue}</td>
+                        <td className="px-4 py-3 text-right font-medium text-emerald-600">{formatCurrency(p.revenue)}</td>
                       </tr>
                     ))}
                     {data.topProducts.length === 0 ? (

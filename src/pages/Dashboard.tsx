@@ -4,6 +4,7 @@ import Card from "@/components/ui/Card";
 import { apiFetch } from "@/api/client";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { ArrowRight, AlertTriangle, AlertCircle, ShoppingCart, Users, Wallet, Activity } from "lucide-react";
+import { formatCurrency, formatCurrencyCompact } from "@/lib/numberFormat";
 
 type DashboardData = {
   kpi: {
@@ -31,14 +32,6 @@ type DashboardData = {
     qty: number;
   }[];
 };
-
-function formatRp(n: number | string) {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    maximumFractionDigits: 0,
-  }).format(Number(n));
-}
 
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -68,7 +61,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-xs font-medium text-zinc-500">Penjualan (Bulan Ini)</div>
-              <div className="mt-1 text-2xl font-bold">{data ? formatRp(data.kpi.monthlyRevenue) : "—"}</div>
+              <div className="mt-1 text-2xl font-bold">{data ? formatCurrency(data.kpi.monthlyRevenue) : "—"}</div>
             </div>
             <div className="rounded-full bg-emerald-100 p-2 text-emerald-600">
               <Activity className="h-5 w-5" />
@@ -80,7 +73,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-xs font-medium text-zinc-500">Penerimaan/Cash-in</div>
-              <div className="mt-1 text-2xl font-bold">{data ? formatRp(data.kpi.monthlyCollection) : "—"}</div>
+              <div className="mt-1 text-2xl font-bold">{data ? formatCurrency(data.kpi.monthlyCollection) : "—"}</div>
             </div>
             <div className="rounded-full bg-blue-100 p-2 text-blue-600">
               <Wallet className="h-5 w-5" />
@@ -128,14 +121,14 @@ export default function Dashboard() {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                   <XAxis dataKey="date" tick={{fontSize: 12, fill: '#6b7280'}} axisLine={false} tickLine={false} dy={10} />
                   <YAxis 
-                    tickFormatter={(val) => `Rp${val/1000}k`} 
+                    tickFormatter={(val) => formatCurrencyCompact(val)} 
                     tick={{fontSize: 12, fill: '#6b7280'}} 
-                    width={80} 
+                    width={100} 
                     axisLine={false} 
                     tickLine={false} 
                   />
                   <Tooltip 
-                    formatter={(value: number) => [formatRp(value), 'Omzet']} 
+                    formatter={(value: number) => [formatCurrency(value), 'Omzet']} 
                     contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
                   />
                   <Line 
@@ -172,7 +165,7 @@ export default function Dashboard() {
                           {inv.invoiceNo}
                         </Link>
                         <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-medium">
-                          Sisa: {formatRp(inv.remaining)}
+                          Sisa: {formatCurrency(inv.remaining)}
                         </span>
                       </div>
                       <div className="text-xs text-zinc-600">{inv.customerName}</div>

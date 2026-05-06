@@ -5,6 +5,7 @@ import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { exportToCSV, printTable } from "@/lib/exportUtils";
 import { Printer, Download } from "lucide-react";
+import { formatCurrency } from "@/lib/numberFormat";
 
 type PromoReportData = {
   summary: {
@@ -119,7 +120,7 @@ export default function PromoReport() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Card className="p-4">
               <div className="text-xs font-medium text-zinc-500">Total Biaya Diskon Diberikan</div>
-              <div className="mt-2 text-2xl font-bold text-red-600">Rp {data.summary.totalDiscountGiven}</div>
+              <div className="mt-2 text-2xl font-bold text-red-600">{formatCurrency(data.summary.totalDiscountGiven)}</div>
             </Card>
             <Card className="p-4">
               <div className="text-xs font-medium text-zinc-500">Jumlah Invoice dengan Diskon</div>
@@ -150,8 +151,8 @@ export default function PromoReport() {
                           <div className="text-xs text-zinc-500">{p.sku}</div>
                         </td>
                         <td className="px-4 py-3 text-right">{p.qtySold}</td>
-                        <td className="px-4 py-3 text-right font-medium text-red-600">Rp {p.totalDiscount}</td>
-                        <td className="px-4 py-3 text-right font-medium text-emerald-600">Rp {p.revenueAfterDiscount}</td>
+                        <td className="px-4 py-3 text-right font-medium text-red-600">{formatCurrency(p.totalDiscount)}</td>
+                        <td className="px-4 py-3 text-right font-medium text-emerald-600">{formatCurrency(p.revenueAfterDiscount)}</td>
                       </tr>
                     ))}
                     {data.discountedProducts.length === 0 ? (
@@ -179,7 +180,7 @@ export default function PromoReport() {
                         <div className="text-xs text-zinc-600 mt-1">{ap.productName} ({ap.productSku})</div>
                       </div>
                       <div className="rounded bg-indigo-50 px-2 py-1 text-xs font-bold text-indigo-700">
-                        {ap.promoType === 'PERCENTAGE' ? `${ap.discountValue}%` : `Rp ${ap.discountValue}`}
+                        {ap.promoType === 'PERCENTAGE' ? `${ap.discountValue}%` : formatCurrency(ap.discountValue)}
                       </div>
                     </div>
                     <div className="mt-3 flex items-center justify-between text-[10px] text-zinc-500">

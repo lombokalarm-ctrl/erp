@@ -6,6 +6,7 @@ import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { formatCurrency } from "@/lib/numberFormat";
 
 type Customer = { id: string; name: string; code: string; category: string };
 type Product = {
@@ -366,9 +367,9 @@ export default function SalesOrders() {
               </tbody>
             </table>
             <table class="summary">
-              <tr><td>Subtotal</td><td class="text-right">${detail.subtotal}</td></tr>
-              <tr><td>Diskon</td><td class="text-right">${detail.discountAmount}</td></tr>
-              <tr class="total"><td>Total</td><td class="text-right">${detail.totalAmount}</td></tr>
+              <tr><td>Subtotal</td><td class="text-right">${formatCurrency(detail.subtotal)}</td></tr>
+              <tr><td>Diskon</td><td class="text-right">${formatCurrency(detail.discountAmount)}</td></tr>
+              <tr class="total"><td>Total</td><td class="text-right">${formatCurrency(detail.totalAmount)}</td></tr>
             </table>
             <div style="margin-top: 20px;"><strong>Catatan:</strong> ${escapeHtml(detail.notes || "-")}</div>
           </body>
@@ -474,7 +475,7 @@ export default function SalesOrders() {
                       {o.deliveryStatus}
                     </span>
                   </td>
-                  <td className="px-4 py-2 text-right font-medium">Rp {o.totalAmount}</td>
+                  <td className="px-4 py-2 text-right font-medium">{formatCurrency(o.totalAmount)}</td>
                   <td className="px-4 py-2">
                     <div className="flex justify-end gap-2">
                       <Button size="sm" variant="secondary" onClick={() => handleView(o.id)}>
@@ -706,7 +707,7 @@ export default function SalesOrders() {
               <div><span className="text-zinc-500">Tanggal:</span> {viewOrder.orderDate}</div>
               <div><span className="text-zinc-500">Status SO:</span> {viewOrder.status}</div>
               <div><span className="text-zinc-500">Status Kirim:</span> {viewOrder.deliveryStatus}</div>
-              <div><span className="text-zinc-500">Total:</span> {viewOrder.totalAmount}</div>
+              <div><span className="text-zinc-500">Total:</span> {formatCurrency(viewOrder.totalAmount)}</div>
               <div className="col-span-2"><span className="text-zinc-500">Catatan:</span> {viewOrder.notes || "-"}</div>
             </div>
             <div className="mt-4 overflow-auto rounded-lg border border-zinc-200">
@@ -729,9 +730,9 @@ export default function SalesOrders() {
                       <td className="px-3 py-2">{it.productName}</td>
                       <td className="px-3 py-2 text-right">{it.qty}</td>
                       <td className="px-3 py-2">{it.uom}</td>
-                      <td className="px-3 py-2 text-right">{it.unitPrice}</td>
-                      <td className="px-3 py-2 text-right">{it.discountAmount}</td>
-                      <td className="px-3 py-2 text-right">{it.lineTotal}</td>
+                      <td className="px-3 py-2 text-right">{formatCurrency(it.unitPrice)}</td>
+                      <td className="px-3 py-2 text-right">{formatCurrency(it.discountAmount)}</td>
+                      <td className="px-3 py-2 text-right">{formatCurrency(it.lineTotal)}</td>
                     </tr>
                   ))}
                 </tbody>
