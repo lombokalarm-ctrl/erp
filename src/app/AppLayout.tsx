@@ -97,6 +97,7 @@ export default function AppLayout() {
         items: [
           { to: "/invoices", label: "Invoice", icon: <FileText className="h-4 w-4" />, anyPerm: ["invoices:read"] },
           { to: "/payments", label: "Pembayaran", icon: <Wallet className="h-4 w-4" />, anyPerm: ["payments:read"] },
+          { to: "/credit-notes", label: "Note Kredit", icon: <FileText className="h-4 w-4" />, anyPerm: ["invoices:read", "reports:read"] },
           { to: "/receivables", label: "Piutang", icon: <LineChart className="h-4 w-4" />, anyPerm: ["invoices:read", "reports:read"] },
         ]
       },

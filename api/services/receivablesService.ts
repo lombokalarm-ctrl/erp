@@ -48,7 +48,10 @@ export async function listReceivables(params: {
         i.status,
         coalesce((
           select sum(p.amount) from payments p where p.invoice_id = i.id
-        ), 0)::text as "paidAmount"
+        ), 0)::text as "paidAmount",
+        coalesce((
+          select sum(cna.amount) from credit_note_applies cna where cna.invoice_id = i.id
+        ), 0)::text as "creditedAmount"
       from invoices i
       join customers c on c.id = i.customer_id
       ${whereSql}
@@ -61,7 +64,8 @@ export async function listReceivables(params: {
   const items = listRes.rows.map((r) => {
     const totalAmount = Number(r.totalAmount)
     const paidAmount = Number(r.paidAmount)
-    const remainingAmount = Math.max(0, totalAmount - paidAmount)
+    const creditedAmount = Number(r.creditedAmount ?? 0)
+    const remainingAmount = Math.max(0, totalAmount - paidAmount - creditedAmount)
     return { ...r, remainingAmount: remainingAmount.toFixed(2) }
   })
 
@@ -88,7 +92,10 @@ export async function agingSummary(params: { customerId?: string }) {
         i.total_amount,
         coalesce((
           select sum(p.amount) from payments p where p.invoice_id = i.id
-        ), 0) as paid_amount
+        ), 0) as paid_amount,
+        coalesce((
+          select sum(cna.amount) from credit_note_applies cna where cna.invoice_id = i.id
+        ), 0) as credited_amount
       from invoices i
       ${whereSql}
     `,
@@ -104,7 +111,10 @@ export async function agingSummary(params: { customerId?: string }) {
   }
 
   for (const row of res.rows) {
-    const remaining = Math.max(0, Number(row.total_amount) - Number(row.paid_amount))
+    const remaining = Math.max(
+      0,
+      Number(row.total_amount) - Number(row.paid_amount) - Number(row.credited_amount),
+    )
     if (remaining <= 0) continue
     const due = new Date(row.due_date)
     const overdueDays = Math.max(0, daysBetween(now, due))

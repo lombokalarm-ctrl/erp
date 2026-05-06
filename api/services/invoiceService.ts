@@ -1,5 +1,6 @@
 import { getPool } from '../db/pool.js'
 import { ApiError } from '../lib/http.js'
+import { getInvoiceCreditedTotal } from './creditNoteService.js'
 
 export type Invoice = {
   id: string
@@ -63,7 +64,9 @@ export async function listInvoices(params: {
         i.invoice_date::text as "invoiceDate",
         i.due_date::text as "dueDate",
         i.total_amount::text as "totalAmount",
-        i.status
+        i.status,
+        coalesce((select sum(p.amount) from payments p where p.invoice_id = i.id), 0)::text as "paidAmount",
+        coalesce((select sum(cna.amount) from credit_note_applies cna where cna.invoice_id = i.id), 0)::text as "creditedAmount"
       from invoices i
       join customers c on c.id = i.customer_id
       ${whereSql}
@@ -146,12 +149,14 @@ export async function getInvoiceDetail(id: string) {
   )
 
   const paid = await getInvoicePaidTotal(invoice.id)
+  const credited = await getInvoiceCreditedTotal(invoice.id)
   
   return {
     ...invoice,
     items: itemsRes.rows,
     paid: String(paid),
-    remaining: String(Math.max(0, Number(invoice.totalAmount) - paid))
+    credited: String(credited),
+    remaining: String(Math.max(0, Number(invoice.totalAmount) - paid - credited))
   }
 }
 
@@ -168,9 +173,10 @@ export async function recalcInvoiceStatus(invoiceId: string) {
   const pool = getPool()
   const invoice = await getInvoiceById(invoiceId)
   const paid = await getInvoicePaidTotal(invoiceId)
+  const credited = await getInvoiceCreditedTotal(invoiceId)
   const total = Number(invoice.totalAmount)
 
-  const remaining = Math.max(0, total - paid)
+  const remaining = Math.max(0, total - paid - credited)
   const today = new Date().toISOString().slice(0, 10)
   const overdue = remaining > 0 && invoice.dueDate < today
 
@@ -182,5 +188,5 @@ export async function recalcInvoiceStatus(invoiceId: string) {
     nextStatus,
   ])
 
-  return { ...invoice, status: nextStatus, paid, remaining }
+  return { ...invoice, status: nextStatus, paid, credited, remaining }
 }

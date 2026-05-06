@@ -12,6 +12,8 @@ type InvoiceRow = {
   invoiceDate: string;
   dueDate: string;
   totalAmount: string;
+  paidAmount?: string;
+  creditedAmount?: string;
   status: string;
 };
 
@@ -68,11 +70,19 @@ export default function Invoices() {
                 <th className="px-4 py-3">Jatuh Tempo</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Total</th>
+                <th className="px-4 py-3">Terbayar</th>
+                <th className="px-4 py-3">Kredit</th>
+                <th className="px-4 py-3">Sisa</th>
               </tr>
             </thead>
             <tbody>
-              {items.map((i) => (
-                <tr key={i.id} className="border-b border-zinc-100 hover:bg-zinc-50">
+              {items.map((i) => {
+                const total = Number(i.totalAmount || 0);
+                const paid = Number(i.paidAmount || 0);
+                const credited = Number(i.creditedAmount || 0);
+                const remaining = Math.max(0, total - paid - credited);
+                return (
+                  <tr key={i.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                   <td className="px-4 py-3 font-medium">
                     <Link className="text-zinc-900 underline decoration-zinc-300 underline-offset-4 hover:decoration-zinc-500" to={`/invoices/${i.id}`}>
                       {i.invoiceNo}
@@ -92,11 +102,15 @@ export default function Invoices() {
                     </span>
                   </td>
                   <td className="px-4 py-3">{i.totalAmount}</td>
-                </tr>
-              ))}
+                  <td className="px-4 py-3">{paid.toFixed(2)}</td>
+                  <td className="px-4 py-3">{credited.toFixed(2)}</td>
+                  <td className="px-4 py-3 font-medium">{remaining.toFixed(2)}</td>
+                  </tr>
+                );
+              })}
               {items.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-sm text-zinc-500" colSpan={5}>
+                  <td className="px-4 py-6 text-sm text-zinc-500" colSpan={8}>
                     Belum ada data.
                   </td>
                 </tr>

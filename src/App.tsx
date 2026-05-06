@@ -14,6 +14,7 @@ import Invoices from "@/pages/Invoices";
 import InvoiceDetail from "@/pages/InvoiceDetail";
 import Payments from "@/pages/Payments";
 import Receivables from "@/pages/Receivables";
+import CreditNotes from "@/pages/CreditNotes";
 import StoreAnalysis from "@/pages/StoreAnalysis";
 import ReturnReport from "@/pages/ReturnReport";
 import Users from "@/pages/Users";
@@ -70,6 +71,7 @@ export default function App() {
           <Route path="invoices/:id" element={<InvoiceDetail />} />
           <Route path="payments" element={<Payments />} />
           <Route path="receivables" element={<Receivables />} />
+          <Route path="credit-notes" element={<CreditNotes />} />
           <Route path="store-analysis" element={<StoreAnalysis />} />
           <Route path="users" element={<Users />} />
           <Route path="change-password" element={<ChangePassword />} />

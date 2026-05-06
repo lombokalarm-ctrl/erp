@@ -14,6 +14,7 @@ type InvoiceState = {
   totalAmount: string;
   status: string;
   paid: number;
+  credited: number;
   remaining: number;
 };
 
@@ -166,6 +167,10 @@ export default function InvoiceDetail() {
                 <tr>
                   <td>Sudah Dibayar</td>
                   <td class="text-right">${inv.paid}</td>
+                </tr>
+                <tr>
+                  <td>Note Kredit</td>
+                  <td class="text-right">${inv.credited ?? 0}</td>
                 </tr>
                 <tr class="total">
                   <td>Sisa Tagihan</td>
@@ -338,6 +343,10 @@ export default function InvoiceDetail() {
               <div>
                 <div className="text-xs font-medium text-zinc-500">Terbayar</div>
                 <div className="mt-1 font-medium">{invoice.paid}</div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-zinc-500">Note Kredit</div>
+                <div className="mt-1 font-medium">{invoice.credited}</div>
               </div>
               <div>
                 <div className="text-xs font-medium text-zinc-500">Sisa</div>

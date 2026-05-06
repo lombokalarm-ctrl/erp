@@ -9,6 +9,11 @@ type ReturnRow = {
   id: string;
   returnNo: string;
   type: string;
+  status: string;
+  financialStatus: string;
+  creditNoteNo?: string;
+  sourceInvoiceId?: string;
+  sourceInvoiceNo?: string;
   referenceNo: string;
   returnDate: string;
   notes: string;
@@ -19,6 +24,7 @@ type ReturnRow = {
 type Customer = { id: string; name: string; code: string };
 type Supplier = { id: string; name: string; code: string };
 type Product = { id: string; name: string; sku: string };
+type InvoiceRef = { id: string; invoiceNo: string; customerId: string; status: string };
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -29,11 +35,13 @@ export default function Returns() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceRef[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const [type, setType] = useState<"SALES_RETURN" | "PURCHASE_RETURN">("SALES_RETURN");
   const [partnerId, setPartnerId] = useState("");
   const [referenceNo, setReferenceNo] = useState("");
+  const [sourceInvoiceId, setSourceInvoiceId] = useState("");
   const [returnDate, setReturnDate] = useState(today());
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<{ productId: string; qty: string; uom: "pcs" | "pack" | "dus"; reason: string }[]>([
@@ -43,21 +51,26 @@ export default function Returns() {
   const [isFormOpen, setIsFormOpen] = useState(false);
 
   const canSubmit = useMemo(
-    () => partnerId && items.every((i) => i.productId && Number(i.qty) > 0),
-    [partnerId, items],
+    () =>
+      partnerId &&
+      (type === "PURCHASE_RETURN" || Boolean(sourceInvoiceId)) &&
+      items.every((i) => i.productId && Number(i.qty) > 0),
+    [partnerId, sourceInvoiceId, type, items],
   );
 
   async function loadInitial() {
-    const [retRes, cRes, sRes, pRes] = await Promise.all([
+    const [retRes, cRes, sRes, pRes, invRes] = await Promise.all([
       apiFetch<{ data: ReturnRow[] }>("/api/v1/returns?page=1&pageSize=50"),
       apiFetch<{ data: Customer[] }>("/api/v1/customers?page=1&pageSize=200"),
       apiFetch<{ data: Supplier[] }>("/api/v1/suppliers?page=1&pageSize=200"),
       apiFetch<{ data: Product[] }>("/api/v1/products?page=1&pageSize=200"),
+      apiFetch<{ data: InvoiceRef[] }>("/api/v1/invoices?page=1&pageSize=200"),
     ]);
     setRows(retRes.data);
     setCustomers(cRes.data);
     setSuppliers(sRes.data);
     setProducts(pRes.data);
+    setInvoices(invRes.data);
   }
 
   useEffect(() => {
@@ -74,6 +87,7 @@ export default function Returns() {
           type,
           customerId: type === "SALES_RETURN" ? partnerId : undefined,
           supplierId: type === "PURCHASE_RETURN" ? partnerId : undefined,
+          sourceInvoiceId: type === "SALES_RETURN" ? sourceInvoiceId : undefined,
           referenceNo,
           returnDate,
           notes,
@@ -82,6 +96,7 @@ export default function Returns() {
       });
 
       setPartnerId("");
+      setSourceInvoiceId("");
       setReferenceNo("");
       setNotes("");
       setItems([{ productId: "", qty: "1", uom: "pcs", reason: "" }]);
@@ -93,6 +108,21 @@ export default function Returns() {
       setSaving(false);
     }
   }
+
+  async function handlePost(returnId: string) {
+    setError(null);
+    try {
+      await apiFetch(`/api/v1/returns/${returnId}/post`, { method: "POST" });
+      await loadInitial();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Gagal memposting retur");
+    }
+  }
+
+  const salesInvoices = useMemo(
+    () => invoices.filter((inv) => inv.customerId === partnerId && inv.status !== "CANCELLED"),
+    [invoices, partnerId],
+  );
 
   return (
     <div className="space-y-4">
@@ -130,8 +160,11 @@ export default function Returns() {
                 <th className="px-4 py-2">No Retur</th>
                 <th className="px-4 py-2">Tipe</th>
                 <th className="px-4 py-2">Partner</th>
+                <th className="px-4 py-2">Status</th>
                 <th className="px-4 py-2">Tanggal</th>
                 <th className="px-4 py-2">Ref</th>
+                <th className="px-4 py-2">Note Kredit</th>
+                <th className="px-4 py-2 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody>
@@ -146,13 +179,36 @@ export default function Returns() {
                     </span>
                   </td>
                   <td className="px-4 py-2 truncate max-w-[120px]">{r.customerName || r.supplierName || '-'}</td>
+                  <td className="px-4 py-2">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        r.status === "POSTED" || r.status === "COMPLETED"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : r.status === "CANCELLED"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-amber-100 text-amber-700"
+                      }`}
+                    >
+                      {r.status}
+                    </span>
+                  </td>
                   <td className="px-4 py-2 text-zinc-600">{r.returnDate}</td>
                   <td className="px-4 py-2 text-xs text-zinc-500">{r.referenceNo || '-'}</td>
+                  <td className="px-4 py-2 text-xs text-zinc-600">{r.creditNoteNo || "-"}</td>
+                  <td className="px-4 py-2 text-right">
+                    {r.status === "DRAFT" ? (
+                      <Button size="sm" variant="secondary" onClick={() => handlePost(r.id)}>
+                        Post
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-zinc-400">-</span>
+                    )}
+                  </td>
                 </tr>
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td className="px-4 py-6 text-center text-zinc-500" colSpan={5}>
+                  <td className="px-4 py-6 text-center text-zinc-500" colSpan={8}>
                     Belum ada riwayat retur barang.
                   </td>
                 </tr>
@@ -186,6 +242,7 @@ export default function Returns() {
                   onChange={(e) => {
                     setType(e.target.value as any);
                     setPartnerId("");
+                    setSourceInvoiceId("");
                   }}
                 >
                   <option value="SALES_RETURN">Dari Pelanggan (Sales Return)</option>
@@ -216,6 +273,28 @@ export default function Returns() {
                     ))}
               </select>
             </label>
+
+            {type === "SALES_RETURN" ? (
+              <label className="block">
+                <div className="mb-1 text-xs font-medium text-zinc-600">Invoice Sumber</div>
+                <select
+                  className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                  value={sourceInvoiceId}
+                  onChange={(e) => {
+                    setSourceInvoiceId(e.target.value);
+                    const selected = salesInvoices.find((x) => x.id === e.target.value);
+                    if (selected && !referenceNo) setReferenceNo(selected.invoiceNo);
+                  }}
+                >
+                  <option value="">-- Pilih Invoice --</option>
+                  {salesInvoices.map((inv) => (
+                    <option key={inv.id} value={inv.id}>
+                      {inv.invoiceNo} ({inv.status})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
 
             <div className="grid grid-cols-2 gap-2">
               <Input label="Tanggal Retur" type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} />

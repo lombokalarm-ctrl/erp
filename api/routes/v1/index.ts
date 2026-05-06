@@ -20,6 +20,7 @@ import reportRoutes from './reports.js'
 import promoRoutes from './promos.js'
 import dashboardRoutes from './dashboard.js'
 import returnRoutes from './returns.js'
+import creditNoteRoutes from './credit-notes.js'
 import settingRoutes from './settings.js'
 import regions from './regions.js'
 
@@ -46,6 +47,7 @@ router.use('/reports', reportRoutes)
 router.use('/promos', promoRoutes)
 router.use('/dashboard', dashboardRoutes)
 router.use('/returns', returnRoutes)
+router.use('/credit-notes', creditNoteRoutes)
 router.use('/settings', settingRoutes)
 router.use('/regions', regions)
 
