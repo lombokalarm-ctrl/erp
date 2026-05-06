@@ -4,6 +4,7 @@ import Input from "@/components/ui/Input";
 import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
+import { formatCurrency } from "@/lib/numberFormat";
 
 type Invoice = { id: string; invoiceNo: string; totalAmount: string; status: string };
 type InvoiceDetail = Invoice & { paid: string; remaining: string; customerName: string; customerCode: string };
@@ -102,7 +103,7 @@ export default function Payments() {
               <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
                 <th className="px-4 py-2">Invoice</th>
                 <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2 text-right">Total</th>
+                <th className="min-w-[140px] whitespace-nowrap px-4 py-2 text-right">Total</th>
               </tr>
             </thead>
             <tbody>
@@ -110,7 +111,7 @@ export default function Payments() {
                 <tr key={i.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                   <td className="px-4 py-2 font-medium">{i.invoiceNo}</td>
                   <td className="px-4 py-2">{i.status}</td>
-                  <td className="px-4 py-2 text-right">{i.totalAmount}</td>
+                  <td className="whitespace-nowrap px-4 py-2 text-right">{formatCurrency(i.totalAmount)}</td>
                 </tr>
               ))}
               {invoices.length === 0 ? (
@@ -168,15 +169,15 @@ export default function Payments() {
               <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-zinc-700 sm:grid-cols-3">
                 <div>
                   <div className="text-zinc-500">Total Invoice</div>
-                  <div className="font-semibold">{invoiceDetail.totalAmount}</div>
+                  <div className="font-semibold whitespace-nowrap">{formatCurrency(invoiceDetail.totalAmount)}</div>
                 </div>
                 <div>
                   <div className="text-zinc-500">Sudah Dibayar</div>
-                  <div className="font-semibold">{invoiceDetail.paid}</div>
+                  <div className="font-semibold whitespace-nowrap">{formatCurrency(invoiceDetail.paid)}</div>
                 </div>
                 <div>
                   <div className="text-zinc-500">Sisa Tagihan</div>
-                  <div className="font-semibold text-emerald-700">{invoiceDetail.remaining}</div>
+                  <div className="font-semibold whitespace-nowrap text-emerald-700">{formatCurrency(invoiceDetail.remaining)}</div>
                 </div>
               </div>
             </div>

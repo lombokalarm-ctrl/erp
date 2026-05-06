@@ -177,7 +177,7 @@ export default function CollectionReport() {
                     <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
                       <th className="px-4 py-3">Tanggal</th>
                       <th className="px-4 py-3">Pelanggan</th>
-                      <th className="px-4 py-3 text-right">Nominal</th>
+                      <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Nominal</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -191,7 +191,7 @@ export default function CollectionReport() {
                           <div className="truncate w-32">{p.customerName}</div>
                           <div className="text-xs text-zinc-500">{p.invoiceNo}</div>
                         </td>
-                        <td className="px-4 py-3 text-right font-medium text-emerald-600">{formatCurrency(p.amount)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right font-medium text-emerald-600">{formatCurrency(p.amount)}</td>
                       </tr>
                     ))}
                     {data.latestPayments.length === 0 ? (

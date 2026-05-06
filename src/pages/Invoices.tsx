@@ -70,10 +70,10 @@ export default function Invoices() {
                 <th className="px-4 py-3">Tanggal</th>
                 <th className="px-4 py-3">Jatuh Tempo</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Total</th>
-                <th className="px-4 py-3">Terbayar</th>
-                <th className="px-4 py-3">Kredit</th>
-                <th className="px-4 py-3">Sisa</th>
+                <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Total</th>
+                <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Terbayar</th>
+                <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Kredit</th>
+                <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Sisa</th>
               </tr>
             </thead>
             <tbody>
@@ -102,10 +102,10 @@ export default function Invoices() {
                       {i.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right">{formatCurrency(total)}</td>
-                  <td className="px-4 py-3 text-right">{formatCurrency(paid)}</td>
-                  <td className="px-4 py-3 text-right">{formatCurrency(credited)}</td>
-                  <td className="px-4 py-3 text-right font-medium">{formatCurrency(remaining)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right">{formatCurrency(total)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right">{formatCurrency(paid)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right">{formatCurrency(credited)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right font-medium">{formatCurrency(remaining)}</td>
                   </tr>
                 );
               })}

@@ -15,8 +15,8 @@ export function formatNumber(
 
 export function formatCurrency(value: number | string | null | undefined): string {
   const numeric = toFiniteNumber(value);
-  if (numeric === null) return "Rp 0";
-  return `Rp ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(numeric)}`;
+  if (numeric === null) return "Rp\u00A00";
+  return `Rp\u00A0${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(numeric)}`;
 }
 
 export function formatCurrencyCompact(value: number | string | null | undefined): string {

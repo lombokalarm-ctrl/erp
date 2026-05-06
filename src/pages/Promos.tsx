@@ -178,7 +178,7 @@ export default function Promos() {
                     <div className="text-xs text-zinc-500">{p.productSku}</div>
                   </td>
                   <td className="px-4 py-3">{p.name}</td>
-                  <td className="px-4 py-3">
+                  <td className="min-w-[140px] whitespace-nowrap px-4 py-3">
                     <div className="font-medium text-emerald-600">
                       {p.promoType === 'PERCENTAGE' ? `${p.discountValue}%` : formatCurrency(p.discountValue)}
                     </div>

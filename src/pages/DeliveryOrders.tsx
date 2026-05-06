@@ -6,6 +6,7 @@ import Input from "@/components/ui/Input";
 import { apiFetch, ApiError } from "@/api/client";
 import { BarcodeScanner } from "@/components/ui/BarcodeScanner";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { formatCurrency } from "@/lib/numberFormat";
 
 type SalesOrderRow = {
   id: string;
@@ -226,7 +227,7 @@ export default function DeliveryOrders() {
                 <th className="px-4 py-2">Tanggal SO</th>
                 <th className="px-4 py-2">Status SO</th>
                 <th className="px-4 py-2">Status Kirim</th>
-                <th className="px-4 py-2">Total Harga</th>
+                <th className="min-w-[140px] whitespace-nowrap px-4 py-2 text-right">Total Harga</th>
                 <th className="px-4 py-2 text-right">Aksi</th>
               </tr>
             </thead>
@@ -256,7 +257,7 @@ export default function DeliveryOrders() {
                       {o.deliveryStatus}
                     </span>
                   </td>
-                  <td className="px-4 py-2">{o.totalAmount}</td>
+                  <td className="whitespace-nowrap px-4 py-2 text-right">{formatCurrency(o.totalAmount)}</td>
                   <td className="px-4 py-2 text-right">
                     <div className="flex items-center justify-end gap-2">
                       {o.deliveryStatus === 'PENDING' && o.status === 'CONFIRMED' && (

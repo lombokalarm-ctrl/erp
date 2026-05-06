@@ -139,8 +139,8 @@ export default function PromoReport() {
                     <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
                       <th className="px-4 py-3">Nama Barang</th>
                       <th className="px-4 py-3 text-right">Qty Terjual</th>
-                      <th className="px-4 py-3 text-right text-red-600">Total Diskon Diberikan</th>
-                      <th className="px-4 py-3 text-right text-emerald-600">Omzet Setelah Diskon</th>
+                      <th className="min-w-[150px] whitespace-nowrap px-4 py-3 text-right text-red-600">Total Diskon Diberikan</th>
+                      <th className="min-w-[150px] whitespace-nowrap px-4 py-3 text-right text-emerald-600">Omzet Setelah Diskon</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -151,8 +151,8 @@ export default function PromoReport() {
                           <div className="text-xs text-zinc-500">{p.sku}</div>
                         </td>
                         <td className="px-4 py-3 text-right">{p.qtySold}</td>
-                        <td className="px-4 py-3 text-right font-medium text-red-600">{formatCurrency(p.totalDiscount)}</td>
-                        <td className="px-4 py-3 text-right font-medium text-emerald-600">{formatCurrency(p.revenueAfterDiscount)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right font-medium text-red-600">{formatCurrency(p.totalDiscount)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right font-medium text-emerald-600">{formatCurrency(p.revenueAfterDiscount)}</td>
                       </tr>
                     ))}
                     {data.discountedProducts.length === 0 ? (

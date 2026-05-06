@@ -106,7 +106,7 @@ export default function SalesPerformance() {
                 <th className="px-4 py-3">Nama Sales</th>
                 <th className="px-4 py-3 text-right">Pelanggan Aktif</th>
                 <th className="px-4 py-3 text-right">Jumlah Order</th>
-                <th className="px-4 py-3 text-right">Total Penjualan (Omzet)</th>
+                <th className="min-w-[160px] whitespace-nowrap px-4 py-3 text-right">Total Penjualan (Omzet)</th>
               </tr>
             </thead>
             <tbody>
@@ -115,7 +115,7 @@ export default function SalesPerformance() {
                   <td className="px-4 py-3 font-medium">{row.salesName}</td>
                   <td className="px-4 py-3 text-right">{row.totalCustomers} Toko</td>
                   <td className="px-4 py-3 text-right">{row.totalOrders} Transaksi</td>
-                  <td className="px-4 py-3 text-right font-medium text-emerald-600">{formatCurrency(row.totalRevenue)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right font-medium text-emerald-600">{formatCurrency(row.totalRevenue)}</td>
                 </tr>
               ))}
               {items.length === 0 ? (

@@ -4,6 +4,7 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { ShieldAlert, Check, X } from "lucide-react";
+import { formatCurrency } from "@/lib/numberFormat";
 
 type ApprovalRow = {
   approvalId: string;
@@ -53,10 +54,6 @@ export default function ApprovalOrders() {
     }
   }
 
-  function formatRp(n: string) {
-    return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(n));
-  }
-
   return (
     <div className="space-y-4">
       <div>
@@ -82,7 +79,7 @@ export default function ApprovalOrders() {
                 <th className="px-4 py-3">Tanggal Request</th>
                 <th className="px-4 py-3">Sales Order</th>
                 <th className="px-4 py-3">Pelanggan</th>
-                <th className="px-4 py-3 text-right">Nilai Order</th>
+                <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Nilai Order</th>
                 <th className="px-4 py-3">Catatan / Alasan</th>
                 <th className="px-4 py-3 text-right">Aksi</th>
               </tr>
@@ -105,7 +102,7 @@ export default function ApprovalOrders() {
                     </div>
                   </td>
                   <td className="px-4 py-3 font-medium text-zinc-700">{r.customerName}</td>
-                  <td className="px-4 py-3 text-right font-bold text-zinc-800">{formatRp(r.totalAmount)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-zinc-800">{formatCurrency(r.totalAmount)}</td>
                   <td className="px-4 py-3 text-xs text-red-600 max-w-xs">{r.approvalNotes}</td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-2">

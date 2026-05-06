@@ -4,6 +4,7 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { formatCurrency } from "@/lib/numberFormat";
 
 type InvoiceState = {
   id: string;
@@ -338,19 +339,19 @@ export default function InvoiceDetail() {
               </div>
               <div>
                 <div className="text-xs font-medium text-zinc-500">Total</div>
-                <div className="mt-1 font-medium">{invoice.totalAmount}</div>
+                <div className="mt-1 whitespace-nowrap font-medium">{formatCurrency(invoice.totalAmount)}</div>
               </div>
               <div>
                 <div className="text-xs font-medium text-zinc-500">Terbayar</div>
-                <div className="mt-1 font-medium">{invoice.paid}</div>
+                <div className="mt-1 whitespace-nowrap font-medium">{formatCurrency(invoice.paid)}</div>
               </div>
               <div>
                 <div className="text-xs font-medium text-zinc-500">Note Kredit</div>
-                <div className="mt-1 font-medium">{invoice.credited}</div>
+                <div className="mt-1 whitespace-nowrap font-medium">{formatCurrency(invoice.credited)}</div>
               </div>
               <div>
                 <div className="text-xs font-medium text-zinc-500">Sisa</div>
-                <div className="mt-1 font-medium">{invoice.remaining}</div>
+                <div className="mt-1 whitespace-nowrap font-medium">{formatCurrency(invoice.remaining)}</div>
               </div>
             </div>
           </Card>
@@ -363,7 +364,7 @@ export default function InvoiceDetail() {
                   <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
                     <th className="px-4 py-2">Tanggal</th>
                     <th className="px-4 py-2">Metode</th>
-                    <th className="px-4 py-2">Nominal</th>
+                    <th className="min-w-[140px] whitespace-nowrap px-4 py-2 text-right">Nominal</th>
                     <th className="px-4 py-2 text-right">Aksi</th>
                   </tr>
                 </thead>
@@ -372,7 +373,7 @@ export default function InvoiceDetail() {
                     <tr key={p.id} className="border-b border-zinc-100">
                       <td className="px-4 py-2">{new Date(p.paidAt).toLocaleString("id-ID")}</td>
                       <td className="px-4 py-2">{p.method}</td>
-                      <td className="px-4 py-2">{p.amount}</td>
+                      <td className="whitespace-nowrap px-4 py-2 text-right">{formatCurrency(p.amount)}</td>
                       <td className="px-4 py-2 text-right">
                         <Button size="sm" variant="secondary" onClick={() => handlePrintPayment(p.id)}>
                           Cetak Kuitansi

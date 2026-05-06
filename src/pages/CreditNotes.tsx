@@ -3,6 +3,7 @@ import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { ApiError, apiFetch } from "@/api/client";
+import { formatCurrency } from "@/lib/numberFormat";
 
 type CreditNoteRow = {
   id: string;
@@ -102,9 +103,9 @@ export default function CreditNotes() {
                 <th className="px-4 py-3">Tanggal</th>
                 <th className="px-4 py-3">Pelanggan</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Total</th>
-                <th className="px-4 py-3">Applied</th>
-                <th className="px-4 py-3">Remaining</th>
+                <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Total</th>
+                <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Applied</th>
+                <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Remaining</th>
                 <th className="px-4 py-3 text-right">Aksi</th>
               </tr>
             </thead>
@@ -115,9 +116,9 @@ export default function CreditNotes() {
                   <td className="px-4 py-3">{cn.creditDate}</td>
                   <td className="px-4 py-3">{cn.customerName}</td>
                   <td className="px-4 py-3">{cn.status}</td>
-                  <td className="px-4 py-3">{cn.totalAmount}</td>
-                  <td className="px-4 py-3">{cn.appliedAmount}</td>
-                  <td className="px-4 py-3">{cn.remainingAmount}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right">{formatCurrency(cn.totalAmount)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right">{formatCurrency(cn.appliedAmount)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right">{formatCurrency(cn.remainingAmount)}</td>
                   <td className="px-4 py-3 text-right">
                     <Button size="sm" variant="secondary" onClick={() => openDetail(cn.id)}>
                       Detail
@@ -150,9 +151,9 @@ export default function CreditNotes() {
               </Button>
             </div>
             <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
-              <div>Total: <strong>{selected.totalAmount}</strong></div>
-              <div>Applied: <strong>{selected.appliedAmount}</strong></div>
-              <div>Remaining: <strong>{selected.remainingAmount}</strong></div>
+              <div>Total: <strong className="whitespace-nowrap">{formatCurrency(selected.totalAmount)}</strong></div>
+              <div>Applied: <strong className="whitespace-nowrap">{formatCurrency(selected.appliedAmount)}</strong></div>
+              <div>Remaining: <strong className="whitespace-nowrap">{formatCurrency(selected.remainingAmount)}</strong></div>
               <div>Status: <strong>{selected.status}</strong></div>
               <div>Invoice: <strong>{selected.invoiceNo || "-"}</strong></div>
               <div>Retur: <strong>{selected.returnNo || "-"}</strong></div>
@@ -168,9 +169,9 @@ export default function CreditNotes() {
                     <th className="px-3 py-2">SKU</th>
                     <th className="px-3 py-2">Produk</th>
                     <th className="px-3 py-2">Qty</th>
-                    <th className="px-3 py-2">Harga</th>
-                    <th className="px-3 py-2">Diskon</th>
-                    <th className="px-3 py-2">Total</th>
+                    <th className="min-w-[130px] whitespace-nowrap px-3 py-2 text-right">Harga</th>
+                    <th className="min-w-[130px] whitespace-nowrap px-3 py-2 text-right">Diskon</th>
+                    <th className="min-w-[130px] whitespace-nowrap px-3 py-2 text-right">Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -179,9 +180,9 @@ export default function CreditNotes() {
                       <td className="px-3 py-2">{it.sku}</td>
                       <td className="px-3 py-2">{it.productName}</td>
                       <td className="px-3 py-2">{it.qty} {it.uom}</td>
-                      <td className="px-3 py-2">{it.unitPrice}</td>
-                      <td className="px-3 py-2">{it.discountAmount}</td>
-                      <td className="px-3 py-2">{it.lineTotal}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right">{formatCurrency(it.unitPrice)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right">{formatCurrency(it.discountAmount)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right">{formatCurrency(it.lineTotal)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -197,7 +198,7 @@ export default function CreditNotes() {
                   <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
                     <th className="px-3 py-2">Tanggal</th>
                     <th className="px-3 py-2">Invoice</th>
-                    <th className="px-3 py-2">Nominal</th>
+                    <th className="min-w-[130px] whitespace-nowrap px-3 py-2 text-right">Nominal</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -205,7 +206,7 @@ export default function CreditNotes() {
                     <tr key={ap.id} className="border-b border-zinc-100">
                       <td className="px-3 py-2">{new Date(ap.applyDate).toLocaleString("id-ID")}</td>
                       <td className="px-3 py-2">{ap.invoiceNo}</td>
-                      <td className="px-3 py-2">{ap.amount}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right">{formatCurrency(ap.amount)}</td>
                     </tr>
                   ))}
                   {selected.applies.length === 0 ? (

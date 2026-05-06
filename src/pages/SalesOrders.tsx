@@ -441,7 +441,7 @@ export default function SalesOrders() {
                 <th className="px-4 py-2">Tanggal</th>
                 <th className="px-4 py-2">Status SO</th>
                 <th className="px-4 py-2">Status Kirim</th>
-                <th className="px-4 py-2">Total</th>
+                <th className="min-w-[140px] whitespace-nowrap px-4 py-2 text-right">Total</th>
                 <th className="px-4 py-2 text-right">Aksi</th>
               </tr>
             </thead>
@@ -475,7 +475,7 @@ export default function SalesOrders() {
                       {o.deliveryStatus}
                     </span>
                   </td>
-                  <td className="px-4 py-2 text-right font-medium">{formatCurrency(o.totalAmount)}</td>
+                  <td className="whitespace-nowrap px-4 py-2 text-right font-medium">{formatCurrency(o.totalAmount)}</td>
                   <td className="px-4 py-2">
                     <div className="flex justify-end gap-2">
                       <Button size="sm" variant="secondary" onClick={() => handleView(o.id)}>
@@ -718,9 +718,9 @@ export default function SalesOrders() {
                     <th className="px-3 py-2">Produk</th>
                     <th className="px-3 py-2 text-right">Qty</th>
                     <th className="px-3 py-2">UOM</th>
-                    <th className="px-3 py-2 text-right">Harga</th>
-                    <th className="px-3 py-2 text-right">Diskon</th>
-                    <th className="px-3 py-2 text-right">Total</th>
+                    <th className="min-w-[130px] whitespace-nowrap px-3 py-2 text-right">Harga</th>
+                    <th className="min-w-[130px] whitespace-nowrap px-3 py-2 text-right">Diskon</th>
+                    <th className="min-w-[130px] whitespace-nowrap px-3 py-2 text-right">Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -730,9 +730,9 @@ export default function SalesOrders() {
                       <td className="px-3 py-2">{it.productName}</td>
                       <td className="px-3 py-2 text-right">{it.qty}</td>
                       <td className="px-3 py-2">{it.uom}</td>
-                      <td className="px-3 py-2 text-right">{formatCurrency(it.unitPrice)}</td>
-                      <td className="px-3 py-2 text-right">{formatCurrency(it.discountAmount)}</td>
-                      <td className="px-3 py-2 text-right">{formatCurrency(it.lineTotal)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right">{formatCurrency(it.unitPrice)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right">{formatCurrency(it.discountAmount)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right">{formatCurrency(it.lineTotal)}</td>
                     </tr>
                   ))}
                 </tbody>

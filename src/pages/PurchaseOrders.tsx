@@ -4,6 +4,7 @@ import Input from "@/components/ui/Input";
 import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
+import { formatCurrency } from "@/lib/numberFormat";
 
 type Supplier = { id: string; code: string; name: string };
 type Product = { id: string; sku: string; name: string; purchasePrice: string };
@@ -78,7 +79,7 @@ export default function PurchaseOrders() {
                 <th className="px-4 py-2">Supplier</th>
                 <th className="px-4 py-2">Tanggal</th>
                 <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2">Total</th>
+                <th className="min-w-[140px] whitespace-nowrap px-4 py-2 text-right">Total</th>
               </tr>
             </thead>
             <tbody>
@@ -88,7 +89,7 @@ export default function PurchaseOrders() {
                   <td className="px-4 py-2">{r.supplierName}</td>
                   <td className="px-4 py-2">{r.orderDate}</td>
                   <td className="px-4 py-2">{r.status}</td>
-                  <td className="px-4 py-2">{r.totalAmount}</td>
+                  <td className="whitespace-nowrap px-4 py-2 text-right">{formatCurrency(r.totalAmount)}</td>
                 </tr>
               ))}
               {rows.length === 0 ? (

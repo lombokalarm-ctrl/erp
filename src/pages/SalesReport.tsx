@@ -158,7 +158,7 @@ export default function SalesReport() {
                     <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
                       <th className="px-4 py-3">Nama Barang</th>
                       <th className="px-4 py-3 text-right">Qty Terjual</th>
-                      <th className="px-4 py-3 text-right">Omzet</th>
+                      <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Omzet</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -169,7 +169,7 @@ export default function SalesReport() {
                           <div className="text-xs text-zinc-500">{p.sku}</div>
                         </td>
                         <td className="px-4 py-3 text-right">{p.qtySold}</td>
-                        <td className="px-4 py-3 text-right font-medium text-emerald-600">{formatCurrency(p.revenue)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right font-medium text-emerald-600">{formatCurrency(p.revenue)}</td>
                       </tr>
                     ))}
                     {data.topProducts.length === 0 ? (
