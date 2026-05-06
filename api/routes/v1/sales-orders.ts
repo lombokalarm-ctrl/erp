@@ -5,10 +5,13 @@ import { authenticate, authorizeAny } from '../../middlewares/auth.js'
 import {
   createSalesOrder,
   createDeliveryOrder,
+  deleteSalesOrder,
   getDeliveryOrderBySoId,
+  getSalesOrderDetail,
   listSalesOrders,
   getApprovalList,
   processApproval,
+  updateSalesOrder,
 } from '../../services/salesService.js'
 import { writeAuditLog } from '../../services/auditService.js'
 
@@ -95,6 +98,102 @@ router.post(
         entity: 'sales_orders',
         entityId: result.salesOrder.id,
         payload: { orderNo: result.salesOrder.order_no },
+      })
+      ok(res, result)
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+router.get(
+  '/:id',
+  authenticate,
+  authorizeAny(['sales_orders:read']),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await getSalesOrderDetail(req.params.id)
+      ok(res, result)
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+router.patch(
+  '/:id',
+  authenticate,
+  authorizeAny(['sales_orders:write']),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = z
+        .object({
+          customerId: z.string().uuid(),
+          orderDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+          discountAmount: z.coerce.number().min(0).optional(),
+          notes: z.string().optional(),
+          allowOverLimit: z.boolean().optional(),
+          items: z
+            .array(
+              z.object({
+                productId: z.string().uuid(),
+                qty: z.coerce.number().int().positive(),
+                uom: z.enum(['pcs', 'pack', 'dus']).default('pcs'),
+                unitPrice: z.coerce.number().min(0),
+                discountAmount: z.coerce.number().min(0).optional(),
+              }),
+            )
+            .min(1),
+        })
+        .parse(req.body)
+
+      const allowOverLimit =
+        body.allowOverLimit === true &&
+        req.user?.permissions.includes('sales_orders:override_credit')
+
+      const result = await updateSalesOrder({
+        salesOrderId: req.params.id,
+        customerId: body.customerId,
+        orderDate: body.orderDate,
+        discountAmount: body.discountAmount,
+        notes: body.notes,
+        items: body.items.map((i) => ({
+          productId: i.productId,
+          qty: i.qty,
+          uom: i.uom,
+          unitPrice: i.unitPrice,
+          discountAmount: i.discountAmount,
+        })),
+        updatedBy: req.user!.userId,
+        allowOverLimit,
+      })
+      await writeAuditLog({
+        actorUserId: req.user!.userId,
+        action: 'SALES_ORDER_UPDATE',
+        entity: 'sales_orders',
+        entityId: req.params.id,
+        payload: { orderDate: body.orderDate, itemCount: body.items.length },
+      })
+      ok(res, result)
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+router.delete(
+  '/:id',
+  authenticate,
+  authorizeAny(['sales_orders:write']),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await deleteSalesOrder(req.params.id)
+      await writeAuditLog({
+        actorUserId: req.user!.userId,
+        action: 'SALES_ORDER_DELETE',
+        entity: 'sales_orders',
+        entityId: req.params.id,
+        payload: result,
       })
       ok(res, result)
     } catch (err) {

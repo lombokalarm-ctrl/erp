@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg'
 import { getPool } from '../db/pool.js'
 import { withTransaction } from '../db/tx.js'
+import { ApiError } from '../lib/http.js'
 import { getCustomerCreditProfile, validateCreditOrThrow } from './creditService.js'
 import { applyInventoryTransaction, getDefaultWarehouseId } from './inventoryService.js'
 import { calculateBestPromo } from './promoService.js'
@@ -11,6 +12,17 @@ export type SalesOrderItemInput = {
   uom: 'pcs' | 'pack' | 'dus'
   unitPrice: number
   discountAmount?: number
+}
+
+type ResolvedOrderItem = {
+  productId: string
+  qty: number
+  uom: 'pcs' | 'pack' | 'dus'
+  unitPrice: number
+  uomToPcs: number
+  qtyPcs: number
+  discountAmount: number
+  lineTotal: number
 }
 
 function pad4(n: number) {
@@ -271,6 +283,275 @@ export async function createSalesOrder(params: {
     }
 
     return { salesOrder }
+  })
+}
+
+async function resolveOrderItems(items: SalesOrderItemInput[]): Promise<ResolvedOrderItem[]> {
+  const resolvedItems: ResolvedOrderItem[] = []
+  for (const it of items) {
+    const pRes = await getPool().query(
+      `select pack_size as "packSize", dus_size as "dusSize", pack_per_dus as "packPerDus" from products where id = $1 limit 1`,
+      [it.productId],
+    )
+    const p = pRes.rows[0] as { packSize?: number; dusSize?: number; packPerDus?: number } | undefined
+    if (!p) throw new ApiError({ code: 'NOT_FOUND', status: 404, message: 'Produk tidak ditemukan' })
+
+    const qty = Math.trunc(it.qty)
+    const packSize = Number(p.packSize ?? 0)
+    const packPerDus = Number(p.packPerDus ?? 0)
+    const dusSize = Number(p.dusSize ?? 0) || (packSize > 0 && packPerDus > 0 ? packSize * packPerDus : 0)
+    const uomToPcs = it.uom === 'pcs' ? 1 : it.uom === 'pack' ? packSize : dusSize
+
+    if (!Number.isFinite(uomToPcs) || uomToPcs < 1) {
+      throw new ApiError({
+        code: 'VALIDATION_ERROR',
+        status: 400,
+        message: 'Konversi satuan produk belum diatur (pack/dus)',
+      })
+    }
+
+    const promoDiscount = await calculateBestPromo(it.productId, it.qty, it.unitPrice)
+    const manualDiscount = it.discountAmount ?? 0
+    const finalDiscount = Math.max(promoDiscount, manualDiscount)
+
+    resolvedItems.push({
+      productId: it.productId,
+      qty,
+      uom: it.uom,
+      unitPrice: it.unitPrice,
+      uomToPcs,
+      qtyPcs: qty * uomToPcs,
+      discountAmount: finalDiscount,
+      lineTotal: it.qty * it.unitPrice - finalDiscount,
+    })
+  }
+  return resolvedItems
+}
+
+export async function getSalesOrderDetail(soId: string) {
+  const pool = getPool()
+  const soRes = await pool.query(
+    `
+      select
+        so.id,
+        so.order_no as "orderNo",
+        so.customer_id as "customerId",
+        c.code as "customerCode",
+        c.name as "customerName",
+        so.order_date::text as "orderDate",
+        case
+          when so.status = 'DRAFT'
+            and exists (
+              select 1 from sales_order_approvals a
+              where a.sales_order_id = so.id and a.status = 'APPROVED'
+            )
+            then 'CONFIRMED'
+          else so.status
+        end as status,
+        so.delivery_status as "deliveryStatus",
+        so.subtotal::text as subtotal,
+        so.discount_amount::text as "discountAmount",
+        so.total_amount::text as "totalAmount",
+        so.notes
+      from sales_orders so
+      join customers c on c.id = so.customer_id
+      where so.id = $1
+      limit 1
+    `,
+    [soId],
+  )
+  const order = soRes.rows[0]
+  if (!order) {
+    throw new ApiError({ code: 'NOT_FOUND', status: 404, message: 'Sales Order tidak ditemukan' })
+  }
+
+  const itemRes = await pool.query(
+    `
+      select
+        soi.id,
+        soi.product_id as "productId",
+        p.sku,
+        p.name as "productName",
+        soi.qty::text as qty,
+        soi.uom,
+        soi.unit_price::text as "unitPrice",
+        soi.discount_amount::text as "discountAmount",
+        soi.line_total::text as "lineTotal"
+      from sales_order_items soi
+      join products p on p.id = soi.product_id
+      where soi.sales_order_id = $1
+      order by p.name asc
+    `,
+    [soId],
+  )
+
+  return { ...order, items: itemRes.rows }
+}
+
+export async function updateSalesOrder(params: {
+  salesOrderId: string
+  customerId: string
+  orderDate: string
+  discountAmount?: number
+  notes?: string
+  items: SalesOrderItemInput[]
+  updatedBy: string
+  allowOverLimit: boolean
+}) {
+  return withTransaction(async (client) => {
+    const soRes = await client.query(
+      `select id, status, delivery_status as "deliveryStatus" from sales_orders where id = $1 limit 1`,
+      [params.salesOrderId],
+    )
+    const so = soRes.rows[0] as { id: string; status: string; deliveryStatus: string } | undefined
+    if (!so) throw new ApiError({ code: 'NOT_FOUND', status: 404, message: 'Sales Order tidak ditemukan' })
+    if (so.deliveryStatus !== 'PENDING') {
+      throw new ApiError({
+        code: 'CONFLICT',
+        status: 409,
+        message: 'Sales Order sudah diproses pengiriman dan tidak dapat diubah',
+      })
+    }
+
+    const invoiceRes = await client.query(`select id from invoices where sales_order_id = $1 limit 1`, [params.salesOrderId])
+    if (invoiceRes.rowCount) {
+      throw new ApiError({
+        code: 'CONFLICT',
+        status: 409,
+        message: 'Sales Order sudah memiliki invoice dan tidak dapat diubah',
+      })
+    }
+
+    const resolvedItems = await resolveOrderItems(params.items)
+    const headerDiscount = params.discountAmount ?? 0
+    const subtotal = resolvedItems.reduce((a, it) => a + it.qty * it.unitPrice, 0)
+    const itemDiscount = resolvedItems.reduce((a, it) => a + it.discountAmount, 0)
+    const discountAmount = headerDiscount + itemDiscount
+    const totalAmount = Math.max(0, subtotal - discountAmount)
+
+    const creditCheck = await validateCreditOrThrow({
+      customerId: params.customerId,
+      newInvoiceAmount: totalAmount,
+      allowOverLimit: params.allowOverLimit,
+      isDraft: true,
+    })
+    const requiresApproval =
+      (creditCheck.exceedsLimit || creditCheck.exceedsSalesOrderLimit) && !params.allowOverLimit
+    const status = requiresApproval ? 'PENDING_APPROVAL' : 'CONFIRMED'
+
+    await client.query(
+      `
+        update sales_orders
+        set customer_id = $2,
+            order_date = $3,
+            status = $4,
+            subtotal = $5,
+            discount_amount = $6,
+            total_amount = $7,
+            notes = $8,
+            updated_at = now()
+        where id = $1
+      `,
+      [
+        params.salesOrderId,
+        params.customerId,
+        params.orderDate,
+        status,
+        subtotal,
+        discountAmount,
+        totalAmount,
+        params.notes ?? null,
+      ],
+    )
+
+    await client.query(`delete from sales_order_items where sales_order_id = $1`, [params.salesOrderId])
+    for (const it of resolvedItems) {
+      await client.query(
+        `
+          insert into sales_order_items(
+            sales_order_id, product_id, qty, uom, uom_to_pcs, qty_pcs, unit_price, discount_amount, line_total
+          )
+          values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        `,
+        [
+          params.salesOrderId,
+          it.productId,
+          it.qty,
+          it.uom,
+          it.uomToPcs,
+          it.qtyPcs,
+          it.unitPrice,
+          it.discountAmount,
+          it.lineTotal,
+        ],
+      )
+    }
+
+    if (status === 'PENDING_APPROVAL') {
+      const reasons: string[] = []
+      if (creditCheck.exceedsLimit) reasons.push(`Limit Kredit: ${creditCheck.creditLimit}, Proyeksi Tagihan: ${creditCheck.projected}`)
+      if (creditCheck.exceedsSalesOrderLimit) reasons.push(`Limit SO per Pelanggan: ${creditCheck.salesOrderLimit}, Total SO: ${totalAmount}`)
+      const notes = `Overlimit (${reasons.join(' | ')})`
+
+      const pendingRes = await client.query(
+        `select id from sales_order_approvals where sales_order_id = $1 and status = 'PENDING' limit 1`,
+        [params.salesOrderId],
+      )
+      if (pendingRes.rowCount) {
+        await client.query(
+          `
+            update sales_order_approvals
+            set requested_by = $2, notes = $3, updated_at = now()
+            where id = $1
+          `,
+          [pendingRes.rows[0].id, params.updatedBy, notes],
+        )
+      } else {
+        await client.query(
+          `insert into sales_order_approvals(sales_order_id, requested_by, status, notes) values ($1, $2, 'PENDING', $3)`,
+          [params.salesOrderId, params.updatedBy, notes],
+        )
+      }
+    } else {
+      await client.query(
+        `delete from sales_order_approvals where sales_order_id = $1 and status = 'PENDING'`,
+        [params.salesOrderId],
+      )
+      await ensureInvoiceForSalesOrder(client as any, params.salesOrderId, params.orderDate)
+    }
+
+    return getSalesOrderDetail(params.salesOrderId)
+  })
+}
+
+export async function deleteSalesOrder(salesOrderId: string) {
+  return withTransaction(async (client) => {
+    const soRes = await client.query(
+      `select id, order_no as "orderNo", delivery_status as "deliveryStatus" from sales_orders where id = $1 limit 1`,
+      [salesOrderId],
+    )
+    const so = soRes.rows[0] as { id: string; orderNo: string; deliveryStatus: string } | undefined
+    if (!so) throw new ApiError({ code: 'NOT_FOUND', status: 404, message: 'Sales Order tidak ditemukan' })
+    if (so.deliveryStatus !== 'PENDING') {
+      throw new ApiError({
+        code: 'CONFLICT',
+        status: 409,
+        message: 'Sales Order sudah diproses pengiriman dan tidak dapat dihapus',
+      })
+    }
+
+    const invoiceRes = await client.query(`select id from invoices where sales_order_id = $1 limit 1`, [salesOrderId])
+    if (invoiceRes.rowCount) {
+      throw new ApiError({
+        code: 'CONFLICT',
+        status: 409,
+        message: 'Sales Order sudah memiliki invoice dan tidak dapat dihapus',
+      })
+    }
+
+    await client.query(`delete from sales_order_approvals where sales_order_id = $1`, [salesOrderId])
+    await client.query(`delete from sales_orders where id = $1`, [salesOrderId])
+    return { deleted: true, id: salesOrderId, orderNo: so.orderNo }
   })
 }
 

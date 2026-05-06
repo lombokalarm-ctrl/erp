@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { CloudOff, RefreshCw } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 type Customer = { id: string; name: string; code: string; category: string };
 type Product = {
@@ -22,14 +22,50 @@ type SalesOrderRow = {
   id: string;
   orderNo: string;
   customerName: string;
+  customerId: string;
   orderDate: string;
   status: string;
   deliveryStatus: string;
   totalAmount: string;
 };
 
+type SalesOrderDetail = {
+  id: string;
+  orderNo: string;
+  customerId: string;
+  customerCode: string;
+  customerName: string;
+  orderDate: string;
+  status: string;
+  deliveryStatus: string;
+  subtotal: string;
+  discountAmount: string;
+  totalAmount: string;
+  notes?: string | null;
+  items: Array<{
+    id: string;
+    productId: string;
+    sku: string;
+    productName: string;
+    qty: string;
+    uom: "pcs" | "pack" | "dus";
+    unitPrice: string;
+    discountAmount: string;
+    lineTotal: string;
+  }>;
+};
+
 function today() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function escapeHtml(value?: string | null) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 export default function SalesOrders() {
@@ -41,12 +77,18 @@ export default function SalesOrders() {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [syncing, setSyncing] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [viewOrder, setViewOrder] = useState<SalesOrderDetail | null>(null);
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
 
   const [customerId, setCustomerId] = useState("");
   const [orderDate, setOrderDate] = useState(today());
+  const [notes, setNotes] = useState("");
   const [items, setItems] = useState<
     { productId: string; qty: string; uom: "pcs" | "pack" | "dus"; unitPrice: string }[]
   >([{ productId: "", qty: "1", uom: "pcs", unitPrice: "0" }]);
+  const company = useSettingsStore((s) => s.company);
+  const fetchCompany = useSettingsStore((s) => s.fetchCompany);
 
   function resolveUnitPrice(p: Product | undefined, c: Customer | undefined, uom: "pcs" | "pack" | "dus") {
     if (!p) return "0";
@@ -91,6 +133,7 @@ export default function SalesOrders() {
 
   useEffect(() => {
     loadInitial();
+    fetchCompany();
     
     // Load offline orders from local storage
     const offline = localStorage.getItem("offline_sales_orders");
@@ -107,15 +150,29 @@ export default function SalesOrders() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+  }, [fetchCompany]);
+
+  function resetForm() {
+    setCustomerId("");
+    setOrderDate(today());
+    setNotes("");
+    setItems([{ productId: "", qty: "1", uom: "pcs", unitPrice: "0" }]);
+    setEditingOrderId(null);
+  }
+
+  async function getOrderDetail(soId: string) {
+    const res = await apiFetch<{ data: SalesOrderDetail }>(`/api/v1/sales-orders/${soId}`);
+    return res.data;
+  }
 
   async function handleSubmit() {
     if (!canSubmit) return;
     setError(null);
-    
+
     const payload = {
       customerId,
       orderDate,
+      notes: notes.trim() || undefined,
       items: items.map((i) => ({
         productId: i.productId,
         qty: Number(i.qty),
@@ -124,28 +181,29 @@ export default function SalesOrders() {
       })),
     };
 
+    if (isOffline && editingOrderId) {
+      setError("Edit Sales Order tidak tersedia saat offline.");
+      return;
+    }
+
     if (isOffline) {
       const newOfflineOrders = [...offlineOrders, { ...payload, _id: Date.now().toString() }];
       setOfflineOrders(newOfflineOrders);
       localStorage.setItem("offline_sales_orders", JSON.stringify(newOfflineOrders));
-      
-      setCustomerId("");
-      setOrderDate(today());
-      setItems([{ productId: "", qty: "1", uom: "pcs", unitPrice: "0" }]);
+
+      resetForm();
       setIsFormOpen(false);
       alert("Order disimpan secara offline. Sinkronisasi saat terhubung ke internet.");
       return;
     }
 
     try {
-      await apiFetch("/api/v1/sales-orders", {
-        method: "POST",
+      await apiFetch(editingOrderId ? `/api/v1/sales-orders/${editingOrderId}` : "/api/v1/sales-orders", {
+        method: editingOrderId ? "PATCH" : "POST",
         body: JSON.stringify(payload),
       });
 
-      setCustomerId("");
-      setOrderDate(today());
-      setItems([{ productId: "", qty: "1", uom: "pcs", unitPrice: "0" }]);
+      resetForm();
       setIsFormOpen(false);
       loadInitial();
     } catch (err: any) {
@@ -176,6 +234,149 @@ export default function SalesOrders() {
       setError("Gagal melakukan sinkronisasi: " + (err.message || "Unknown error"));
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function handleView(soId: string) {
+    try {
+      setError(null);
+      const detail = await getOrderDetail(soId);
+      setViewOrder(detail);
+      setIsViewOpen(true);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Gagal memuat detail Sales Order");
+    }
+  }
+
+  async function handleEdit(soId: string) {
+    try {
+      setError(null);
+      const detail = await getOrderDetail(soId);
+      setEditingOrderId(detail.id);
+      setCustomerId(detail.customerId);
+      setOrderDate(detail.orderDate);
+      setNotes(detail.notes || "");
+      setItems(
+        detail.items.map((it) => ({
+          productId: it.productId,
+          qty: String(Number(it.qty)),
+          uom: it.uom,
+          unitPrice: String(Number(it.unitPrice)),
+        })),
+      );
+      setIsFormOpen(true);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Gagal memuat data edit");
+    }
+  }
+
+  async function handleDelete(so: SalesOrderRow) {
+    if (!confirm(`Hapus Sales Order ${so.orderNo}?`)) return;
+    try {
+      setError(null);
+      await apiFetch(`/api/v1/sales-orders/${so.id}`, { method: "DELETE" });
+      await loadInitial();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Gagal menghapus Sales Order");
+    }
+  }
+
+  async function handlePrint(soId: string) {
+    try {
+      const detail = await getOrderDetail(soId);
+      const companyName = escapeHtml(company?.name || "PT. ERP DISTRIBUTOR F&B");
+      const companyAddress = escapeHtml(company?.address || "Alamat belum diatur").replace(/\r?\n/g, "<br/>");
+      const companyPhone = escapeHtml(company?.phone || "-");
+
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) {
+        alert("Pop-up diblokir. Izinkan pop-up untuk mencetak.");
+        return;
+      }
+
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Cetak Sales Order - ${detail.orderNo}</title>
+            <style>
+              @page { size: A4; margin: 0.5in; }
+              body { font-family: "Courier New", Courier, monospace; font-size: 13px; color: #000; margin: 0; }
+              .header { display: flex; justify-content: space-between; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 16px; }
+              .title { font-size: 18px; font-weight: bold; letter-spacing: 1px; }
+              .meta { display: flex; justify-content: space-between; margin-bottom: 14px; }
+              .meta-box { width: 48%; }
+              .meta-box div { margin-bottom: 4px; }
+              table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+              th, td { border: 1px solid #000; padding: 6px 8px; text-align: left; }
+              th { font-weight: bold; }
+              .text-right { text-align: right; }
+              .summary { width: 45%; margin-left: auto; }
+              .summary td { border: none; padding: 3px 0; }
+              .total { border-top: 1px solid #000; font-weight: bold; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div>
+                <strong>${companyName}</strong><br/>
+                ${companyAddress}<br/>
+                Telp: ${companyPhone}
+              </div>
+              <div class="title">SALES ORDER</div>
+            </div>
+            <div class="meta">
+              <div class="meta-box">
+                <div><strong>No. SO :</strong> ${detail.orderNo}</div>
+                <div><strong>Tanggal:</strong> ${detail.orderDate}</div>
+                <div><strong>Status :</strong> ${detail.status}</div>
+              </div>
+              <div class="meta-box">
+                <div><strong>Pelanggan:</strong></div>
+                <div>${detail.customerCode} - ${detail.customerName}</div>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:5%">No</th>
+                  <th style="width:18%">SKU</th>
+                  <th>Nama Barang</th>
+                  <th style="width:10%" class="text-right">Qty</th>
+                  <th style="width:10%">Satuan</th>
+                  <th style="width:17%" class="text-right">Harga</th>
+                  <th style="width:18%" class="text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${detail.items
+                  .map(
+                    (it, i) => `
+                  <tr>
+                    <td>${i + 1}</td>
+                    <td>${it.sku}</td>
+                    <td>${it.productName}</td>
+                    <td class="text-right">${it.qty}</td>
+                    <td>${it.uom}</td>
+                    <td class="text-right">${it.unitPrice}</td>
+                    <td class="text-right">${it.lineTotal}</td>
+                  </tr>`,
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+            <table class="summary">
+              <tr><td>Subtotal</td><td class="text-right">${detail.subtotal}</td></tr>
+              <tr><td>Diskon</td><td class="text-right">${detail.discountAmount}</td></tr>
+              <tr class="total"><td>Total</td><td class="text-right">${detail.totalAmount}</td></tr>
+            </table>
+            <div style="margin-top: 20px;"><strong>Catatan:</strong> ${escapeHtml(detail.notes || "-")}</div>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      setTimeout(() => printWindow.print(), 500);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Gagal mencetak Sales Order");
     }
   }
 
@@ -236,8 +437,10 @@ export default function SalesOrders() {
                 <th className="px-4 py-2">No</th>
                 <th className="px-4 py-2">Pelanggan</th>
                 <th className="px-4 py-2">Tanggal</th>
+                <th className="px-4 py-2">Status SO</th>
                 <th className="px-4 py-2">Status Kirim</th>
                 <th className="px-4 py-2">Total</th>
+                <th className="px-4 py-2 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody>
@@ -265,12 +468,45 @@ export default function SalesOrders() {
                       {o.status === "PENDING_APPROVAL" ? "MENUNGGU PERSETUJUAN" : o.status}
                     </span>
                   </td>
+                  <td className="px-4 py-2">
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${o.deliveryStatus === "DELIVERED" ? "bg-emerald-100 text-emerald-700" : "bg-orange-100 text-orange-700"}`}>
+                      {o.deliveryStatus}
+                    </span>
+                  </td>
                   <td className="px-4 py-2 text-right font-medium">Rp {o.totalAmount}</td>
+                  <td className="px-4 py-2">
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="secondary" onClick={() => handleView(o.id)}>
+                        View
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => handleEdit(o.id)}
+                        disabled={isOffline || o.deliveryStatus !== "PENDING"}
+                        title={o.deliveryStatus !== "PENDING" ? "SO yang sudah dikirim tidak dapat diubah." : ""}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDelete(o)}
+                        disabled={isOffline || o.deliveryStatus !== "PENDING"}
+                        title={o.deliveryStatus !== "PENDING" ? "SO yang sudah dikirim tidak dapat dihapus." : ""}
+                      >
+                        Delete
+                      </Button>
+                      <Button size="sm" onClick={() => handlePrint(o.id)}>
+                        Cetak
+                      </Button>
+                    </div>
+                  </td>
                 </tr>
               ))}
               {orders.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-sm text-zinc-500" colSpan={5}>
+                  <td className="px-4 py-6 text-sm text-zinc-500" colSpan={7}>
                     Belum ada data.
                   </td>
                 </tr>
@@ -285,7 +521,7 @@ export default function SalesOrders() {
           <Card className="w-full max-w-3xl p-5 max-h-[92vh] overflow-y-auto shadow-2xl">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-base font-semibold">Buat Sales Order</div>
+                <div className="text-base font-semibold">{editingOrderId ? "Edit Sales Order" : "Buat Sales Order"}</div>
                 <p className="text-xs text-zinc-500">Lengkapi pelanggan, tanggal, lalu item order.</p>
               </div>
               <button
@@ -326,6 +562,7 @@ export default function SalesOrders() {
               </label>
 
             <Input label="Tanggal" type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
+            <Input label="Catatan" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opsional" />
 
             <div className="rounded-lg border border-zinc-200">
               <div className="border-b border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-600">
@@ -438,11 +675,67 @@ export default function SalesOrders() {
                   Batal
                 </Button>
                 <Button disabled={!canSubmit} onClick={handleSubmit}>
-                  Simpan SO
+                  {editingOrderId ? "Simpan Perubahan" : "Simpan SO"}
                 </Button>
               </div>
             </div>
         </Card>
+        </div>
+      ) : null}
+
+      {isViewOpen && viewOrder ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <Card className="w-full max-w-4xl max-h-[92vh] overflow-y-auto p-5 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-base font-semibold">Detail Sales Order</div>
+                <p className="text-xs text-zinc-500">
+                  {viewOrder.orderNo} • {viewOrder.customerCode} - {viewOrder.customerName}
+                </p>
+              </div>
+              <button
+                className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
+                onClick={() => setIsViewOpen(false)}
+              >
+                Tutup
+              </button>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+              <div><span className="text-zinc-500">Tanggal:</span> {viewOrder.orderDate}</div>
+              <div><span className="text-zinc-500">Status SO:</span> {viewOrder.status}</div>
+              <div><span className="text-zinc-500">Status Kirim:</span> {viewOrder.deliveryStatus}</div>
+              <div><span className="text-zinc-500">Total:</span> {viewOrder.totalAmount}</div>
+              <div className="col-span-2"><span className="text-zinc-500">Catatan:</span> {viewOrder.notes || "-"}</div>
+            </div>
+            <div className="mt-4 overflow-auto rounded-lg border border-zinc-200">
+              <table className="min-w-full text-sm">
+                <thead className="bg-zinc-50">
+                  <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
+                    <th className="px-3 py-2">SKU</th>
+                    <th className="px-3 py-2">Produk</th>
+                    <th className="px-3 py-2 text-right">Qty</th>
+                    <th className="px-3 py-2">UOM</th>
+                    <th className="px-3 py-2 text-right">Harga</th>
+                    <th className="px-3 py-2 text-right">Diskon</th>
+                    <th className="px-3 py-2 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {viewOrder.items.map((it) => (
+                    <tr key={it.id} className="border-b border-zinc-100">
+                      <td className="px-3 py-2">{it.sku}</td>
+                      <td className="px-3 py-2">{it.productName}</td>
+                      <td className="px-3 py-2 text-right">{it.qty}</td>
+                      <td className="px-3 py-2">{it.uom}</td>
+                      <td className="px-3 py-2 text-right">{it.unitPrice}</td>
+                      <td className="px-3 py-2 text-right">{it.discountAmount}</td>
+                      <td className="px-3 py-2 text-right">{it.lineTotal}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         </div>
       ) : null}
     </div>
