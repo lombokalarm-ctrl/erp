@@ -35,6 +35,16 @@ type CreditProfile = {
   maxOverdueDaysBeforeBlock: number | null;
 };
 
+function onlyDigits(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function formatRupiahDigits(value: string) {
+  const digits = onlyDigits(value);
+  if (!digits) return "";
+  return new Intl.NumberFormat("id-ID").format(Number(digits));
+}
+
 const CATEGORY_OPTIONS = [
   "RETAIL",
   "GROSIR",
@@ -138,7 +148,7 @@ export default function Customers() {
     setSelected(c);
     loadCredit(c.id)
       .then((profile) => {
-        setCreditLimit(profile?.creditLimit ?? "0");
+        setCreditLimit(onlyDigits(profile?.creditLimit ?? "0") || "0");
         setSalesOrderLimit(profile?.salesOrderLimit ?? "0");
         setPaymentTermDays(String(profile?.paymentTermDays ?? 0));
       })
@@ -261,7 +271,7 @@ export default function Customers() {
         await apiFetch(`/api/v1/customers/${customerId}/credit-profile`, {
           method: "PUT",
           body: JSON.stringify({
-            creditLimit: Number(creditLimit || 0),
+            creditLimit: Number(onlyDigits(creditLimit) || 0),
             salesOrderLimit: Number(salesOrderLimit || 0),
             paymentTermDays: Number(paymentTermDays || 0),
           }),
@@ -572,14 +582,17 @@ export default function Customers() {
               </label>
               <Input label="No Telepon" value={phone} onChange={(e) => setPhone(e.target.value)} />
               <Input label="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-              <Input
-                label="Limit Kredit (Rp)"
-                type="number"
-                min="0"
-                value={creditLimit}
-                onChange={(e) => setCreditLimit(e.target.value)}
-                placeholder="0"
-              />
+              <label className="block">
+                <div className="mb-1 text-xs font-medium text-zinc-600">Limit Kredit (Rp)</div>
+                <input
+                  className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                  type="text"
+                  inputMode="numeric"
+                  value={formatRupiahDigits(creditLimit)}
+                  onChange={(e) => setCreditLimit(onlyDigits(e.target.value) || "0")}
+                  placeholder="0"
+                />
+              </label>
               <Input
                 label="Limit Sales Order (Jumlah Nota)"
                 type="number"
