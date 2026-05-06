@@ -107,7 +107,7 @@ router.post(
 )
 
 router.get(
-  '/:id',
+  '/:id([0-9a-fA-F-]{36})',
   authenticate,
   authorizeAny(['sales_orders:read']),
   async (req: Request, res: Response, next: NextFunction) => {
@@ -121,7 +121,7 @@ router.get(
 )
 
 router.patch(
-  '/:id',
+  '/:id([0-9a-fA-F-]{36})',
   authenticate,
   authorizeAny(['sales_orders:write']),
   async (req: Request, res: Response, next: NextFunction) => {
@@ -182,7 +182,7 @@ router.patch(
 )
 
 router.delete(
-  '/:id',
+  '/:id([0-9a-fA-F-]{36})',
   authenticate,
   authorizeAny(['sales_orders:write']),
   async (req: Request, res: Response, next: NextFunction) => {
@@ -203,7 +203,7 @@ router.delete(
 )
 
 router.post(
-  '/:id/deliver',
+  '/:id([0-9a-fA-F-]{36})/deliver',
   authenticate,
   authorizeAny(['sales_orders:write']),
   async (req: Request, res: Response, next: NextFunction) => {
@@ -235,7 +235,7 @@ router.post(
 )
 
 router.get(
-  '/:id/delivery-order',
+  '/:id([0-9a-fA-F-]{36})/delivery-order',
   authenticate,
   authorizeAny(['sales_orders:read']),
   async (req: Request, res: Response, next: NextFunction) => {
