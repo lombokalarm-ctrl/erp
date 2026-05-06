@@ -5,6 +5,7 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { apiFetch, ApiError } from "@/api/client";
 import { BarcodeScanner } from "@/components/ui/BarcodeScanner";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 type SalesOrderRow = {
   id: string;
@@ -20,6 +21,15 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function escapeHtml(value?: string | null) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export default function DeliveryOrders() {
   const [orders, setOrders] = useState<SalesOrderRow[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +37,8 @@ export default function DeliveryOrders() {
   const [deliveryDate, setDeliveryDate] = useState(today());
   const [showScanner, setShowScanner] = useState(false);
   const [targetSoId, setTargetSoId] = useState<string | null>(null);
+  const company = useSettingsStore((s) => s.company);
+  const fetchCompany = useSettingsStore((s) => s.fetchCompany);
 
   async function load() {
     try {
@@ -39,7 +51,8 @@ export default function DeliveryOrders() {
 
   useEffect(() => {
     load();
-  }, []);
+    fetchCompany();
+  }, [fetchCompany]);
 
   async function handleDeliver(soId: string) {
     if (!confirm("Buat Surat Jalan dan keluarkan barang dari Gudang Utama?")) return;
@@ -62,6 +75,9 @@ export default function DeliveryOrders() {
     try {
       const res = await apiFetch<{ data: any }>(`/api/v1/sales-orders/${soId}/delivery-order`);
       const doData = res.data;
+      const companyName = escapeHtml(company?.name || "PT. ERP DISTRIBUTOR F&B");
+      const companyAddress = escapeHtml(company?.address || "Alamat belum diatur").replace(/\r?\n/g, "<br/>");
+      const companyPhone = escapeHtml(company?.phone || "-");
 
       const printWindow = window.open('', '_blank');
       if (!printWindow) {
@@ -94,9 +110,9 @@ export default function DeliveryOrders() {
           <body>
             <div class="header">
               <div>
-                <strong>PT. ERP DISTRIBUTOR F&B</strong><br/>
-                Jl. Raya Distribusi No. 123<br/>
-                Telp: (021) 12345678
+                <strong>${companyName}</strong><br/>
+                ${companyAddress}<br/>
+                Telp: ${companyPhone}
               </div>
               <div class="title">
                 SURAT JALAN
