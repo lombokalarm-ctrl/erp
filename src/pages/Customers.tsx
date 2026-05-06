@@ -47,7 +47,6 @@ export default function Customers() {
   const [q, setQ] = useState("");
   const [items, setItems] = useState<Customer[]>([]);
   const [selected, setSelected] = useState<Customer | null>(null);
-  const [credit, setCredit] = useState<CreditProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
@@ -72,6 +71,9 @@ export default function Customers() {
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
   const [regionId, setRegionId] = useState("");
+  const [creditLimit, setCreditLimit] = useState("0");
+  const [salesOrderLimit, setSalesOrderLimit] = useState("0");
+  const [paymentTermDays, setPaymentTermDays] = useState("0");
   const [regions, setRegions] = useState<Region[]>([]);
 
   const [salesList, setSalesList] = useState<{id: string, fullName: string}[]>([]);
@@ -112,6 +114,9 @@ export default function Customers() {
     setEmail("");
     setAddress("");
     setRegionId("");
+    setCreditLimit("0");
+    setSalesOrderLimit("0");
+    setPaymentTermDays("0");
     setError(null);
     setIsFormOpen(true);
   }
@@ -131,7 +136,17 @@ export default function Customers() {
     setAddress(c.address || "");
     setRegionId(c.regionId || "");
     setSelected(c);
-    loadCredit(c.id).catch(() => setCredit(null));
+    loadCredit(c.id)
+      .then((profile) => {
+        setCreditLimit(profile?.creditLimit ?? "0");
+        setSalesOrderLimit(profile?.salesOrderLimit ?? "0");
+        setPaymentTermDays(String(profile?.paymentTermDays ?? 0));
+      })
+      .catch(() => {
+        setCreditLimit("0");
+        setSalesOrderLimit("0");
+        setPaymentTermDays("0");
+      });
     setIsFormOpen(true);
   }
 
@@ -149,8 +164,10 @@ export default function Customers() {
     setEmail("");
     setAddress("");
     setRegionId("");
+    setCreditLimit("0");
+    setSalesOrderLimit("0");
+    setPaymentTermDays("0");
     setSelected(null);
-    setCredit(null);
     setError(null);
     setIsFormOpen(false);
   }
@@ -203,7 +220,7 @@ export default function Customers() {
 
   async function loadCredit(id: string) {
     const res = await apiFetch<{ data: CreditProfile | null }>(`/api/v1/customers/${id}/credit-profile`);
-    setCredit(res.data);
+    return res.data;
   }
 
   async function handleSaveCustomer() {
@@ -226,15 +243,28 @@ export default function Customers() {
         payload.salesId = salesId || null;
       }
 
+      let customerId = editingId;
       if (editingId) {
         await apiFetch(`/api/v1/customers/${editingId}`, {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
       } else {
-        await apiFetch("/api/v1/customers", {
+        const created = await apiFetch<{ data: Customer }>("/api/v1/customers", {
           method: "POST",
           body: JSON.stringify(payload),
+        });
+        customerId = created.data.id;
+      }
+
+      if (customerId) {
+        await apiFetch(`/api/v1/customers/${customerId}/credit-profile`, {
+          method: "PUT",
+          body: JSON.stringify({
+            creditLimit: Number(creditLimit || 0),
+            salesOrderLimit: Number(salesOrderLimit || 0),
+            paymentTermDays: Number(paymentTermDays || 0),
+          }),
         });
       }
       handleCancelEdit();
@@ -460,7 +490,6 @@ export default function Customers() {
                       onClick={() => {
                         if (editingId && editingId !== c.id) return;
                         setSelected(c);
-                        loadCredit(c.id).catch(() => setCredit(null));
                       }}
                     >
                       <td className="px-4 py-2 font-medium">{c.code}</td>
@@ -504,20 +533,6 @@ export default function Customers() {
           </div>
         </Card>
 
-        <Card className="p-4">
-          <div className="text-sm font-semibold">Limit Kredit & Sales Order</div>
-          <div className="mt-1 text-sm text-zinc-600">
-            {selected ? `Untuk: ${selected.name}` : "Pilih pelanggan dari tabel untuk mengatur limit kredit dan limit sales order."}
-          </div>
-          {selected ? (
-            <CreditEditor
-              key={selected.id}
-              customerId={selected.id}
-              initial={credit}
-              onSaved={() => loadCredit(selected.id)}
-            />
-          ) : null}
-        </Card>
       </div>
 
       {isFormOpen ? (
@@ -557,6 +572,30 @@ export default function Customers() {
               </label>
               <Input label="No Telepon" value={phone} onChange={(e) => setPhone(e.target.value)} />
               <Input label="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Input
+                label="Limit Kredit (Rp)"
+                type="number"
+                min="0"
+                value={creditLimit}
+                onChange={(e) => setCreditLimit(e.target.value)}
+                placeholder="0"
+              />
+              <Input
+                label="Limit Sales Order (Jumlah Nota)"
+                type="number"
+                min="0"
+                value={salesOrderLimit}
+                onChange={(e) => setSalesOrderLimit(e.target.value)}
+                placeholder="0"
+              />
+              <Input
+                label="Tempo Pembayaran (hari)"
+                type="number"
+                min="0"
+                value={paymentTermDays}
+                onChange={(e) => setPaymentTermDays(e.target.value)}
+                placeholder="0"
+              />
               <label className="block">
                 <div className="mb-1 text-xs font-medium text-zinc-600">Wilayah</div>
                 <select
@@ -620,51 +659,6 @@ export default function Customers() {
           </Card>
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function CreditEditor({
-  customerId,
-  initial,
-  onSaved,
-}: {
-  customerId: string;
-  initial: CreditProfile | null;
-  onSaved: () => void;
-}) {
-  const [creditLimit, setCreditLimit] = useState(initial?.creditLimit ?? "0");
-  const [salesOrderLimit, setSalesOrderLimit] = useState(initial?.salesOrderLimit ?? "0");
-  const [paymentTermDays, setPaymentTermDays] = useState(String(initial?.paymentTermDays ?? 0));
-  const [saving, setSaving] = useState(false);
-
-  return (
-    <div className="mt-3 grid gap-3">
-      <Input label="Limit Kredit" value={creditLimit} onChange={(e) => setCreditLimit(e.target.value)} placeholder="0" />
-      <Input label="Limit Sales Order" value={salesOrderLimit} onChange={(e) => setSalesOrderLimit(e.target.value)} placeholder="0" />
-      <Input label="Tempo (hari)" value={paymentTermDays} onChange={(e) => setPaymentTermDays(e.target.value)} placeholder="0" />
-      <Button
-        variant="secondary"
-        disabled={saving}
-        onClick={async () => {
-          setSaving(true);
-          try {
-            await apiFetch(`/api/v1/customers/${customerId}/credit-profile`, {
-              method: "PUT",
-              body: JSON.stringify({
-                creditLimit: Number(creditLimit),
-                salesOrderLimit: Number(salesOrderLimit),
-                paymentTermDays: Number(paymentTermDays),
-              }),
-            });
-            onSaved();
-          } finally {
-            setSaving(false);
-          }
-        }}
-      >
-        {saving ? "Menyimpan..." : "Simpan Limit"}
-      </Button>
     </div>
   );
 }
