@@ -615,7 +615,15 @@ export async function getApprovalList(params: { page?: number; pageSize?: number
   const pageSize = params.pageSize ?? 20
   const offset = (page - 1) * pageSize
 
-  const countRes = await pool.query(`select count(*)::int as c from sales_order_approvals where status = 'PENDING'`)
+  const countRes = await pool.query(
+    `
+      select count(*)::int as c
+      from sales_order_approvals a
+      join sales_orders so on so.id = a.sales_order_id
+      where a.status = 'PENDING'
+        and so.status = 'PENDING_APPROVAL'
+    `,
+  )
   
   const listRes = await pool.query(
     `
@@ -634,6 +642,7 @@ export async function getApprovalList(params: { page?: number; pageSize?: number
       join customers c on c.id = so.customer_id
       join users u on u.id = a.requested_by
       where a.status = 'PENDING'
+        and so.status = 'PENDING_APPROVAL'
       order by a.created_at asc
       limit $1 offset $2
     `,
@@ -645,32 +654,134 @@ export async function getApprovalList(params: { page?: number; pageSize?: number
 
 export async function processApproval(approvalId: string, action: 'APPROVED' | 'REJECTED', approverId: string, notes?: string) {
   return withTransaction(async (client) => {
-    // 1. Update approval status
+    const approvalRes = await client.query(
+      `
+        select
+          a.id,
+          a.status,
+          a.sales_order_id as "salesOrderId",
+          so.status as "salesOrderStatus",
+          so.customer_id as "customerId",
+          so.total_amount::float as "totalAmount"
+        from sales_order_approvals a
+        join sales_orders so on so.id = a.sales_order_id
+        where a.id = $1
+        for update
+      `,
+      [approvalId],
+    )
+    const approval = approvalRes.rows[0] as
+      | {
+          id: string
+          status: 'PENDING' | 'APPROVED' | 'REJECTED'
+          salesOrderId: string
+          salesOrderStatus: string
+          customerId: string
+          totalAmount: number
+        }
+      | undefined
+
+    if (!approval) {
+      throw new ApiError({
+        code: 'NOT_FOUND',
+        status: 404,
+        message: 'Approval tidak ditemukan',
+      })
+    }
+    if (approval.status !== 'PENDING') {
+      throw new ApiError({
+        code: 'CONFLICT',
+        status: 409,
+        message: 'Approval sudah diproses sebelumnya',
+      })
+    }
+    if (approval.salesOrderStatus !== 'PENDING_APPROVAL') {
+      throw new ApiError({
+        code: 'CONFLICT',
+        status: 409,
+        message: `Status SO tidak valid untuk approval (${approval.salesOrderStatus})`,
+      })
+    }
+
+    const currentCheck = await validateCreditOrThrow({
+      customerId: approval.customerId,
+      newInvoiceAmount: Number(approval.totalAmount),
+      allowOverLimit: false,
+      isDraft: true,
+    })
+
+    const enrichedNotes = [
+      notes?.trim() ? `Catatan Approver: ${notes.trim()}` : null,
+      `Snapshot Saat Proses -> Kredit: ${currentCheck.projected}/${currentCheck.creditLimit}, Dokumen Aktif: ${currentCheck.projectedOpenDocumentCount}/${currentCheck.salesOrderLimit}`,
+    ]
+      .filter(Boolean)
+      .join(' | ')
+
     const apprRes = await client.query(
       `
-        update sales_order_approvals 
-        set status = $2, approver_id = $3, updated_at = now()
+        update sales_order_approvals
+        set status = $2,
+            approver_id = $3,
+            notes = case
+              when coalesce(notes, '') = '' then $4
+              else notes || ' | ' || $4
+            end,
+            updated_at = now()
         where id = $1 and status = 'PENDING'
         returning sales_order_id
       `,
-      [approvalId, action, approverId]
+      [approvalId, action, approverId, enrichedNotes || null],
     )
-
-    if (!apprRes.rowCount) throw new Error('Approval tidak ditemukan atau sudah diproses')
+    if (!apprRes.rowCount) {
+      throw new ApiError({
+        code: 'CONFLICT',
+        status: 409,
+        message: 'Approval sudah diproses sebelumnya',
+      })
+    }
     const soId = apprRes.rows[0].sales_order_id as string
 
     // 2. Update SO status
     const newSoStatus = action === 'APPROVED' ? 'CONFIRMED' : 'CANCELLED'
-    await client.query(`update sales_orders set status = $2 where id = $1`, [soId, newSoStatus])
+    const soUpdateRes = await client.query(
+      `update sales_orders set status = $2, updated_at = now() where id = $1 and status = 'PENDING_APPROVAL'`,
+      [soId, newSoStatus],
+    )
+    if (!soUpdateRes.rowCount) {
+      throw new ApiError({
+        code: 'CONFLICT',
+        status: 409,
+        message: 'Sales order sudah berubah status, approval dibatalkan',
+      })
+    }
 
     if (action === 'APPROVED') {
       const soRes = await client.query(`select order_date::text as "orderDate" from sales_orders where id = $1 limit 1`, [soId])
       const orderDate = String(soRes.rows[0]?.orderDate ?? new Date().toISOString().slice(0, 10))
       const invoice = await ensureInvoiceForSalesOrder(client as any, soId, orderDate)
-      return { success: true, newSoStatus, invoice }
+      return {
+        success: true,
+        newSoStatus,
+        invoice,
+        creditSnapshot: {
+          projected: currentCheck.projected,
+          creditLimit: currentCheck.creditLimit,
+          projectedOpenDocumentCount: currentCheck.projectedOpenDocumentCount,
+          salesOrderLimit: currentCheck.salesOrderLimit,
+        },
+      }
     }
 
-    return { success: true, newSoStatus }
+    return {
+      success: true,
+      newSoStatus,
+      creditSnapshot: {
+        projected: currentCheck.projected,
+        creditLimit: currentCheck.creditLimit,
+        projectedOpenDocumentCount: currentCheck.projectedOpenDocumentCount,
+        salesOrderLimit: currentCheck.salesOrderLimit,
+      },
+    }
   })
 }
 

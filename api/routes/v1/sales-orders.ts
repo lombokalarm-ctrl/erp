@@ -283,6 +283,19 @@ router.post(
         .parse(req.body)
 
       const result = await processApproval(req.params.id, body.action, req.user!.userId, body.notes)
+      await writeAuditLog({
+        actorUserId: req.user!.userId,
+        action: body.action === 'APPROVED' ? 'SALES_ORDER_APPROVE' : 'SALES_ORDER_REJECT',
+        entity: 'sales_order_approvals',
+        entityId: req.params.id,
+        payload: {
+          action: body.action,
+          salesOrderId: (result as { invoice?: { salesOrderId?: string } }).invoice?.salesOrderId ?? null,
+          newSoStatus: (result as { newSoStatus?: string }).newSoStatus ?? null,
+          notes: body.notes ?? null,
+          creditSnapshot: (result as { creditSnapshot?: unknown }).creditSnapshot ?? null,
+        },
+      })
       ok(res, result)
     } catch (err) {
       next(err)
