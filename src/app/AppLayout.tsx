@@ -24,6 +24,7 @@ import {
   ShieldAlert,
   KeyRound,
   Bell,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -57,6 +58,15 @@ type NotificationItem = {
   createdAt: string;
 };
 
+type GlobalSearchItem = {
+  id: string;
+  module: "customers" | "products" | "suppliers" | "sales-orders" | "invoices" | "credit-notes";
+  title: string;
+  subtitle: string;
+  status?: string;
+  url: string;
+};
+
 export default function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -65,7 +75,12 @@ export default function AppLayout() {
   const [notifLoading, setNotifLoading] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchResults, setSearchResults] = useState<GlobalSearchItem[]>([]);
   const notifPanelRef = useRef<HTMLDivElement | null>(null);
+  const searchPanelRef = useRef<HTMLDivElement | null>(null);
   const user = useAuthStore((s) => s.user);
   const hasAnyPermission = useAuthStore((s) => s.hasAnyPermission);
   const logout = useAuthStore((s) => s.logout);
@@ -118,6 +133,26 @@ export default function AppLayout() {
     }
   };
 
+  const fetchGlobalSearch = async (q: string) => {
+    const query = q.trim();
+    if (query.length < 2) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+    setSearchLoading(true);
+    try {
+      const res = await apiFetch<{ data: GlobalSearchItem[] }>(
+        `/api/v1/search?q=${encodeURIComponent(query)}&limit=4`,
+      );
+      setSearchResults(res.data ?? []);
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!user) return;
     void fetchNotifications();
@@ -138,6 +173,33 @@ export default function AppLayout() {
     document.addEventListener("mousedown", onDocumentClick);
     return () => document.removeEventListener("mousedown", onDocumentClick);
   }, [notifOpen]);
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (!searchOpen) return;
+    if (query.length < 2) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    const handle = setTimeout(() => {
+      void fetchGlobalSearch(query);
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [searchQuery, searchOpen]);
+
+  useEffect(() => {
+    if (!searchOpen) return;
+    const onDocumentClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!searchPanelRef.current?.contains(target)) {
+        setSearchOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocumentClick);
+    return () => document.removeEventListener("mousedown", onDocumentClick);
+  }, [searchOpen]);
 
   const groups: NavGroup[] = useMemo(
     () => [
@@ -246,6 +308,54 @@ export default function AppLayout() {
           </div>
 
           <div className="flex items-center gap-3">
+            <div className="relative hidden w-[420px] lg:block" ref={searchPanelRef}>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-zinc-400" />
+                <input
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setSearchOpen(true);
+                  }}
+                  onFocus={() => setSearchOpen(true)}
+                  placeholder="Cari customer, produk, SO, invoice..."
+                  className="w-full rounded-lg border border-zinc-200 bg-white py-2 pl-9 pr-3 text-sm outline-none ring-zinc-300 transition focus:ring-2"
+                />
+              </div>
+              {searchOpen && (
+                <div className="absolute left-0 right-0 z-40 mt-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-xl">
+                  {searchQuery.trim().length < 2 ? (
+                    <div className="px-2 py-5 text-center text-xs text-zinc-500">
+                      Ketik minimal 2 karakter untuk mulai pencarian.
+                    </div>
+                  ) : searchLoading ? (
+                    <div className="px-2 py-5 text-center text-xs text-zinc-500">Mencari...</div>
+                  ) : searchResults.length === 0 ? (
+                    <div className="px-2 py-5 text-center text-xs text-zinc-500">Tidak ada hasil.</div>
+                  ) : (
+                    <div className="max-h-80 space-y-1 overflow-auto">
+                      {searchResults.map((item) => (
+                        <button
+                          key={`${item.module}:${item.id}`}
+                          className="w-full rounded-lg border border-zinc-200 px-2 py-2 text-left transition hover:bg-zinc-50"
+                          onClick={() => {
+                            navigate(item.url);
+                            setSearchOpen(false);
+                          }}
+                          type="button"
+                        >
+                          <div className="text-xs font-semibold text-zinc-900">{item.title}</div>
+                          <div className="mt-0.5 text-[11px] text-zinc-500">
+                            {item.subtitle}
+                            {item.status ? ` • ${item.status}` : ""}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             <div className="relative" ref={notifPanelRef}>
               <Button
                 variant="ghost"
