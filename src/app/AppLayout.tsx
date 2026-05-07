@@ -37,6 +37,7 @@ type NavItem = {
   label: string;
   icon: React.ReactNode;
   anyPerm?: string[];
+  matchMode?: "exact" | "prefix";
 };
 
 type NavGroup = {
@@ -240,7 +241,7 @@ export default function AppLayout() {
       {
         groupLabel: "Keuangan",
         items: [
-          { to: "/invoices", label: "Invoice", icon: <FileText className="h-4 w-4" />, anyPerm: ["invoices:read"] },
+          { to: "/invoices", label: "Invoice", icon: <FileText className="h-4 w-4" />, anyPerm: ["invoices:read"], matchMode: "prefix" },
           { to: "/payments", label: "Pembayaran", icon: <Wallet className="h-4 w-4" />, anyPerm: ["payments:read"] },
           { to: "/credit-notes", label: "Note Kredit", icon: <FileText className="h-4 w-4" />, anyPerm: ["invoices:read", "reports:read"] },
           { to: "/receivables", label: "Piutang", icon: <LineChart className="h-4 w-4" />, anyPerm: ["invoices:read", "reports:read"] },
@@ -492,6 +493,7 @@ function NavGroupMenu({
             <NavLink
               key={i.to}
               to={i.to}
+              end={i.matchMode !== "prefix"}
               onClick={onItemClick}
               className={({ isActive }) =>
                 cn(
