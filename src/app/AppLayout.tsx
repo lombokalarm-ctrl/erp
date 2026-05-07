@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -23,11 +23,13 @@ import {
   Building,
   ShieldAlert,
   KeyRound,
+  Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import Button from "@/components/ui/Button";
+import { apiFetch } from "@/api/client";
 
 type NavItem = {
   to: string;
@@ -42,10 +44,28 @@ type NavGroup = {
   items: NavItem[];
 };
 
+type NotificationItem = {
+  id: string;
+  title: string;
+  message: string;
+  entityType?: string;
+  entityId?: string | null;
+  payload?: {
+    invoiceId?: string;
+  };
+  isRead: boolean;
+  createdAt: string;
+};
+
 export default function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [open, setOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const notifPanelRef = useRef<HTMLDivElement | null>(null);
   const user = useAuthStore((s) => s.user);
   const hasAnyPermission = useAuthStore((s) => s.hasAnyPermission);
   const logout = useAuthStore((s) => s.logout);
@@ -55,6 +75,69 @@ export default function AppLayout() {
   useMemo(() => {
     fetchCompany();
   }, [fetchCompany]);
+
+  const fetchNotifications = async () => {
+    if (!user) return;
+    setNotifLoading(true);
+    try {
+      const res = await apiFetch<{
+        data: NotificationItem[];
+        meta?: { unreadCount?: number };
+      }>("/api/v1/notifications?page=1&pageSize=8");
+      setNotifications(res.data ?? []);
+      setUnreadCount(res.meta?.unreadCount ?? 0);
+    } catch {
+      // Ignore fetch error in layout to avoid blocking primary navigation
+    } finally {
+      setNotifLoading(false);
+    }
+  };
+
+  const handleMarkRead = async (notification: NotificationItem) => {
+    try {
+      await apiFetch(`/api/v1/notifications/${notification.id}/read`, {
+        method: "POST",
+      });
+      await fetchNotifications();
+      const invoiceId = notification.payload?.invoiceId ?? notification.entityId;
+      if (notification.entityType === "invoice" && invoiceId) {
+        navigate(`/invoices/${invoiceId}`);
+        setNotifOpen(false);
+      }
+    } catch {
+      // no-op
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await apiFetch("/api/v1/notifications/read-all", { method: "POST" });
+      await fetchNotifications();
+    } catch {
+      // no-op
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    void fetchNotifications();
+    const handle = setInterval(() => {
+      void fetchNotifications();
+    }, 60_000);
+    return () => clearInterval(handle);
+  }, [user]);
+
+  useEffect(() => {
+    if (!notifOpen) return;
+    const onDocumentClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!notifPanelRef.current?.contains(target)) {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocumentClick);
+    return () => document.removeEventListener("mousedown", onDocumentClick);
+  }, [notifOpen]);
 
   const groups: NavGroup[] = useMemo(
     () => [
@@ -163,6 +246,60 @@ export default function AppLayout() {
           </div>
 
           <div className="flex items-center gap-3">
+            <div className="relative" ref={notifPanelRef}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  const next = !notifOpen;
+                  setNotifOpen(next);
+                  if (next) void fetchNotifications();
+                }}
+              >
+                <Bell className="h-4 w-4" />
+                {unreadCount > 0 && (
+                  <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </Button>
+              {notifOpen && (
+                <div className="absolute right-0 z-40 mt-2 w-[360px] rounded-xl border border-zinc-200 bg-white p-3 shadow-xl">
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="text-sm font-semibold">Notifikasi</div>
+                    <button
+                      className="text-xs font-medium text-zinc-600 hover:text-zinc-900"
+                      onClick={() => void handleMarkAllRead()}
+                      type="button"
+                    >
+                      Tandai semua dibaca
+                    </button>
+                  </div>
+                  {notifLoading ? (
+                    <div className="py-6 text-center text-sm text-zinc-500">Memuat notifikasi...</div>
+                  ) : notifications.length === 0 ? (
+                    <div className="py-6 text-center text-sm text-zinc-500">Tidak ada notifikasi aktif.</div>
+                  ) : (
+                    <div className="max-h-80 space-y-2 overflow-auto">
+                      {notifications.map((item) => (
+                        <button
+                          key={item.id}
+                          className={cn(
+                            "w-full rounded-lg border p-2 text-left transition hover:bg-zinc-50",
+                            item.isRead ? "border-zinc-200" : "border-amber-300 bg-amber-50/40"
+                          )}
+                          onClick={() => void handleMarkRead(item)}
+                          type="button"
+                        >
+                          <div className="text-xs font-semibold text-zinc-900">{item.title}</div>
+                          <div className="mt-1 text-xs text-zinc-600">{item.message}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             <div className="hidden text-right md:block">
               <div className="text-sm font-medium">{user?.fullName ?? "-"}</div>
               <div className="text-xs text-zinc-500">{user?.role ?? "-"}</div>

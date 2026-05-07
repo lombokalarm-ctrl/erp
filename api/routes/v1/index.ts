@@ -23,6 +23,7 @@ import returnRoutes from './returns.js'
 import creditNoteRoutes from './credit-notes.js'
 import settingRoutes from './settings.js'
 import regions from './regions.js'
+import notificationRoutes from './notifications.js'
 
 const router = Router()
 
@@ -50,6 +51,7 @@ router.use('/returns', returnRoutes)
 router.use('/credit-notes', creditNoteRoutes)
 router.use('/settings', settingRoutes)
 router.use('/regions', regions)
+router.use('/notifications', notificationRoutes)
 
 router.get('/health', (req: Request, res: Response) => {
   res.status(200).json({ data: { ok: true } })
