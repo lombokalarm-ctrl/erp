@@ -449,3 +449,148 @@ export async function getSalesPerformance(params: { startDate?: string; endDate?
 
   return res.rows
 }
+
+export async function getPurchaseReport(params: { startDate?: string; endDate?: string }) {
+  const pool = getPool()
+  const values: unknown[] = []
+
+  let poDateCondition = '1=1'
+  if (params.startDate) {
+    values.push(params.startDate)
+    poDateCondition += ` AND po.order_date >= $${values.length}`
+  }
+  if (params.endDate) {
+    values.push(params.endDate)
+    poDateCondition += ` AND po.order_date <= $${values.length}`
+  }
+
+  const summaryRes = await pool.query(
+    `
+      select
+        count(distinct po.id)::int as "totalPO",
+        coalesce(sum(po.total_amount), 0)::text as "totalPOAmount",
+        count(distinct gr.id)::int as "totalGRN",
+        coalesce(sum(gri.qty), 0)::text as "totalReceivedQty"
+      from purchase_orders po
+      left join goods_receipts gr on gr.purchase_order_id = po.id
+      left join goods_receipt_items gri on gri.goods_receipt_id = gr.id
+      where ${poDateCondition}
+    `,
+    values,
+  )
+
+  const bySupplierRes = await pool.query(
+    `
+      select
+        s.code as "supplierCode",
+        s.name as "supplierName",
+        count(po.id)::int as "poCount",
+        coalesce(sum(po.total_amount), 0)::text as "poAmount"
+      from purchase_orders po
+      join suppliers s on s.id = po.supplier_id
+      where ${poDateCondition}
+      group by s.id, s.code, s.name
+      order by sum(po.total_amount) desc nulls last
+      limit 30
+    `,
+    values,
+  )
+
+  const latestPORes = await pool.query(
+    `
+      select
+        po.id,
+        po.po_no as "poNo",
+        po.order_date::text as "orderDate",
+        po.status,
+        po.total_amount::text as "totalAmount",
+        s.name as "supplierName"
+      from purchase_orders po
+      join suppliers s on s.id = po.supplier_id
+      where ${poDateCondition}
+      order by po.order_date desc, po.po_no desc
+      limit 50
+    `,
+    values,
+  )
+
+  return {
+    summary: summaryRes.rows[0] ?? {
+      totalPO: 0,
+      totalPOAmount: '0',
+      totalGRN: 0,
+      totalReceivedQty: '0',
+    },
+    bySupplier: bySupplierRes.rows,
+    latestPO: latestPORes.rows,
+  }
+}
+
+export async function getStockReport(params: { q?: string }) {
+  const pool = getPool()
+  const values: unknown[] = []
+  const where: string[] = []
+
+  if (params.q?.trim()) {
+    values.push(`%${params.q.trim().toLowerCase()}%`)
+    where.push('(lower(p.sku) like $1 or lower(p.name) like $1)')
+  }
+
+  const whereSql = where.length ? `where ${where.join(' and ')}` : ''
+
+  const summaryRes = await pool.query(
+    `
+      select
+        count(p.id)::int as "totalProducts",
+        coalesce(sum(coalesce(b.qty, 0)), 0)::text as "totalQty"
+      from products p
+      left join (
+        select product_id, sum(qty) as qty
+        from inventory_balances
+        group by product_id
+      ) b on b.product_id = p.id
+      ${whereSql}
+    `,
+    values,
+  )
+
+  const stockRes = await pool.query(
+    `
+      select
+        p.id as "productId",
+        p.sku,
+        p.name as "productName",
+        coalesce(sum(b.qty), 0)::text as qty
+      from products p
+      left join inventory_balances b on b.product_id = p.id
+      ${whereSql}
+      group by p.id, p.sku, p.name
+      order by p.name asc
+      limit 200
+    `,
+    values,
+  )
+
+  const movementRes = await pool.query(
+    `
+      select
+        it.id,
+        it.created_at as "createdAt",
+        it.type,
+        it.qty_delta::text as "qtyDelta",
+        p.sku,
+        p.name as "productName",
+        it.ref_type as "refType"
+      from inventory_transactions it
+      join products p on p.id = it.product_id
+      order by it.created_at desc
+      limit 100
+    `,
+  )
+
+  return {
+    summary: summaryRes.rows[0] ?? { totalProducts: 0, totalQty: '0' },
+    stock: stockRes.rows,
+    latestMovements: movementRes.rows,
+  }
+}

@@ -252,6 +252,8 @@ export default function AppLayout() {
           { to: "/store-analysis", label: "Analisa Toko", icon: <Building2 className="h-4 w-4" />, anyPerm: ["reports:read"] },
           { to: "/collection-report", label: "Laporan Pembayaran", icon: <Wallet className="h-4 w-4" />, anyPerm: ["reports:read"] },
           { to: "/sales-report", label: "Laporan Penjualan", icon: <LineChart className="h-4 w-4" />, anyPerm: ["reports:read"] },
+          { to: "/purchase-report", label: "Laporan Pembelian", icon: <ClipboardList className="h-4 w-4" />, anyPerm: ["reports:read"] },
+          { to: "/stock-report", label: "Laporan Stok", icon: <Boxes className="h-4 w-4" />, anyPerm: ["reports:read"] },
           { to: "/return-report", label: "Laporan Retur", icon: <RotateCcw className="h-4 w-4" />, anyPerm: ["reports:read"] },
           { to: "/profit-loss", label: "Laporan Rugi Laba", icon: <Calculator className="h-4 w-4" />, anyPerm: ["reports:read"] },
           { to: "/promo-report", label: "Laporan Promo & Diskon", icon: <Tag className="h-4 w-4" />, anyPerm: ["reports:read"] },
