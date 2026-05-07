@@ -37,7 +37,15 @@ export function errorMiddleware(
   res: Response,
   _next: NextFunction,
 ) {
-  console.error('[API ERROR]', err)
+  if (err instanceof ApiError) {
+    if (err.status >= 500) {
+      console.error('[API ERROR]', err)
+    } else {
+      console.warn(`[API ${err.status}] ${err.code}: ${err.message}`)
+    }
+  } else {
+    console.error('[API ERROR]', err)
+  }
   void _next
   if (err instanceof ApiError) {
     res.status(err.status).json({

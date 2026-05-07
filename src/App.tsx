@@ -4,6 +4,8 @@ import RequireAuth from "@/app/RequireAuth";
 import AppLayout from "@/app/AppLayout";
 import { useAuthStore } from "@/stores/authStore";
 import Login from "@/pages/Login";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
 import Dashboard from "@/pages/Dashboard";
 import Customers from "@/pages/Customers";
 import Regions from "@/pages/Regions";
@@ -48,6 +50,8 @@ export default function App() {
     <Router>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route
           path="/"
           element={

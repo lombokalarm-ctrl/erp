@@ -420,7 +420,12 @@ export default function AppLayout() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => {
+              onClick={async () => {
+                try {
+                  await apiFetch("/api/v1/auth/logout", { method: "POST" });
+                } catch {
+                  // ignore logout API failure
+                }
                 logout();
                 navigate("/login");
               }}

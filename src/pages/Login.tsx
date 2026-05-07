@@ -49,14 +49,14 @@ export default function Login() {
                 setError(null);
                 try {
                   const res = await apiFetch<{
-                    data: { token: string; user: AuthUser };
+                    data: { token: string; accessToken?: string; refreshToken: string; user: AuthUser };
                   }>("/api/v1/auth/login", {
                     method: "POST",
                     body: JSON.stringify({ email, password }),
                     skipAuth: true,
                   });
 
-                  setAuth(res.data.token, res.data.user);
+                  setAuth(res.data.accessToken ?? res.data.token, res.data.refreshToken, res.data.user);
                   navigate("/dashboard");
                 } catch (err) {
                   if (err instanceof ApiError) setError(err.message);
@@ -89,6 +89,13 @@ export default function Login() {
               <Button type="submit" className="w-full" disabled={loading || !canSubmit}>
                 {loading ? "Masuk..." : "Masuk"}
               </Button>
+              <button
+                type="button"
+                className="w-full text-center text-sm text-zinc-600 hover:text-zinc-900"
+                onClick={() => navigate("/forgot-password")}
+              >
+                Lupa Password?
+              </button>
             </form>
           </Card>
 
