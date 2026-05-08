@@ -340,7 +340,7 @@ export async function postReturn(input: { id: string; actorUserId: string }) {
             ii.id,
             ii.product_id as "productId",
             coalesce(sum(ii.qty_pcs), 0)::float as "qtyPcs",
-            coalesce(sum(ii.qty_pcs * ii.unit_price), 0)::float as "grossAmount",
+            coalesce(sum(ii.qty * ii.unit_price), 0)::float as "grossAmount",
             coalesce(sum(ii.discount_amount), 0)::float as "discountAmount"
           from invoice_items ii
           where ii.invoice_id = $1
@@ -397,10 +397,12 @@ export async function postReturn(input: { id: string; actorUserId: string }) {
         const totalQtyPcs = refs.reduce((a, r) => a + r.qtyPcs, 0)
         const totalGross = refs.reduce((a, r) => a + r.grossAmount, 0)
         const totalDiscount = refs.reduce((a, r) => a + r.discountAmount, 0)
-        const unitPrice = totalQtyPcs > 0 ? totalGross / totalQtyPcs : 0
+        const unitPricePerPcs = totalQtyPcs > 0 ? totalGross / totalQtyPcs : 0
         const discountPerPcs = totalQtyPcs > 0 ? totalDiscount / totalQtyPcs : 0
-        const lineGross = Number(it.qtyPcs) * unitPrice
-        const lineDiscount = Number(it.qtyPcs) * discountPerPcs
+        const unitPrice = unitPricePerPcs * Number(it.uomToPcs)
+        const discountPerUnit = discountPerPcs * Number(it.uomToPcs)
+        const lineGross = Number(it.qty) * unitPrice
+        const lineDiscount = Number(it.qty) * discountPerUnit
         const lineTotal = Math.max(0, lineGross - lineDiscount)
         creditItems.push({
           sourceReturnItemId: it.id,
