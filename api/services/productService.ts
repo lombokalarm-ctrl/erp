@@ -1,5 +1,10 @@
 import { getPool } from '../db/pool.js'
 import { ApiError } from '../lib/http.js'
+import {
+  listProductUomMappings,
+  syncLegacyProductToUomMappings,
+  type ProductUomMapping,
+} from './uomConversionService.js'
 
 export type Product = {
   id: string
@@ -13,6 +18,8 @@ export type Product = {
   packSize: number
   dusSize: number
   packPerDus: number
+  baseUomId?: string | null
+  uomMappings?: ProductUomMapping[]
 }
 
 export async function listProducts(params: {
@@ -55,7 +62,8 @@ export async function listProducts(params: {
         unit_prices as "unitPrices",
         pack_size as "packSize",
         dus_size as "dusSize",
-        pack_per_dus as "packPerDus"
+        pack_per_dus as "packPerDus",
+        base_uom_id as "baseUomId"
       from products
       ${whereSql}
       order by created_at desc
@@ -85,7 +93,8 @@ export async function getProductById(id: string) {
         unit_prices as "unitPrices",
         pack_size as "packSize",
         dus_size as "dusSize",
-        pack_per_dus as "packPerDus"
+        pack_per_dus as "packPerDus",
+        base_uom_id as "baseUomId"
       from products
       where id = $1
       limit 1
@@ -96,6 +105,7 @@ export async function getProductById(id: string) {
   if (!row) {
     throw new ApiError({ code: 'NOT_FOUND', status: 404, message: 'Produk tidak ditemukan' })
   }
+  row.uomMappings = await listProductUomMappings(id).catch(() => [])
   return row
 }
 
@@ -130,7 +140,8 @@ export async function createProduct(input: {
         unit_prices as "unitPrices",
         pack_size as "packSize",
         dus_size as "dusSize",
-        pack_per_dus as "packPerDus"
+      pack_per_dus as "packPerDus",
+      base_uom_id as "baseUomId"
     `,
     [
       input.sku,
@@ -145,7 +156,13 @@ export async function createProduct(input: {
       dusSize,
     ],
   )
-  return res.rows[0] as Product
+  const created = res.rows[0] as Product
+  await syncLegacyProductToUomMappings({
+    productId: created.id,
+    packSize,
+    dusSize,
+  })
+  return getProductById(created.id)
 }
 
 export async function deleteProduct(id: string) {
@@ -213,7 +230,8 @@ export async function updateProduct(
         unit_prices as "unitPrices",
         pack_size as "packSize",
         dus_size as "dusSize",
-        pack_per_dus as "packPerDus"
+        pack_per_dus as "packPerDus",
+        base_uom_id as "baseUomId"
     `,
     [
       id,
@@ -230,5 +248,11 @@ export async function updateProduct(
     ],
   )
 
-  return res.rows[0] as Product
+  const updated = res.rows[0] as Product
+  await syncLegacyProductToUomMappings({
+    productId: updated.id,
+    packSize: nextPackSize,
+    dusSize: nextDusSize,
+  })
+  return getProductById(updated.id)
 }

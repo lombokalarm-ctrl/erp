@@ -5,11 +5,12 @@ import { ApiError } from '../lib/http.js'
 import { getCustomerCreditProfile, validateCreditOrThrow } from './creditService.js'
 import { applyInventoryTransaction, getDefaultWarehouseId } from './inventoryService.js'
 import { calculateBestPromo } from './promoService.js'
+import { getToBaseFactorByCode } from './uomConversionService.js'
 
 export type SalesOrderItemInput = {
   productId: string
   qty: number
-  uom: 'pcs' | 'pack' | 'dus'
+  uom: string
   unitPrice: number
   discountAmount?: number
 }
@@ -17,12 +18,27 @@ export type SalesOrderItemInput = {
 type ResolvedOrderItem = {
   productId: string
   qty: number
-  uom: 'pcs' | 'pack' | 'dus'
+  uom: string
   unitPrice: number
   uomToPcs: number
   qtyPcs: number
+  qtyBase: number
+  baseUomId: string | null
+  conversionSource: 'legacy' | 'product_uom_v2'
   discountAmount: number
   lineTotal: number
+}
+
+function normalizeUom(uom: string) {
+  return uom.trim().toLowerCase()
+}
+
+function toLegacyFactor(params: { uom: string; packSize: number; packPerDus: number; dusSize: number }) {
+  const code = normalizeUom(params.uom)
+  if (code === 'pcs') return 1
+  if (code === 'pack') return params.packSize
+  if (code === 'dus') return params.dusSize || (params.packSize > 0 && params.packPerDus > 0 ? params.packSize * params.packPerDus : 0)
+  return 0
 }
 
 function pad4(n: number) {
@@ -114,11 +130,14 @@ async function ensureInvoiceForSalesOrder(client: PoolClient, salesOrderId: stri
           uom,
           uom_to_pcs,
           qty_pcs,
+          qty_base,
+          base_uom_id,
+          conversion_source,
           unit_price,
           discount_amount,
           line_total
         )
-        values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
       `,
       [
         invoice.id,
@@ -127,6 +146,9 @@ async function ensureInvoiceForSalesOrder(client: PoolClient, salesOrderId: stri
         it.uom ?? 'pcs',
         Number(it.uom_to_pcs ?? 1),
         Math.trunc(Number(it.qty_pcs ?? 0)),
+        Number(it.qty_base ?? it.qty_pcs ?? 0),
+        it.base_uom_id ?? null,
+        it.conversion_source ?? 'legacy',
         it.unit_price,
         it.discount_amount,
         it.line_total,
@@ -147,40 +169,7 @@ export async function createSalesOrder(params: {
   allowOverLimit: boolean
 }) {
   const headerDiscount = params.discountAmount ?? 0
-
-  const resolvedItems = []
-  for (const it of params.items) {
-    const pRes = await getPool().query(
-      `select pack_size as "packSize", dus_size as "dusSize", pack_per_dus as "packPerDus" from products where id = $1 limit 1`,
-      [it.productId],
-    )
-    const p = pRes.rows[0] as { packSize?: number; dusSize?: number; packPerDus?: number } | undefined
-    if (!p) throw new Error('Produk tidak ditemukan')
-
-    const qty = Math.trunc(it.qty)
-    const packSize = Number(p.packSize ?? 0)
-    const packPerDus = Number(p.packPerDus ?? 0)
-    const dusSize = Number(p.dusSize ?? 0) || (packSize > 0 && packPerDus > 0 ? packSize * packPerDus : 0)
-
-    const uomToPcs = it.uom === 'pcs' ? 1 : it.uom === 'pack' ? packSize : dusSize
-    if (!Number.isFinite(uomToPcs) || uomToPcs < 1) {
-      throw new Error('Konversi satuan produk belum diatur (pack/dus)')
-    }
-    const qtyPcs = qty * uomToPcs
-
-    const promoDiscount = await calculateBestPromo(it.productId, it.qty, it.unitPrice)
-    const manualDiscount = it.discountAmount ?? 0
-    const finalDiscount = Math.max(promoDiscount, manualDiscount)
-    
-    resolvedItems.push({
-      ...it,
-      qty,
-      uomToPcs,
-      qtyPcs,
-      discountAmount: finalDiscount,
-      lineTotal: it.qty * it.unitPrice - finalDiscount,
-    })
-  }
+  const resolvedItems = await resolveOrderItems(params.items)
 
   const subtotal = resolvedItems.reduce((a, it) => a + it.qty * it.unitPrice, 0)
   const itemDiscount = resolvedItems.reduce((a, it) => a + it.discountAmount, 0)
@@ -259,11 +248,14 @@ export async function createSalesOrder(params: {
             uom,
             uom_to_pcs,
             qty_pcs,
+            qty_base,
+            base_uom_id,
+            conversion_source,
             unit_price,
             discount_amount,
             line_total
           )
-          values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
         `,
         [
           salesOrder.id,
@@ -272,6 +264,9 @@ export async function createSalesOrder(params: {
           it.uom,
           it.uomToPcs,
           it.qtyPcs,
+          it.qtyBase,
+          it.baseUomId,
+          it.conversionSource,
           it.unitPrice,
           it.discountAmount,
           it.lineTotal,
@@ -293,23 +288,54 @@ async function resolveOrderItems(items: SalesOrderItemInput[]): Promise<Resolved
   const resolvedItems: ResolvedOrderItem[] = []
   for (const it of items) {
     const pRes = await getPool().query(
-      `select pack_size as "packSize", dus_size as "dusSize", pack_per_dus as "packPerDus" from products where id = $1 limit 1`,
+      `
+        select
+          pack_size as "packSize",
+          dus_size as "dusSize",
+          pack_per_dus as "packPerDus",
+          base_uom_id as "baseUomId"
+        from products
+        where id = $1
+        limit 1
+      `,
       [it.productId],
     )
-    const p = pRes.rows[0] as { packSize?: number; dusSize?: number; packPerDus?: number } | undefined
+    const p = pRes.rows[0] as
+      | { packSize?: number; dusSize?: number; packPerDus?: number; baseUomId?: string | null }
+      | undefined
     if (!p) throw new ApiError({ code: 'NOT_FOUND', status: 404, message: 'Produk tidak ditemukan' })
 
     const qty = Math.trunc(it.qty)
+    const uomCode = normalizeUom(it.uom)
     const packSize = Number(p.packSize ?? 0)
     const packPerDus = Number(p.packPerDus ?? 0)
-    const dusSize = Number(p.dusSize ?? 0) || (packSize > 0 && packPerDus > 0 ? packSize * packPerDus : 0)
-    const uomToPcs = it.uom === 'pcs' ? 1 : it.uom === 'pack' ? packSize : dusSize
+    const dusSize =
+      Number(p.dusSize ?? 0) ||
+      (packSize > 0 && packPerDus > 0 ? packSize * packPerDus : 0)
 
-    if (!Number.isFinite(uomToPcs) || uomToPcs < 1) {
+    let uomToPcs = toLegacyFactor({ uom: uomCode, packSize, packPerDus, dusSize })
+    let qtyBase = qty * uomToPcs
+    let conversionSource: 'legacy' | 'product_uom_v2' = 'legacy'
+
+    try {
+      const toBaseFactor = await getToBaseFactorByCode({
+        productId: it.productId,
+        uomCode,
+      })
+      if (Number.isFinite(toBaseFactor) && toBaseFactor > 0) {
+        qtyBase = qty * Number(toBaseFactor)
+        uomToPcs = Number(toBaseFactor)
+        conversionSource = 'product_uom_v2'
+      }
+    } catch {
+      // Fallback ke konversi legacy selama fase transisi.
+    }
+
+    if (!Number.isFinite(uomToPcs) || uomToPcs <= 0) {
       throw new ApiError({
         code: 'VALIDATION_ERROR',
         status: 400,
-        message: 'Konversi satuan produk belum diatur (pack/dus)',
+        message: `Konversi satuan produk belum diatur untuk unit ${uomCode}`,
       })
     }
 
@@ -320,12 +346,15 @@ async function resolveOrderItems(items: SalesOrderItemInput[]): Promise<Resolved
     resolvedItems.push({
       productId: it.productId,
       qty,
-      uom: it.uom,
+      uom: uomCode,
       unitPrice: it.unitPrice,
       uomToPcs,
-      qtyPcs: qty * uomToPcs,
+      qtyPcs: Math.round(qty * uomToPcs),
+      qtyBase,
+      baseUomId: p.baseUomId ?? null,
+      conversionSource,
       discountAmount: finalDiscount,
-      lineTotal: it.qty * it.unitPrice - finalDiscount,
+      lineTotal: qty * it.unitPrice - finalDiscount,
     })
   }
   return resolvedItems
@@ -377,6 +406,8 @@ export async function getSalesOrderDetail(soId: string) {
         p.name as "productName",
         soi.qty::text as qty,
         soi.uom,
+        soi.qty_base::text as "qtyBase",
+        soi.conversion_source as "conversionSource",
         soi.unit_price::text as "unitPrice",
         soi.discount_amount::text as "discountAmount",
         soi.line_total::text as "lineTotal"
@@ -472,9 +503,9 @@ export async function updateSalesOrder(params: {
       await client.query(
         `
           insert into sales_order_items(
-            sales_order_id, product_id, qty, uom, uom_to_pcs, qty_pcs, unit_price, discount_amount, line_total
+            sales_order_id, product_id, qty, uom, uom_to_pcs, qty_pcs, qty_base, base_uom_id, conversion_source, unit_price, discount_amount, line_total
           )
-          values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
         `,
         [
           params.salesOrderId,
@@ -483,6 +514,9 @@ export async function updateSalesOrder(params: {
           it.uom,
           it.uomToPcs,
           it.qtyPcs,
+          it.qtyBase,
+          it.baseUomId,
+          it.conversionSource,
           it.unitPrice,
           it.discountAmount,
           it.lineTotal,
@@ -593,7 +627,8 @@ export async function getDeliveryOrderBySoId(soId: string) {
         p.name as "productName",
         doi.uom as unit,
         doi.qty,
-        doi.qty_pcs as "qtyPcs"
+        doi.qty_pcs as "qtyPcs",
+        doi.qty_base as "qtyBase"
       from delivery_order_items doi
       join products p on p.id = doi.product_id
       where doi.delivery_order_id = $1
@@ -823,9 +858,23 @@ export async function createDeliveryOrder(params: {
     const warehouseId = await getDefaultWarehouseId(client as any)
     for (const it of items) {
       const qtyPcs = Number(it.qty_pcs ?? 0)
+      const qtyBase = Number(it.qty_base ?? qtyPcs)
       const qty = Number(it.qty ?? 0)
       await client.query(
-        'insert into delivery_order_items(delivery_order_id, product_id, qty, uom, uom_to_pcs, qty_pcs) values ($1, $2, $3, $4, $5, $6)',
+        `
+          insert into delivery_order_items(
+            delivery_order_id,
+            product_id,
+            qty,
+            uom,
+            uom_to_pcs,
+            qty_pcs,
+            qty_base,
+            base_uom_id,
+            conversion_source
+          )
+          values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `,
         [
           deliveryOrder.id,
           it.product_id,
@@ -833,6 +882,9 @@ export async function createDeliveryOrder(params: {
           it.uom ?? 'pcs',
           Number(it.uom_to_pcs ?? 1),
           Math.trunc(qtyPcs),
+          qtyBase,
+          it.base_uom_id ?? null,
+          it.conversion_source ?? 'legacy',
         ],
       )
 
@@ -841,7 +893,7 @@ export async function createDeliveryOrder(params: {
           warehouseId,
           productId: it.product_id,
           type: 'SALE_OUT',
-          qtyDelta: -1 * Math.trunc(qtyPcs),
+          qtyDelta: -1 * qtyBase,
           createdBy: params.createdBy,
           refType: 'delivery_orders',
           refId: deliveryOrder.id,

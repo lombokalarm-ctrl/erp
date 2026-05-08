@@ -63,7 +63,7 @@ router.post(
               z.object({
                 productId: z.string().uuid(),
                 qty: z.coerce.number().int().positive(),
-                uom: z.enum(['pcs', 'pack', 'dus']).default('pcs'),
+                uom: z.string().min(1).default('pcs'),
                 unitPrice: z.coerce.number().min(0),
                 discountAmount: z.coerce.number().min(0).optional(),
               }),
@@ -138,7 +138,7 @@ router.patch(
               z.object({
                 productId: z.string().uuid(),
                 qty: z.coerce.number().int().positive(),
-                uom: z.enum(['pcs', 'pack', 'dus']).default('pcs'),
+                uom: z.string().min(1).default('pcs'),
                 unitPrice: z.coerce.number().min(0),
                 discountAmount: z.coerce.number().min(0).optional(),
               }),

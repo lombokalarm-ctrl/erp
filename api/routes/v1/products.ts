@@ -9,6 +9,10 @@ import {
   updateProduct,
   deleteProduct,
 } from '../../services/productService.js'
+import {
+  listProductUomMappings,
+  replaceProductUomMappings,
+} from '../../services/uomConversionService.js'
 import { writeAuditLog } from '../../services/auditService.js'
 
 const router = Router()
@@ -86,6 +90,68 @@ router.post(
         payload: { sku: created.sku, name: created.name },
       })
       ok(res, created)
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+router.get(
+  '/:id/uoms',
+  authenticate,
+  authorizeAny(['products:read']),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const mappings = await listProductUomMappings(req.params.id)
+      ok(res, mappings)
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+router.put(
+  '/:id/uoms',
+  authenticate,
+  authorizeAny(['products:write']),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = z
+        .object({
+          mappings: z
+            .array(
+              z.object({
+                uomCode: z.string().min(1),
+                toBaseFactor: z.coerce.number().positive(),
+                isSale: z.coerce.boolean().optional(),
+                isPurchase: z.coerce.boolean().optional(),
+                isDefaultSale: z.coerce.boolean().optional(),
+                isDefaultPurchase: z.coerce.boolean().optional(),
+              }),
+            )
+            .min(1),
+        })
+        .parse(req.body)
+
+      const mappings = await replaceProductUomMappings({
+        productId: req.params.id,
+        mappings: body.mappings.map((item) => ({
+          uomCode: item.uomCode,
+          toBaseFactor: item.toBaseFactor,
+          isSale: item.isSale,
+          isPurchase: item.isPurchase,
+          isDefaultSale: item.isDefaultSale,
+          isDefaultPurchase: item.isDefaultPurchase,
+        })),
+      })
+      await writeAuditLog({
+        actorUserId: req.user!.userId,
+        action: 'PRODUCT_UOMS_UPDATE',
+        entity: 'products',
+        entityId: req.params.id,
+        payload: { mappings: body.mappings },
+      })
+      ok(res, mappings)
     } catch (err) {
       next(err)
     }
