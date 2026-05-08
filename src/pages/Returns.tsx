@@ -27,6 +27,12 @@ type Customer = { id: string; name: string; code: string };
 type Supplier = { id: string; name: string; code: string };
 type Product = { id: string; name: string; sku: string };
 type InvoiceRef = { id: string; invoiceNo: string; customerId: string; status: string };
+type InvoiceDetail = {
+  id: string;
+  items: Array<{
+    productId: string;
+  }>;
+};
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -52,6 +58,7 @@ export default function Returns() {
   const [productUoms, setProductUoms] = useState<Record<string, Array<{ code: string; name: string }>>>({});
   const [saving, setSaving] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [invoiceAllowedProductIds, setInvoiceAllowedProductIds] = useState<string[]>([]);
 
   const canSubmit = useMemo(
     () =>
@@ -79,6 +86,32 @@ export default function Returns() {
   useEffect(() => {
     loadInitial().catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (type !== "SALES_RETURN" || !sourceInvoiceId) {
+      setInvoiceAllowedProductIds([]);
+      return;
+    }
+    let isCancelled = false;
+    apiFetch<{ data: InvoiceDetail }>(`/api/v1/invoices/${sourceInvoiceId}`)
+      .then((res) => {
+        if (isCancelled) return;
+        const ids = Array.from(new Set((res.data?.items ?? []).map((it) => it.productId).filter(Boolean)));
+        setInvoiceAllowedProductIds(ids);
+        setItems((prev) =>
+          prev.map((row) =>
+            !row.productId || ids.includes(row.productId) ? row : { ...row, productId: "" },
+          ),
+        );
+      })
+      .catch(() => {
+        if (isCancelled) return;
+        setInvoiceAllowedProductIds([]);
+      });
+    return () => {
+      isCancelled = true;
+    };
+  }, [sourceInvoiceId, type]);
 
   async function ensureProductUomsLoaded(productId: string) {
     if (!productId || productUoms[productId]) return;
@@ -148,6 +181,13 @@ export default function Returns() {
     () => invoices.filter((inv) => inv.customerId === partnerId && inv.status !== "CANCELLED"),
     [invoices, partnerId],
   );
+
+  const selectableProducts = useMemo(() => {
+    if (type !== "SALES_RETURN" || !sourceInvoiceId) return products;
+    if (!invoiceAllowedProductIds.length) return [];
+    const allowed = new Set(invoiceAllowedProductIds);
+    return products.filter((p) => allowed.has(p.id));
+  }, [invoiceAllowedProductIds, products, sourceInvoiceId, type]);
 
   return (
     <div className="space-y-4">
@@ -268,6 +308,7 @@ export default function Returns() {
                     setType(e.target.value as any);
                     setPartnerId("");
                     setSourceInvoiceId("");
+                    setInvoiceAllowedProductIds([]);
                     setProductUoms({});
                   }}
                 >
@@ -322,6 +363,12 @@ export default function Returns() {
               </label>
             ) : null}
 
+            {type === "SALES_RETURN" && sourceInvoiceId && (
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+                Produk retur dibatasi hanya item yang ada di invoice sumber.
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-2">
               <Input label="Tanggal Retur" type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} />
               <Input label="No Ref (SO/PO/Inv)" value={referenceNo} onChange={(e) => setReferenceNo(e.target.value)} placeholder="Opsional" />
@@ -357,7 +404,7 @@ export default function Returns() {
                       }}
                     >
                       <option value="">Pilih produk...</option>
-                      {products.map((p) => (
+                      {selectableProducts.map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.sku} - {p.name}
                         </option>
