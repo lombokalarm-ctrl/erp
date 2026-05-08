@@ -1,6 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod'
-import { ok } from '../../lib/http.js'
+import { ApiError, ok } from '../../lib/http.js'
 import { authenticate, authorizeAny } from '../../middlewares/auth.js'
 import {
   createProduct,
@@ -116,7 +116,7 @@ router.put(
   authorizeAny(['products:write']),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const body = z
+      const bodySchema = z
         .object({
           mappings: z
             .array(
@@ -131,7 +131,16 @@ router.put(
             )
             .min(1),
         })
-        .parse(req.body)
+      const bodyParsed = bodySchema.safeParse(req.body)
+      if (!bodyParsed.success) {
+        throw new ApiError({
+          code: 'VALIDATION_ERROR',
+          status: 400,
+          message: 'Payload mapping UOM tidak valid',
+          details: bodyParsed.error.issues,
+        })
+      }
+      const body = bodyParsed.data
 
       const mappings = await replaceProductUomMappings({
         productId: req.params.id,
