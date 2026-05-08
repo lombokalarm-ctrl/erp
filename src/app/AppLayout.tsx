@@ -26,6 +26,7 @@ import {
   Bell,
   Search,
   Ruler,
+  Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -253,6 +254,7 @@ export default function AppLayout() {
         groupLabel: "Laporan",
         items: [
           { to: "/store-analysis", label: "Analisa Toko", icon: <Building2 className="h-4 w-4" />, anyPerm: ["reports:read"] },
+          { to: "/uom-health", label: "Health UOM V2", icon: <Activity className="h-4 w-4" />, anyPerm: ["products:read"] },
           { to: "/collection-report", label: "Laporan Pembayaran", icon: <Wallet className="h-4 w-4" />, anyPerm: ["reports:read"] },
           { to: "/sales-report", label: "Laporan Penjualan", icon: <LineChart className="h-4 w-4" />, anyPerm: ["reports:read"] },
           { to: "/purchase-report", label: "Laporan Pembelian", icon: <ClipboardList className="h-4 w-4" />, anyPerm: ["reports:read"] },

@@ -39,6 +39,7 @@ import ProfitLossReport from "@/pages/ProfitLossReport";
 import PurchaseReport from "@/pages/PurchaseReport";
 import StockReport from "@/pages/StockReport";
 import ChangePassword from "@/pages/ChangePassword";
+import UomHealth from "@/pages/UomHealth";
 
 export default function App() {
   const hydrate = useAuthStore((s) => s.hydrate);
@@ -67,6 +68,7 @@ export default function App() {
           <Route path="regions" element={<Regions />} />
           <Route path="products" element={<Products />} />
           <Route path="uoms" element={<Uoms />} />
+          <Route path="uom-health" element={<UomHealth />} />
           <Route path="suppliers" element={<Suppliers />} />
           <Route path="inventory" element={<Inventory />} />
           <Route path="purchase-orders" element={<PurchaseOrders />} />

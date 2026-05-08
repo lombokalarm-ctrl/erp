@@ -90,3 +90,104 @@ export async function getDashboardMetrics() {
     criticalStocks: stockRes.rows
   }
 }
+
+export async function getUomV2HealthMetrics() {
+  const pool = getPool()
+
+  const summaryRes = await pool.query(
+    `
+      with product_counts as (
+        select
+          count(*)::int as total_products,
+          count(*) filter (where base_uom_id is not null)::int as mapped_products
+        from products
+      ),
+      invalid_mapping as (
+        select count(*)::int as invalid_products
+        from uom_product_mapping_audit
+        where base_mapping_count <> 1
+           or base_uom_matches_mapping is not true
+      ),
+      tx_missing as (
+        select
+          (
+            select count(*)::int from sales_order_items where qty_base is null or base_uom_id is null
+          ) + (
+            select count(*)::int from invoice_items where qty_base is null or base_uom_id is null
+          ) + (
+            select count(*)::int from delivery_order_items where qty_base is null or base_uom_id is null
+          ) + (
+            select count(*)::int from return_items where qty_base is null or base_uom_id is null
+          ) + (
+            select count(*)::int from goods_receipt_items where qty_base is null or base_uom_id is null
+          ) + (
+            select count(*)::int from purchase_order_items where qty_base is null or base_uom_id is null
+          ) as missing_base_fields
+      ),
+      active_uoms as (
+        select count(*)::int as active_uoms
+        from uoms
+        where is_active = true
+      )
+      select
+        au.active_uoms as "activeUoms",
+        pc.total_products as "totalProducts",
+        pc.mapped_products as "mappedProducts",
+        im.invalid_products as "invalidMappingProducts",
+        tx.missing_base_fields as "transactionsMissingBaseFields"
+      from active_uoms au
+      cross join product_counts pc
+      cross join invalid_mapping im
+      cross join tx_missing tx
+    `,
+  )
+
+  const invalidProductsRes = await pool.query(
+    `
+      select
+        a.product_id as "productId",
+        p.sku,
+        p.name,
+        a.base_mapping_count as "baseMappingCount",
+        a.base_uom_matches_mapping as "baseUomMatchesMapping"
+      from uom_product_mapping_audit a
+      join products p on p.id = a.product_id
+      where a.base_mapping_count <> 1
+         or a.base_uom_matches_mapping is not true
+      order by p.sku asc
+      limit 20
+    `,
+  )
+
+  const conversionSourceRes = await pool.query(
+    `
+      select conversion_source as source, count(*)::int as total
+      from (
+        select conversion_source from sales_order_items
+        union all
+        select conversion_source from invoice_items
+        union all
+        select conversion_source from return_items
+        union all
+        select conversion_source from goods_receipt_items
+        union all
+        select conversion_source from purchase_order_items
+      ) t
+      where conversion_source is not null
+      group by conversion_source
+      order by total desc
+    `,
+  )
+
+  return {
+    summary: summaryRes.rows[0] ?? {
+      activeUoms: 0,
+      totalProducts: 0,
+      mappedProducts: 0,
+      invalidMappingProducts: 0,
+      transactionsMissingBaseFields: 0,
+    },
+    invalidProducts: invalidProductsRes.rows,
+    conversionSources: conversionSourceRes.rows,
+  }
+}
