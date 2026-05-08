@@ -134,6 +134,7 @@ export async function getInvoiceDetail(id: string) {
   const itemsRes = await pool.query(
     `
       select
+        ii.product_id as "productId",
         p.sku,
         p.name as "productName",
         ii.uom as unit,

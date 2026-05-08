@@ -93,7 +93,7 @@ export default function Returns() {
       return;
     }
     let isCancelled = false;
-    apiFetch<{ data: InvoiceDetail }>(`/api/v1/invoices/${sourceInvoiceId}`)
+    apiFetch<{ data: InvoiceDetail }>(`/api/v1/invoices/${sourceInvoiceId}/detail`)
       .then((res) => {
         if (isCancelled) return;
         const ids = Array.from(new Set((res.data?.items ?? []).map((it) => it.productId).filter(Boolean)));
