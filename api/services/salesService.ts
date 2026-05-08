@@ -282,8 +282,7 @@ export async function createSalesOrder(params: {
     if (status !== 'PENDING_APPROVAL') {
       await client.query(`update sales_orders set status = 'CONFIRMED' where id = $1`, [salesOrder.id])
       salesOrder.status = 'CONFIRMED'
-      const invoice = await ensureInvoiceForSalesOrder(client as any, salesOrder.id, params.orderDate)
-      return { salesOrder, invoice }
+      return { salesOrder }
     }
 
     return { salesOrder }
@@ -525,7 +524,6 @@ export async function updateSalesOrder(params: {
         `delete from sales_order_approvals where sales_order_id = $1 and status = 'PENDING'`,
         [params.salesOrderId],
       )
-      await ensureInvoiceForSalesOrder(client as any, params.salesOrderId, params.orderDate)
     }
 
     return getSalesOrderDetail(params.salesOrderId)
@@ -755,23 +753,6 @@ export async function processApproval(approvalId: string, action: 'APPROVED' | '
       })
     }
 
-    if (action === 'APPROVED') {
-      const soRes = await client.query(`select order_date::text as "orderDate" from sales_orders where id = $1 limit 1`, [soId])
-      const orderDate = String(soRes.rows[0]?.orderDate ?? new Date().toISOString().slice(0, 10))
-      const invoice = await ensureInvoiceForSalesOrder(client as any, soId, orderDate)
-      return {
-        success: true,
-        newSoStatus,
-        invoice,
-        creditSnapshot: {
-          projected: currentCheck.projected,
-          creditLimit: currentCheck.creditLimit,
-          projectedOpenDocumentCount: currentCheck.projectedOpenDocumentCount,
-          salesOrderLimit: currentCheck.salesOrderLimit,
-        },
-      }
-    }
-
     return {
       success: true,
       newSoStatus,
@@ -818,11 +799,6 @@ export async function createDeliveryOrder(params: {
 
       // Self-heal legacy inconsistent rows: approval is APPROVED but SO status is still DRAFT.
       await client.query(`update sales_orders set status = 'CONFIRMED' where id = $1`, [params.salesOrderId])
-    }
-
-    const invoice = await getExistingInvoiceBySalesOrderId(client as any, params.salesOrderId)
-    if (!invoice) {
-      throw new Error('Invoice belum terbit. Setujui/konfirmasi SO terlebih dahulu.')
     }
 
     // 2. Get SO items
@@ -876,6 +852,7 @@ export async function createDeliveryOrder(params: {
 
     // 5. Update SO status
     await client.query("update sales_orders set delivery_status = 'DELIVERED' where id = $1", [params.salesOrderId])
+    const invoice = await ensureInvoiceForSalesOrder(client as any, params.salesOrderId, params.deliveryDate)
 
     return { deliveryOrder, invoice }
   })

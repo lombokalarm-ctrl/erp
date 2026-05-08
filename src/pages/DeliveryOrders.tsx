@@ -202,7 +202,7 @@ export default function DeliveryOrders() {
       <div>
         <h1 className="text-lg font-semibold">Surat Jalan (Pengiriman)</h1>
         <p className="mt-1 text-sm text-zinc-600">
-          Proses Sales Order yang sudah disetujui & terinvoice menjadi Surat Jalan untuk memotong stok.
+          Proses Sales Order yang sudah disetujui menjadi Surat Jalan. Invoice diterbitkan otomatis setelah DO dibuat.
         </p>
       </div>
 
@@ -283,7 +283,7 @@ export default function DeliveryOrders() {
                           size="sm"
                           variant="secondary"
                           disabled
-                          title="SO harus CONFIRMED dan invoice harus sudah terbit sebelum bisa dibuat Surat Jalan."
+                          title="SO harus CONFIRMED sebelum bisa dibuat Surat Jalan."
                         >
                           Belum Siap
                         </Button>
