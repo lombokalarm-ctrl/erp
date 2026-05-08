@@ -643,10 +643,13 @@ export async function getStockReport(params: { q?: string }) {
             .join(' ')
         : `${Number(qtyNumber.toFixed(2))} ${row.baseUomCode ?? 'unit'}`
 
+    const uomOrder = normalizedMappings.map((m) => m.uomCode).slice(0, 3)
+
     return {
       ...row,
       breakdown,
       breakdownLabel,
+      uomOrder,
     }
   })
 

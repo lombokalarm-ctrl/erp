@@ -16,6 +16,7 @@ type StockReportData = {
     sku: string;
     productName: string;
     qty: string;
+    uomOrder?: string[];
     breakdownLabel?: string;
     breakdown?: { uomCode: string; qty: number }[];
   }[];
@@ -53,9 +54,21 @@ export default function StockReport() {
 
   function getExportRows() {
     if (!data) return [];
+    const formatSatuan = (order: string[]) => (order.length ? order.join(", ") : "-");
+
     return data.stock.map((row) => [
       row.sku,
       row.productName,
+      formatSatuan((row.uomOrder ?? []).slice(0, 3)),
+      Number(
+        row.breakdown?.find((b) => b.uomCode === (row.uomOrder ?? [])[0])?.qty ?? 0,
+      ).toFixed(2),
+      Number(
+        row.breakdown?.find((b) => b.uomCode === (row.uomOrder ?? [])[1])?.qty ?? 0,
+      ).toFixed(2),
+      Number(
+        row.breakdown?.find((b) => b.uomCode === (row.uomOrder ?? [])[2])?.qty ?? 0,
+      ).toFixed(2),
       row.breakdownLabel ?? "-",
       Number(row.qty).toFixed(2),
     ]);
@@ -63,13 +76,31 @@ export default function StockReport() {
 
   function handleExportExcel() {
     if (!data) return;
-    const headers = ["SKU", "Nama Produk", "Breakdown Satuan", "Qty Base"];
+    const headers = [
+      "SKU",
+      "Nama Produk",
+      "Satuan",
+      "Qty 1",
+      "Qty 2",
+      "Qty 3",
+      "Breakdown Satuan",
+      "Qty Base",
+    ];
     exportToExcel("Laporan_Stok", headers, getExportRows());
   }
 
   function handleExportPdf() {
     if (!data) return;
-    const headers = ["SKU", "Nama Produk", "Breakdown Satuan", "Qty Base"];
+    const headers = [
+      "SKU",
+      "Nama Produk",
+      "Satuan",
+      "Qty 1",
+      "Qty 2",
+      "Qty 3",
+      "Breakdown Satuan",
+      "Qty Base",
+    ];
     printTable("Laporan Stok", headers, getExportRows());
   }
 
