@@ -560,11 +560,26 @@ export async function getStockReport(params: { q?: string }) {
         p.id as "productId",
         p.sku,
         p.name as "productName",
-        coalesce(sum(b.qty), 0)::text as qty
+        coalesce(sum(b.qty), 0)::text as qty,
+        bu.code as "baseUomCode",
+        coalesce(
+          json_agg(
+            json_build_object(
+              'uomCode', u.code,
+              'uomName', u.name,
+              'toBaseFactor', pu.to_base_factor
+            )
+            order by pu.to_base_factor desc
+          ) filter (where pu.id is not null),
+          '[]'::json
+        ) as "uomMappings"
       from products p
       left join inventory_balances b on b.product_id = p.id
+      left join uoms bu on bu.id = p.base_uom_id
+      left join product_uoms pu on pu.product_id = p.id
+      left join uoms u on u.id = pu.uom_id
       ${whereSql}
-      group by p.id, p.sku, p.name
+      group by p.id, p.sku, p.name, bu.code
       order by p.name asc
       limit 200
     `,
@@ -588,9 +603,56 @@ export async function getStockReport(params: { q?: string }) {
     `,
   )
 
+  const stockWithBreakdown = stockRes.rows.map((row) => {
+    const qtyNumber = Number(row.qty ?? 0)
+    const mappingsRaw = Array.isArray(row.uomMappings) ? row.uomMappings : []
+
+    const normalizedMappings = mappingsRaw
+      .map((m: { uomCode?: string; uomName?: string; toBaseFactor?: string | number }) => ({
+        uomCode: String(m.uomCode ?? '').toLowerCase(),
+        uomName: String(m.uomName ?? ''),
+        toBaseFactor: Number(m.toBaseFactor ?? 0),
+      }))
+      .filter((m: { uomCode: string; toBaseFactor: number }) => m.uomCode && m.toBaseFactor > 0)
+      .sort((a: { toBaseFactor: number }, b: { toBaseFactor: number }) => b.toBaseFactor - a.toBaseFactor)
+
+    const breakdown: Array<{ uomCode: string; qty: number }> = []
+    let remaining = qtyNumber
+
+    for (let i = 0; i < normalizedMappings.length; i += 1) {
+      const mapping = normalizedMappings[i]
+      const isLast = i === normalizedMappings.length - 1
+      const unitQty = isLast ? remaining / mapping.toBaseFactor : Math.floor(remaining / mapping.toBaseFactor)
+      if (unitQty > 0 || (isLast && normalizedMappings.length === 1)) {
+        breakdown.push({
+          uomCode: mapping.uomCode,
+          qty: Number(unitQty.toFixed(6)),
+        })
+      }
+      remaining -= unitQty * mapping.toBaseFactor
+      if (Math.abs(remaining) < 1e-9) {
+        remaining = 0
+      }
+    }
+
+    const breakdownLabel =
+      breakdown.length > 0
+        ? breakdown
+            .filter((b) => b.qty > 0)
+            .map((b) => `${Number(b.qty.toFixed(2))} ${b.uomCode}`)
+            .join(' ')
+        : `${Number(qtyNumber.toFixed(2))} ${row.baseUomCode ?? 'unit'}`
+
+    return {
+      ...row,
+      breakdown,
+      breakdownLabel,
+    }
+  })
+
   return {
     summary: summaryRes.rows[0] ?? { totalProducts: 0, totalQty: '0' },
-    stock: stockRes.rows,
+    stock: stockWithBreakdown,
     latestMovements: movementRes.rows,
   }
 }

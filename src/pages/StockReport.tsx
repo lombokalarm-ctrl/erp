@@ -14,6 +14,8 @@ type StockReportData = {
     sku: string;
     productName: string;
     qty: string;
+    breakdownLabel?: string;
+    breakdown?: { uomCode: string; qty: number }[];
   }[];
   latestMovements: {
     id: string;
@@ -93,7 +95,8 @@ export default function StockReport() {
                   <thead className="sticky top-0 bg-white">
                     <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
                       <th className="px-4 py-3">Produk</th>
-                      <th className="px-4 py-3 text-right">Qty</th>
+                      <th className="px-4 py-3">Breakdown Satuan</th>
+                      <th className="px-4 py-3 text-right">Qty Base</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -102,6 +105,14 @@ export default function StockReport() {
                         <td className="px-4 py-3">
                           <div className="font-medium">{row.productName}</div>
                           <div className="text-xs text-zinc-500">{row.sku}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="font-medium">{row.breakdownLabel ?? "-"}</div>
+                          {row.breakdown?.length ? (
+                            <div className="text-xs text-zinc-500">
+                              {row.breakdown.map((b) => `${Number(b.qty.toFixed(2))} ${b.uomCode}`).join(" | ")}
+                            </div>
+                          ) : null}
                         </td>
                         <td className="px-4 py-3 text-right">{Number(row.qty).toFixed(2)}</td>
                       </tr>
