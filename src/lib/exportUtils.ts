@@ -1,4 +1,5 @@
 import { useSettingsStore } from "@/stores/settingsStore";
+import * as XLSX from "xlsx";
 
 function escapeHtml(value?: string | null) {
   return String(value ?? "")
@@ -35,6 +36,16 @@ export function exportToCSV(filename: string, headers: string[], rows: (string |
     link.click();
     document.body.removeChild(link);
   }
+}
+
+export function exportToExcel(filename: string, headers: string[], rows: (string | number)[][]) {
+  const worksheetData = [headers, ...rows];
+  const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan");
+
+  const safeFilename = filename.endsWith(".xlsx") ? filename : `${filename}.xlsx`;
+  XLSX.writeFile(workbook, safeFilename);
 }
 
 export function printTable(title: string, headers: string[], rows: (string | number)[][]) {
@@ -86,7 +97,7 @@ export function printTable(title: string, headers: string[], rows: (string | num
           <tbody>
             ${rows.map(row => `
               <tr>
-                ${row.map((cell, idx) => {
+                ${row.map((cell) => {
                   const isNumber = !isNaN(Number(cell)) && cell !== '';
                   const alignClass = isNumber ? 'text-right' : '';
                   return `<td class="${alignClass}">${cell}</td>`;

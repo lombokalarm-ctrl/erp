@@ -3,6 +3,8 @@ import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
+import { Download, Printer } from "lucide-react";
+import { exportToExcel, printTable } from "@/lib/exportUtils";
 
 type StockReportData = {
   summary: {
@@ -49,6 +51,28 @@ export default function StockReport() {
     void load();
   }, []);
 
+  function getExportRows() {
+    if (!data) return [];
+    return data.stock.map((row) => [
+      row.sku,
+      row.productName,
+      row.breakdownLabel ?? "-",
+      Number(row.qty).toFixed(2),
+    ]);
+  }
+
+  function handleExportExcel() {
+    if (!data) return;
+    const headers = ["SKU", "Nama Produk", "Breakdown Satuan", "Qty Base"];
+    exportToExcel("Laporan_Stok", headers, getExportRows());
+  }
+
+  function handleExportPdf() {
+    if (!data) return;
+    const headers = ["SKU", "Nama Produk", "Breakdown Satuan", "Qty Base"];
+    printTable("Laporan Stok", headers, getExportRows());
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
@@ -64,6 +88,14 @@ export default function StockReport() {
           />
           <Button variant="secondary" onClick={load}>
             Filter
+          </Button>
+          <Button variant="secondary" onClick={handleExportPdf} title="Export PDF">
+            <Printer className="h-4 w-4" />
+            PDF
+          </Button>
+          <Button variant="secondary" onClick={handleExportExcel} title="Export Excel">
+            <Download className="h-4 w-4" />
+            Excel
           </Button>
         </div>
       </div>
