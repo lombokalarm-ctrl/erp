@@ -24,6 +24,7 @@ Dokumen ini berisi langkah UAT terstruktur untuk validasi UOM V2 pada alur:
 Gunakan script:
 
 - `scripts/uat/uom-v2-uat.sh`
+- `scripts/uat/uom-v2-inbound-uat.sh`
 
 ## Cara Menjalankan
 
@@ -38,6 +39,9 @@ export ADMIN_PASSWORD="your_password"
 # export PSQL_DSN="postgresql://user:pass@127.0.0.1:5432/erp"
 
 bash scripts/uat/uom-v2-uat.sh
+
+# UAT inbound (PO -> GRN -> Inventory)
+bash scripts/uat/uom-v2-inbound-uat.sh
 ```
 
 ## Daftar Skenario Yang Dijalankan Script
@@ -65,6 +69,9 @@ Tambahan validasi:
 - Semua langkah sukses tanpa error runtime.
 - CN parsial pertama bernilai `7.500` (bukan `15.000`, bukan `75.000`).
 - Over-return tertolak.
+- UAT inbound lulus:
+  - GRN `1 pack` menaikkan stok base `+10`
+  - GRN `90 pcs` menghasilkan total kenaikan `+100`
 - Jika SQL check diaktifkan: `invoice.qty_base = 10` dan total retur posted = `10`.
 
 ## Tindakan Jika Gagal
