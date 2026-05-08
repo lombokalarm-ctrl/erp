@@ -5,6 +5,7 @@ import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { formatCurrency } from "@/lib/numberFormat";
+import { fetchProductUomMappings, pickDefaultUom, toUomOptions } from "@/lib/uom";
 
 type Supplier = { id: string; code: string; name: string };
 type Product = { id: string; sku: string; name: string; purchasePrice: string };
@@ -17,9 +18,10 @@ function today() {
 export default function PurchaseOrders() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [items, setItems] = useState<{ productId: string; qty: string; uom: "pcs" | "pack" | "dus"; unitPrice: string }[]>([
+  const [items, setItems] = useState<{ productId: string; qty: string; uom: string; unitPrice: string }[]>([
     { productId: "", qty: "1", uom: "pcs", unitPrice: "0" },
   ]);
+  const [productUoms, setProductUoms] = useState<Record<string, Array<{ code: string; name: string }>>>({});
   const [supplierId, setSupplierId] = useState("");
   const [orderDate, setOrderDate] = useState(today());
   const [rows, setRows] = useState<PoRow[]>([]);
@@ -46,6 +48,27 @@ export default function PurchaseOrders() {
   useEffect(() => {
     load().catch(() => {});
   }, []);
+
+  async function ensureProductUomsLoaded(productId: string) {
+    if (!productId || productUoms[productId]) return;
+    try {
+      const mappings = await fetchProductUomMappings(productId);
+      const options = toUomOptions(mappings, "purchase");
+      if (options.length) {
+        setProductUoms((prev) => ({ ...prev, [productId]: options }));
+      }
+    } catch {
+      // ignore and fallback
+    }
+  }
+
+  function getUomOptions(productId: string) {
+    return productUoms[productId] ?? [
+      { code: "pcs", name: "Pcs" },
+      { code: "pack", name: "Pack" },
+      { code: "dus", name: "Dus" },
+    ];
+  }
 
   return (
     <div className="space-y-4">
@@ -146,12 +169,24 @@ export default function PurchaseOrders() {
                     <select
                       className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
                       value={it.productId}
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         const pid = e.target.value;
                         const p = products.find((x) => x.id === pid);
+                        let nextUom = "pcs";
+                        if (pid) {
+                          await ensureProductUomsLoaded(pid);
+                          try {
+                            const mappings = await fetchProductUomMappings(pid);
+                            nextUom = pickDefaultUom(mappings, "purchase");
+                          } catch {
+                            nextUom = "pcs";
+                          }
+                        }
                         setItems((prev) =>
                           prev.map((x, i) =>
-                            i === idx ? { ...x, productId: pid, unitPrice: p?.purchasePrice ?? x.unitPrice } : x,
+                            i === idx
+                              ? { ...x, productId: pid, uom: nextUom, unitPrice: p?.purchasePrice ?? x.unitPrice }
+                              : x,
                           ),
                         );
                       }}
@@ -176,11 +211,13 @@ export default function PurchaseOrders() {
                         <select
                           className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
                           value={it.uom}
-                          onChange={(e) => setItems((prev) => prev.map((x, i) => i === idx ? { ...x, uom: e.target.value as "pcs" | "pack" | "dus" } : x))}
+                          onChange={(e) => setItems((prev) => prev.map((x, i) => i === idx ? { ...x, uom: e.target.value } : x))}
                         >
-                          <option value="pcs">pcs</option>
-                          <option value="pack">pack</option>
-                          <option value="dus">dus</option>
+                          {getUomOptions(it.productId).map((u) => (
+                            <option key={u.code} value={u.code}>
+                              {u.code}
+                            </option>
+                          ))}
                         </select>
                       </label>
                     </div>

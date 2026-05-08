@@ -25,6 +25,7 @@ import settingRoutes from './settings.js'
 import regions from './regions.js'
 import notificationRoutes from './notifications.js'
 import searchRoutes from './search.js'
+import uomRoutes from './uoms.js'
 
 const router = Router()
 
@@ -54,6 +55,7 @@ router.use('/settings', settingRoutes)
 router.use('/regions', regions)
 router.use('/notifications', notificationRoutes)
 router.use('/search', searchRoutes)
+router.use('/uoms', uomRoutes)
 
 router.get('/health', (req: Request, res: Response) => {
   res.status(200).json({ data: { ok: true } })

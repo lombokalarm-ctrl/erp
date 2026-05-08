@@ -5,6 +5,7 @@ import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { RotateCcw } from "lucide-react";
+import { fetchProductUomMappings, pickDefaultUom, toUomOptions } from "@/lib/uom";
 
 type ReturnRow = {
   id: string;
@@ -45,9 +46,10 @@ export default function Returns() {
   const [sourceInvoiceId, setSourceInvoiceId] = useState("");
   const [returnDate, setReturnDate] = useState(today());
   const [notes, setNotes] = useState("");
-  const [items, setItems] = useState<{ productId: string; qty: string; uom: "pcs" | "pack" | "dus"; reason: string }[]>([
+  const [items, setItems] = useState<{ productId: string; qty: string; uom: string; reason: string }[]>([
     { productId: "", qty: "1", uom: "pcs", reason: "" },
   ]);
+  const [productUoms, setProductUoms] = useState<Record<string, Array<{ code: string; name: string }>>>({});
   const [saving, setSaving] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
 
@@ -77,6 +79,28 @@ export default function Returns() {
   useEffect(() => {
     loadInitial().catch(() => {});
   }, []);
+
+  async function ensureProductUomsLoaded(productId: string) {
+    if (!productId || productUoms[productId]) return;
+    try {
+      const mappings = await fetchProductUomMappings(productId);
+      const mode = type === "PURCHASE_RETURN" ? "purchase" : "sale";
+      const options = toUomOptions(mappings, mode);
+      if (options.length) {
+        setProductUoms((prev) => ({ ...prev, [productId]: options }));
+      }
+    } catch {
+      // ignore and fallback
+    }
+  }
+
+  function getUomOptions(productId: string) {
+    return productUoms[productId] ?? [
+      { code: "pcs", name: "Pcs" },
+      { code: "pack", name: "Pack" },
+      { code: "dus", name: "Dus" },
+    ];
+  }
 
   async function handleSubmit() {
     setSaving(true);
@@ -244,6 +268,7 @@ export default function Returns() {
                     setType(e.target.value as any);
                     setPartnerId("");
                     setSourceInvoiceId("");
+                    setProductUoms({});
                   }}
                 >
                   <option value="SALES_RETURN">Dari Pelanggan (Sales Return)</option>
@@ -314,11 +339,22 @@ export default function Returns() {
                     <select
                       className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
                       value={it.productId}
-                      onChange={(e) =>
+                      onChange={async (e) => {
+                        const productId = e.target.value;
+                        let nextUom = "pcs";
+                        if (productId) {
+                          await ensureProductUomsLoaded(productId);
+                          try {
+                            const mappings = await fetchProductUomMappings(productId);
+                            nextUom = pickDefaultUom(mappings, type === "PURCHASE_RETURN" ? "purchase" : "sale");
+                          } catch {
+                            nextUom = "pcs";
+                          }
+                        }
                         setItems((prev) =>
-                          prev.map((x, i) => (i === idx ? { ...x, productId: e.target.value } : x))
-                        )
-                      }
+                          prev.map((x, i) => (i === idx ? { ...x, productId, uom: nextUom } : x)),
+                        );
+                      }}
                     >
                       <option value="">Pilih produk...</option>
                       {products.map((p) => (
@@ -342,11 +378,13 @@ export default function Returns() {
                       <select
                         className="h-10 w-24 rounded-lg border border-zinc-200 bg-white px-3 text-sm"
                         value={it.uom}
-                        onChange={(e) => setItems((prev) => prev.map((x, i) => i === idx ? { ...x, uom: e.target.value as "pcs" | "pack" | "dus" } : x))}
+                        onChange={(e) => setItems((prev) => prev.map((x, i) => i === idx ? { ...x, uom: e.target.value } : x))}
                       >
-                        <option value="pcs">pcs</option>
-                        <option value="pack">pack</option>
-                        <option value="dus">dus</option>
+                        {getUomOptions(it.productId).map((u) => (
+                          <option key={u.code} value={u.code}>
+                            {u.code}
+                          </option>
+                        ))}
                       </select>
                       <Input
                         className="flex-1"

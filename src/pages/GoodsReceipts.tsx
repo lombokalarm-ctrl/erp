@@ -6,6 +6,7 @@ import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { BarcodeScanner } from "@/components/ui/BarcodeScanner";
+import { fetchProductUomMappings, pickDefaultUom, toUomOptions } from "@/lib/uom";
 
 type Warehouse = { id: string; code: string; name: string };
 type Product = { id: string; sku: string; name: string };
@@ -23,7 +24,8 @@ export default function GoodsReceipts() {
 
   const [warehouseId, setWarehouseId] = useState("");
   const [receivedDate, setReceivedDate] = useState(today());
-  const [items, setItems] = useState<{ productId: string; qty: string; uom: "pcs" | "pack" | "dus" }[]>([{ productId: "", qty: "1", uom: "pcs" }]);
+  const [items, setItems] = useState<{ productId: string; qty: string; uom: string }[]>([{ productId: "", qty: "1", uom: "pcs" }]);
+  const [productUoms, setProductUoms] = useState<Record<string, Array<{ code: string; name: string }>>>({});
   const [showScanner, setShowScanner] = useState(false);
   const [scannerTargetIdx, setScannerTargetIdx] = useState<number | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -48,6 +50,27 @@ export default function GoodsReceipts() {
   useEffect(() => {
     load().catch(() => {});
   }, []);
+
+  async function ensureProductUomsLoaded(productId: string) {
+    if (!productId || productUoms[productId]) return;
+    try {
+      const mappings = await fetchProductUomMappings(productId);
+      const options = toUomOptions(mappings, "purchase");
+      if (options.length) {
+        setProductUoms((prev) => ({ ...prev, [productId]: options }));
+      }
+    } catch {
+      // ignore and fallback
+    }
+  }
+
+  function getUomOptions(productId: string) {
+    return productUoms[productId] ?? [
+      { code: "pcs", name: "Pcs" },
+      { code: "pack", name: "Pack" },
+      { code: "dus", name: "Dus" },
+    ];
+  }
 
   function handleScan(decodedText: string) {
     if (scannerTargetIdx === null) return;
@@ -168,9 +191,22 @@ export default function GoodsReceipts() {
                       <select
                         className="h-10 flex-1 rounded-lg border border-zinc-200 bg-white px-3 text-sm"
                         value={it.productId}
-                        onChange={(e) =>
-                          setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, productId: e.target.value } : x)))
+                      onChange={async (e) => {
+                        const productId = e.target.value;
+                        let nextUom = "pcs";
+                        if (productId) {
+                          await ensureProductUomsLoaded(productId);
+                          try {
+                            const mappings = await fetchProductUomMappings(productId);
+                            nextUom = pickDefaultUom(mappings, "purchase");
+                          } catch {
+                            nextUom = "pcs";
+                          }
                         }
+                        setItems((prev) =>
+                          prev.map((x, i) => (i === idx ? { ...x, productId, uom: nextUom } : x)),
+                        );
+                      }}
                       >
                         <option value="">Pilih produk</option>
                         {products.map((p) => (
@@ -205,11 +241,13 @@ export default function GoodsReceipts() {
                         <select
                           className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
                           value={it.uom}
-                          onChange={(e) => setItems((prev) => prev.map((x, i) => i === idx ? { ...x, uom: e.target.value as "pcs" | "pack" | "dus" } : x))}
+                          onChange={(e) => setItems((prev) => prev.map((x, i) => i === idx ? { ...x, uom: e.target.value } : x))}
                         >
-                          <option value="pcs">pcs</option>
-                          <option value="pack">pack</option>
-                          <option value="dus">dus</option>
+                          {getUomOptions(it.productId).map((u) => (
+                            <option key={u.code} value={u.code}>
+                              {u.code}
+                            </option>
+                          ))}
                         </select>
                       </label>
                     </div>

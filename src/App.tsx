@@ -10,6 +10,7 @@ import Dashboard from "@/pages/Dashboard";
 import Customers from "@/pages/Customers";
 import Regions from "@/pages/Regions";
 import Products from "@/pages/Products";
+import Uoms from "@/pages/Uoms";
 import SalesOrders from "@/pages/SalesOrders";
 import ApprovalOrders from "@/pages/ApprovalOrders";
 import Invoices from "@/pages/Invoices";
@@ -65,6 +66,7 @@ export default function App() {
           <Route path="customers" element={<Customers />} />
           <Route path="regions" element={<Regions />} />
           <Route path="products" element={<Products />} />
+          <Route path="uoms" element={<Uoms />} />
           <Route path="suppliers" element={<Suppliers />} />
           <Route path="inventory" element={<Inventory />} />
           <Route path="purchase-orders" element={<PurchaseOrders />} />

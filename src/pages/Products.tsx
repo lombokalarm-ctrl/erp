@@ -4,6 +4,7 @@ import Input from "@/components/ui/Input";
 import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
+import { fetchActiveUoms } from "@/lib/uom";
 
 type Product = {
   id: string;
@@ -17,6 +18,20 @@ type Product = {
   packSize?: number;
   packPerDus?: number;
   dusSize?: number;
+};
+
+type UomMaster = {
+  code: string;
+  name: string;
+};
+
+type ProductUomMapping = {
+  uomCode: string;
+  toBaseFactor: string;
+  isSale: boolean;
+  isPurchase: boolean;
+  isDefaultSale: boolean;
+  isDefaultPurchase: boolean;
 };
 
 export default function Products() {
@@ -46,6 +61,9 @@ export default function Products() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [uomMaster, setUomMaster] = useState<UomMaster[]>([]);
+  const [mappingModalProduct, setMappingModalProduct] = useState<Product | null>(null);
+  const [uomMappings, setUomMappings] = useState<ProductUomMapping[]>([]);
 
   const canCreate = useMemo(() => sku.trim() && name.trim(), [sku, name]);
 
@@ -141,9 +159,83 @@ export default function Products() {
     }
   }
 
+  async function loadUomMaster() {
+    try {
+      const rows = await fetchActiveUoms();
+      setUomMaster(rows);
+    } catch {
+      setUomMaster([]);
+    }
+  }
+
   useEffect(() => {
     load();
+    loadUomMaster();
   }, []);
+
+  async function handleOpenUomMappings(product: Product) {
+    setError(null);
+    try {
+      const res = await apiFetch<{
+        data: Array<{
+          uomCode: string;
+          toBaseFactor: number;
+          isSale: boolean;
+          isPurchase: boolean;
+          isDefaultSale: boolean;
+          isDefaultPurchase: boolean;
+        }>;
+      }>(`/api/v1/products/${product.id}/uoms`);
+      const next = (res.data ?? []).map((it) => ({
+        uomCode: it.uomCode,
+        toBaseFactor: String(it.toBaseFactor),
+        isSale: it.isSale,
+        isPurchase: it.isPurchase,
+        isDefaultSale: it.isDefaultSale,
+        isDefaultPurchase: it.isDefaultPurchase,
+      }));
+      setUomMappings(
+        next.length
+          ? next
+          : [
+              {
+                uomCode: "pcs",
+                toBaseFactor: "1",
+                isSale: true,
+                isPurchase: true,
+                isDefaultSale: true,
+                isDefaultPurchase: true,
+              },
+            ],
+      );
+      setMappingModalProduct(product);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Gagal memuat mapping UOM produk");
+    }
+  }
+
+  async function handleSaveUomMappings() {
+    if (!mappingModalProduct) return;
+    setError(null);
+    try {
+      await apiFetch(`/api/v1/products/${mappingModalProduct.id}/uoms`, {
+        method: "PUT",
+        body: JSON.stringify({
+          mappings: uomMappings.map((it) => ({
+            uomCode: it.uomCode,
+            toBaseFactor: Number(it.toBaseFactor),
+            isSale: it.isSale,
+            isPurchase: it.isPurchase,
+            isDefaultSale: it.isDefaultSale,
+            isDefaultPurchase: it.isDefaultPurchase,
+          })),
+        }),
+      });
+      setMappingModalProduct(null);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Gagal menyimpan mapping UOM produk");
+    }
+  }
 
   async function handleSaveProduct() {
     setError(null);
@@ -262,6 +354,7 @@ export default function Products() {
                     <td className="px-4 py-2">{p.categoryPrices?.["NASIONAL MODERN RETAIL"] ? `${p.categoryPrices["NASIONAL MODERN RETAIL"].pcs}|${p.categoryPrices["NASIONAL MODERN RETAIL"].pack}|${p.categoryPrices["NASIONAL MODERN RETAIL"].dus}` : "-"}</td>
                     <td className="px-4 py-2 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => handleOpenUomMappings(p)} className="text-emerald-600 hover:text-emerald-800 font-medium">UOM</button>
                         <button onClick={() => handleEdit(p)} className="text-blue-600 hover:text-blue-800 font-medium">Edit</button>
                         <button onClick={() => handleDelete(p.id)} className="text-red-600 hover:text-red-800 font-medium">Hapus</button>
                       </div>
@@ -388,6 +481,156 @@ export default function Products() {
                   {editingId ? "Update" : "Simpan"}
                 </Button>
               </div>
+            </div>
+          </Card>
+        </div>
+      ) : null}
+
+      {mappingModalProduct ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <Card className="w-full max-w-4xl max-h-[92vh] overflow-y-auto p-5 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-base font-semibold">Mapping UOM Produk</div>
+                <p className="text-xs text-zinc-500">
+                  {mappingModalProduct.sku} - {mappingModalProduct.name}
+                </p>
+              </div>
+              <button
+                className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
+                onClick={() => setMappingModalProduct(null)}
+              >
+                Tutup
+              </button>
+            </div>
+            <div className="mt-3 rounded-lg border border-zinc-200">
+              <div className="grid grid-cols-12 gap-2 border-b border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-600">
+                <div className="col-span-2">Satuan</div>
+                <div className="col-span-2">Faktor ke Base</div>
+                <div className="col-span-2">Sale</div>
+                <div className="col-span-2">Purchase</div>
+                <div className="col-span-2">Def. Sale</div>
+                <div className="col-span-1">Def. Buy</div>
+                <div className="col-span-1 text-right">Aksi</div>
+              </div>
+              <div className="space-y-2 p-3">
+                {uomMappings.map((row, idx) => (
+                  <div key={idx} className="grid grid-cols-12 gap-2">
+                    <select
+                      className="col-span-2 h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                      value={row.uomCode}
+                      onChange={(e) =>
+                        setUomMappings((prev) =>
+                          prev.map((x, i) => (i === idx ? { ...x, uomCode: e.target.value } : x)),
+                        )
+                      }
+                    >
+                      <option value="">Pilih satuan</option>
+                      {uomMaster.map((u) => (
+                        <option key={u.code} value={u.code}>
+                          {u.code} - {u.name}
+                        </option>
+                      ))}
+                    </select>
+                    <NumericInput
+                      className="col-span-2"
+                      value={row.toBaseFactor}
+                      onValueChange={(v) =>
+                        setUomMappings((prev) =>
+                          prev.map((x, i) => (i === idx ? { ...x, toBaseFactor: v || "0" } : x)),
+                        )
+                      }
+                    />
+                    <label className="col-span-2 inline-flex h-10 items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={row.isSale}
+                        onChange={(e) =>
+                          setUomMappings((prev) =>
+                            prev.map((x, i) => (i === idx ? { ...x, isSale: e.target.checked } : x)),
+                          )
+                        }
+                      />
+                      Ya
+                    </label>
+                    <label className="col-span-2 inline-flex h-10 items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={row.isPurchase}
+                        onChange={(e) =>
+                          setUomMappings((prev) =>
+                            prev.map((x, i) => (i === idx ? { ...x, isPurchase: e.target.checked } : x)),
+                          )
+                        }
+                      />
+                      Ya
+                    </label>
+                    <label className="col-span-2 inline-flex h-10 items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name="defaultSale"
+                        checked={row.isDefaultSale}
+                        onChange={() =>
+                          setUomMappings((prev) =>
+                            prev.map((x, i) => ({ ...x, isDefaultSale: i === idx })),
+                          )
+                        }
+                      />
+                      Default
+                    </label>
+                    <label className="col-span-1 inline-flex h-10 items-center justify-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name="defaultPurchase"
+                        checked={row.isDefaultPurchase}
+                        onChange={() =>
+                          setUomMappings((prev) =>
+                            prev.map((x, i) => ({ ...x, isDefaultPurchase: i === idx })),
+                          )
+                        }
+                      />
+                    </label>
+                    <div className="col-span-1 flex h-10 items-center justify-end">
+                      <button
+                        className="text-sm font-medium text-red-600 hover:text-red-800"
+                        onClick={() =>
+                          setUomMappings((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)))
+                        }
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    type="button"
+                    onClick={() =>
+                      setUomMappings((prev) => [
+                        ...prev,
+                        {
+                          uomCode: "",
+                          toBaseFactor: "1",
+                          isSale: true,
+                          isPurchase: true,
+                          isDefaultSale: false,
+                          isDefaultPurchase: false,
+                        },
+                      ])
+                    }
+                  >
+                    Tambah Mapping
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center justify-end gap-2">
+              <Button variant="secondary" onClick={() => setMappingModalProduct(null)}>
+                Batal
+              </Button>
+              <Button onClick={handleSaveUomMappings}>Simpan Mapping</Button>
             </div>
           </Card>
         </div>

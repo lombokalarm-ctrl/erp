@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { formatCurrency } from "@/lib/numberFormat";
+import { fetchProductUomMappings, pickDefaultUom, toUomOptions } from "@/lib/uom";
 
 type Customer = { id: string; name: string; code: string; category: string };
 type Product = {
@@ -50,7 +51,7 @@ type SalesOrderDetail = {
     sku: string;
     productName: string;
     qty: string;
-    uom: "pcs" | "pack" | "dus";
+    uom: string;
     unitPrice: string;
     discountAmount: string;
     lineTotal: string;
@@ -87,20 +88,44 @@ export default function SalesOrders() {
   const [orderDate, setOrderDate] = useState(today());
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<
-    { productId: string; qty: string; uom: "pcs" | "pack" | "dus"; unitPrice: string }[]
+    { productId: string; qty: string; uom: string; unitPrice: string }[]
   >([{ productId: "", qty: "1", uom: "pcs", unitPrice: "0" }]);
+  const [productUoms, setProductUoms] = useState<Record<string, Array<{ code: string; name: string }>>>({});
   const company = useSettingsStore((s) => s.company);
   const fetchCompany = useSettingsStore((s) => s.fetchCompany);
 
-  function resolveUnitPrice(p: Product | undefined, c: Customer | undefined, uom: "pcs" | "pack" | "dus") {
+  function resolveUnitPrice(p: Product | undefined, c: Customer | undefined, uom: string) {
     if (!p) return "0";
-    if (c && p.categoryPrices && p.categoryPrices[c.category] && p.categoryPrices[c.category][uom] !== undefined) {
-      const catPrice = p.categoryPrices[c.category][uom];
-      if (catPrice > 0) return String(catPrice);
+    if (uom === "pcs" || uom === "pack" || uom === "dus") {
+      if (c && p.categoryPrices && p.categoryPrices[c.category] && p.categoryPrices[c.category][uom] !== undefined) {
+        const catPrice = p.categoryPrices[c.category][uom];
+        if (catPrice > 0) return String(catPrice);
+      }
+      const up = p.unitPrices?.[uom];
+      if (up !== undefined && up > 0) return String(up);
     }
-    const up = p.unitPrices?.[uom];
-    if (up !== undefined && up > 0) return String(up);
     return String(p.salePrice);
+  }
+
+  async function ensureProductUomsLoaded(productId: string) {
+    if (!productId || productUoms[productId]) return;
+    try {
+      const mappings = await fetchProductUomMappings(productId);
+      const options = toUomOptions(mappings, "sale");
+      if (options.length) {
+        setProductUoms((prev) => ({ ...prev, [productId]: options }));
+      }
+    } catch {
+      // ignore and fallback to legacy options
+    }
+  }
+
+  function getUomOptions(productId: string) {
+    return productUoms[productId] ?? [
+      { code: "pcs", name: "Pcs" },
+      { code: "pack", name: "Pack" },
+      { code: "dus", name: "Dus" },
+    ];
   }
 
   const canSubmit = useMemo(
@@ -266,6 +291,9 @@ export default function SalesOrders() {
           unitPrice: String(Number(it.unitPrice)),
         })),
       );
+      for (const item of detail.items) {
+        void ensureProductUomsLoaded(item.productId);
+      }
       setIsFormOpen(true);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Gagal memuat data edit");
@@ -576,16 +604,26 @@ export default function SalesOrders() {
                     <select
                       className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
                       value={it.productId}
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         const pid = e.target.value;
                         const p = products.find((x) => x.id === pid);
                         const c = customers.find((x) => x.id === customerId);
-                        const newPrice = resolveUnitPrice(p, c, it.uom);
+                        let nextUom = it.uom || "pcs";
+                        if (pid) {
+                          await ensureProductUomsLoaded(pid);
+                          try {
+                            const mappings = await fetchProductUomMappings(pid);
+                            nextUom = pickDefaultUom(mappings, "sale");
+                          } catch {
+                            nextUom = "pcs";
+                          }
+                        }
+                        const newPrice = resolveUnitPrice(p, c, nextUom);
 
                         setItems((prev) =>
                           prev.map((x, i) =>
                             i === idx
-                              ? { ...x, productId: pid, unitPrice: newPrice ?? x.unitPrice }
+                              ? { ...x, productId: pid, uom: nextUom, unitPrice: newPrice ?? x.unitPrice }
                               : x,
                           ),
                         );
@@ -614,7 +652,7 @@ export default function SalesOrders() {
                           className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
                           value={it.uom}
                           onChange={(e) => {
-                            const nextUom = e.target.value as "pcs" | "pack" | "dus";
+                            const nextUom = e.target.value;
                             const p = products.find((x) => x.id === it.productId);
                             const c = customers.find((x) => x.id === customerId);
                             const nextPrice = resolveUnitPrice(p, c, nextUom);
@@ -625,9 +663,11 @@ export default function SalesOrders() {
                             );
                           }}
                         >
-                          <option value="pcs">pcs</option>
-                          <option value="pack">pack</option>
-                          <option value="dus">dus</option>
+                          {getUomOptions(it.productId).map((u) => (
+                            <option key={u.code} value={u.code}>
+                              {u.code}
+                            </option>
+                          ))}
                         </select>
                       </label>
                     </div>

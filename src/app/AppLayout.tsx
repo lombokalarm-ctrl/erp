@@ -25,6 +25,7 @@ import {
   KeyRound,
   Bell,
   Search,
+  Ruler,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -217,6 +218,7 @@ export default function AppLayout() {
           { to: "/customers", label: "Pelanggan", icon: <Users className="h-4 w-4" />, anyPerm: ["customers:read"] },
           { to: "/regions", label: "Wilayah", icon: <Building className="h-4 w-4" />, anyPerm: ["customers:read"] },
           { to: "/products", label: "Produk", icon: <Package className="h-4 w-4" />, anyPerm: ["products:read"] },
+          { to: "/uoms", label: "Satuan (UOM)", icon: <Ruler className="h-4 w-4" />, anyPerm: ["products:read"] },
           { to: "/promos", label: "Promo & Diskon", icon: <Tag className="h-4 w-4" />, anyPerm: ["products:read", "sales_orders:write"] },
           { to: "/suppliers", label: "Supplier", icon: <Truck className="h-4 w-4" />, anyPerm: ["suppliers:read"] },
         ]
