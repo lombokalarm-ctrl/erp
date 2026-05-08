@@ -13,7 +13,7 @@ export type Product = {
   unit: string
   purchasePrice: string
   salePrice: string
-  categoryPrices?: Record<string, { pcs: number; pack: number; dus: number }>
+  categoryPrices?: Record<string, Record<string, number>>
   unitPrices?: Record<string, number>
   packSize: number
   dusSize: number
@@ -115,7 +115,7 @@ export async function createProduct(input: {
   unit: string
   purchasePrice: number
   salePrice: number
-  categoryPrices?: Record<string, { pcs: number; pack: number; dus: number }>
+  categoryPrices?: Record<string, Record<string, number>>
   unitPrices?: Record<string, number>
   packSize?: number
   packPerDus?: number
@@ -188,7 +188,7 @@ export async function updateProduct(
     unit: string
     purchasePrice: number
     salePrice: number
-    categoryPrices: Record<string, { pcs: number; pack: number; dus: number }>
+    categoryPrices: Record<string, Record<string, number>>
     unitPrices: Record<string, number>
     packSize: number
     packPerDus: number
@@ -249,10 +249,5 @@ export async function updateProduct(
   )
 
   const updated = res.rows[0] as Product
-  await syncLegacyProductToUomMappings({
-    productId: updated.id,
-    packSize: nextPackSize,
-    dusSize: nextDusSize,
-  })
   return getProductById(updated.id)
 }

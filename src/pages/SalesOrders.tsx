@@ -15,8 +15,8 @@ type Product = {
   name: string;
   sku: string;
   salePrice: string;
-  categoryPrices?: Record<string, { pcs: number; pack: number; dus: number }>;
-  unitPrices?: { pcs: number; pack: number; dus: number };
+  categoryPrices?: Record<string, Record<string, number>>;
+  unitPrices?: Record<string, number>;
   packSize?: number;
   dusSize?: number;
 };
@@ -105,14 +105,16 @@ export default function SalesOrders() {
     if (!p) return "0";
     const factor = getToBaseFactor(p.id, uom);
     const basePrice = Number(p.salePrice) || 0;
+    const categoryPrice = c ? p.categoryPrices?.[c.category]?.[uom] : undefined;
+    if (categoryPrice !== undefined && Number(categoryPrice) > 0) {
+      return String(categoryPrice);
+    }
+    const directUnitPrice = p.unitPrices?.[uom];
+    if (directUnitPrice !== undefined && Number(directUnitPrice) > 0) {
+      return String(directUnitPrice);
+    }
 
     if (uom === "pcs" || uom === "pack" || uom === "dus") {
-      if (c && p.categoryPrices && p.categoryPrices[c.category] && p.categoryPrices[c.category][uom] !== undefined) {
-        const catPrice = p.categoryPrices[c.category][uom];
-        if (catPrice > 0) return String(catPrice);
-      }
-      const up = p.unitPrices?.[uom];
-      if (up !== undefined && up > 0) return String(up);
       if (factor > 0) return String(basePrice * factor);
     }
     if (factor > 0) return String(basePrice * factor);

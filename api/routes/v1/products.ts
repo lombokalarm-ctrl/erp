@@ -52,18 +52,8 @@ router.post(
           unit: z.string().min(1).default('pcs'),
           purchasePrice: z.coerce.number().min(0),
           salePrice: z.coerce.number().min(0),
-          categoryPrices: z.record(z.object({
-            pcs: z.coerce.number().min(0).default(0),
-            pack: z.coerce.number().min(0).default(0),
-            dus: z.coerce.number().min(0).default(0)
-          })).optional(),
-          unitPrices: z
-            .object({
-              pcs: z.coerce.number().min(0).default(0),
-              pack: z.coerce.number().min(0).default(0),
-              dus: z.coerce.number().min(0).default(0),
-            })
-            .optional(),
+          categoryPrices: z.record(z.record(z.coerce.number().min(0))).optional(),
+          unitPrices: z.record(z.coerce.number().min(0)).optional(),
           packSize: z.coerce.number().int().min(1).default(1).optional(),
           packPerDus: z.coerce.number().int().min(1).default(1).optional(),
           dusSize: z.coerce.number().int().min(1).optional(),
@@ -194,18 +184,8 @@ router.patch(
           unit: z.string().min(1).optional(),
           purchasePrice: z.coerce.number().min(0).optional(),
           salePrice: z.coerce.number().min(0).optional(),
-          categoryPrices: z.record(z.object({
-            pcs: z.coerce.number().min(0).default(0),
-            pack: z.coerce.number().min(0).default(0),
-            dus: z.coerce.number().min(0).default(0)
-          })).optional(),
-          unitPrices: z
-            .object({
-              pcs: z.coerce.number().min(0).optional(),
-              pack: z.coerce.number().min(0).optional(),
-              dus: z.coerce.number().min(0).optional(),
-            })
-            .optional(),
+          categoryPrices: z.record(z.record(z.coerce.number().min(0))).optional(),
+          unitPrices: z.record(z.coerce.number().min(0)).optional(),
           packSize: z.coerce.number().int().min(1).optional(),
           packPerDus: z.coerce.number().int().min(1).optional(),
           dusSize: z.coerce.number().int().min(1).optional(),

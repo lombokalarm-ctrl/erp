@@ -13,8 +13,8 @@ type Product = {
   unit: string;
   purchasePrice: string;
   salePrice: string;
-  categoryPrices?: Record<string, { pcs: number; pack: number; dus: number }>;
-  unitPrices?: { pcs: number; pack: number; dus: number };
+  categoryPrices?: Record<string, Record<string, number>>;
+  unitPrices?: Record<string, number>;
   packSize?: number;
   packPerDus?: number;
   dusSize?: number;
@@ -34,6 +34,14 @@ type ProductUomMapping = {
   isDefaultPurchase: boolean;
 };
 
+const CUSTOMER_CATEGORIES = [
+  "RETAIL",
+  "GROSIR",
+  "MODERN RETAIL",
+  "HOREKA",
+  "NASIONAL MODERN RETAIL",
+];
+
 export default function Products() {
   const [q, setQ] = useState("");
   const [items, setItems] = useState<Product[]>([]);
@@ -44,75 +52,111 @@ export default function Products() {
   const [unit, setUnit] = useState("pcs");
   const [purchasePrice, setPurchasePrice] = useState("0");
   const [salePrice, setSalePrice] = useState("0");
-  const [unitPrices, setUnitPrices] = useState<{ pcs: string; pack: string; dus: string }>({
-    pcs: "0",
-    pack: "0",
-    dus: "0",
-  });
-  const [packSize, setPackSize] = useState("1");
-  const [packPerDus, setPackPerDus] = useState("1");
-  const [categoryPrices, setCategoryPrices] = useState<Record<string, { pcs: string; pack: string; dus: string }>>({
-    "RETAIL": { pcs: "0", pack: "0", dus: "0" },
-    "GROSIR": { pcs: "0", pack: "0", dus: "0" },
-    "MODERN RETAIL": { pcs: "0", pack: "0", dus: "0" },
-    "HOREKA": { pcs: "0", pack: "0", dus: "0" },
-    "NASIONAL MODERN RETAIL": { pcs: "0", pack: "0", dus: "0" }
-  });
+  const [unitPrices, setUnitPrices] = useState<Record<string, string>>({ pcs: "0" });
+  const [categoryPrices, setCategoryPrices] = useState<Record<string, Record<string, string>>>(
+    CUSTOMER_CATEGORIES.reduce(
+      (acc, cat) => ({ ...acc, [cat]: { pcs: "0" } }),
+      {} as Record<string, Record<string, string>>,
+    ),
+  );
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [uomMaster, setUomMaster] = useState<UomMaster[]>([]);
   const [mappingModalProduct, setMappingModalProduct] = useState<Product | null>(null);
   const [uomMappings, setUomMappings] = useState<ProductUomMapping[]>([]);
+  const [editingMappings, setEditingMappings] = useState<ProductUomMapping[]>([]);
+  const [isMappingInlineOpen, setIsMappingInlineOpen] = useState(false);
 
   const canCreate = useMemo(() => sku.trim() && name.trim(), [sku, name]);
+  const activePriceUoms = useMemo(() => {
+    const source = editingMappings.filter((m) => m.isSale);
+    if (!source.length) return [unit || "pcs"];
+    return Array.from(new Set(source.map((m) => m.uomCode))).filter(Boolean);
+  }, [editingMappings, unit]);
 
-  function handleEdit(p: Product) {
+  function emptyCategoryPrices(uomCodes: string[]) {
+    return CUSTOMER_CATEGORIES.reduce(
+      (acc, cat) => ({
+        ...acc,
+        [cat]: uomCodes.reduce((uAcc, code) => ({ ...uAcc, [code]: "0" }), {} as Record<string, string>),
+      }),
+      {} as Record<string, Record<string, string>>,
+    );
+  }
+
+  function mergeCategoryPrices(
+    source: Record<string, Record<string, number | string>> | undefined,
+    uomCodes: string[],
+  ) {
+    const base = emptyCategoryPrices(uomCodes);
+    for (const cat of CUSTOMER_CATEGORIES) {
+      for (const code of uomCodes) {
+        const value = source?.[cat]?.[code];
+        if (value !== undefined && value !== null) {
+          base[cat][code] = String(value);
+        }
+      }
+    }
+    return base;
+  }
+
+  async function handleEdit(p: Product) {
+    setError(null);
     setEditingId(p.id);
     setSku(p.sku);
     setName(p.name);
     setUnit(p.unit);
     setPurchasePrice(p.purchasePrice);
     setSalePrice(p.salePrice);
-    setUnitPrices({
-      pcs: String(p.unitPrices?.pcs ?? Number(p.salePrice) ?? 0),
-      pack: String(p.unitPrices?.pack ?? 0),
-      dus: String(p.unitPrices?.dus ?? 0),
-    });
-    setPackSize(String(p.packSize ?? 1));
-    setPackPerDus(String(p.packPerDus ?? 1));
-    setCategoryPrices({
-      "RETAIL": { 
-        pcs: String(p.categoryPrices?.["RETAIL"]?.pcs || 0), 
-        pack: String(p.categoryPrices?.["RETAIL"]?.pack || 0), 
-        dus: String(p.categoryPrices?.["RETAIL"]?.dus || 0) 
-      },
-      "GROSIR": { 
-        pcs: String(p.categoryPrices?.["GROSIR"]?.pcs || 0), 
-        pack: String(p.categoryPrices?.["GROSIR"]?.pack || 0), 
-        dus: String(p.categoryPrices?.["GROSIR"]?.dus || 0) 
-      },
-      "MODERN RETAIL": { 
-        pcs: String(p.categoryPrices?.["MODERN RETAIL"]?.pcs || 0), 
-        pack: String(p.categoryPrices?.["MODERN RETAIL"]?.pack || 0), 
-        dus: String(p.categoryPrices?.["MODERN RETAIL"]?.dus || 0) 
-      },
-      "HOREKA": { 
-        pcs: String(p.categoryPrices?.["HOREKA"]?.pcs || 0), 
-        pack: String(p.categoryPrices?.["HOREKA"]?.pack || 0), 
-        dus: String(p.categoryPrices?.["HOREKA"]?.dus || 0) 
-      },
-      "NASIONAL MODERN RETAIL": { 
-        pcs: String(p.categoryPrices?.["NASIONAL MODERN RETAIL"]?.pcs || 0), 
-        pack: String(p.categoryPrices?.["NASIONAL MODERN RETAIL"]?.pack || 0), 
-        dus: String(p.categoryPrices?.["NASIONAL MODERN RETAIL"]?.dus || 0) 
-      },
-    });
+    try {
+      const res = await apiFetch<{
+        data: Array<{
+          uomCode: string;
+          toBaseFactor: number;
+          isSale: boolean;
+          isPurchase: boolean;
+          isDefaultSale: boolean;
+          isDefaultPurchase: boolean;
+        }>;
+      }>(`/api/v1/products/${p.id}/uoms`);
+      const mappings = (res.data ?? []).map((it) => ({
+        uomCode: it.uomCode,
+        toBaseFactor: String(it.toBaseFactor),
+        isSale: it.isSale,
+        isPurchase: it.isPurchase,
+        isDefaultSale: it.isDefaultSale,
+        isDefaultPurchase: it.isDefaultPurchase,
+      }));
+      const saleUoms = Array.from(new Set(mappings.filter((m) => m.isSale).map((m) => m.uomCode)));
+      const fallbackUoms = saleUoms.length ? saleUoms : ["pcs", "pack", "dus"];
+      setEditingMappings(mappings);
+      setIsMappingInlineOpen(true);
+      setUnitPrices(
+        fallbackUoms.reduce(
+          (acc, code) => ({ ...acc, [code]: String(p.unitPrices?.[code] ?? (code === "pcs" ? Number(p.salePrice) : 0)) }),
+          {} as Record<string, string>,
+        ),
+      );
+      setCategoryPrices(mergeCategoryPrices(p.categoryPrices, fallbackUoms));
+    } catch {
+      const fallbackUoms = ["pcs", "pack", "dus"];
+      setEditingMappings([]);
+      setIsMappingInlineOpen(false);
+      setUnitPrices(
+        fallbackUoms.reduce(
+          (acc, code) => ({ ...acc, [code]: String(p.unitPrices?.[code] ?? (code === "pcs" ? Number(p.salePrice) : 0)) }),
+          {} as Record<string, string>,
+        ),
+      );
+      setCategoryPrices(mergeCategoryPrices(p.categoryPrices, fallbackUoms));
+    }
     setIsFormOpen(true);
   }
 
   function handleOpenCreate() {
     handleCancelEdit();
+    setCategoryPrices(emptyCategoryPrices([unit || "pcs"]));
     setIsFormOpen(true);
   }
 
@@ -123,16 +167,10 @@ export default function Products() {
     setUnit("pcs");
     setPurchasePrice("0");
     setSalePrice("0");
-    setUnitPrices({ pcs: "0", pack: "0", dus: "0" });
-    setPackSize("1");
-    setPackPerDus("1");
-    setCategoryPrices({
-      "RETAIL": { pcs: "0", pack: "0", dus: "0" },
-      "GROSIR": { pcs: "0", pack: "0", dus: "0" },
-      "MODERN RETAIL": { pcs: "0", pack: "0", dus: "0" },
-      "HOREKA": { pcs: "0", pack: "0", dus: "0" },
-      "NASIONAL MODERN RETAIL": { pcs: "0", pack: "0", dus: "0" }
-    });
+    setUnitPrices({ pcs: "0" });
+    setCategoryPrices(emptyCategoryPrices(["pcs"]));
+    setEditingMappings([]);
+    setIsMappingInlineOpen(false);
     setError(null);
     setIsFormOpen(false);
   }
@@ -172,6 +210,27 @@ export default function Products() {
     load();
     loadUomMaster();
   }, []);
+
+  useEffect(() => {
+    const uomCodes = activePriceUoms.length ? activePriceUoms : [unit || "pcs"];
+    setCategoryPrices((prev) => {
+      const next = emptyCategoryPrices(uomCodes);
+      for (const cat of CUSTOMER_CATEGORIES) {
+        for (const code of uomCodes) {
+          if (prev?.[cat]?.[code] !== undefined) {
+            next[cat][code] = prev[cat][code];
+          }
+        }
+      }
+      return next;
+    });
+    setUnitPrices((prev) =>
+      uomCodes.reduce(
+        (acc, code) => ({ ...acc, [code]: prev[code] ?? (code === unit ? salePrice : "0") }),
+        {} as Record<string, string>,
+      ),
+    );
+  }, [activePriceUoms, salePrice, unit]);
 
   async function handleOpenUomMappings(product: Product) {
     setError(null);
@@ -240,46 +299,29 @@ export default function Products() {
   async function handleSaveProduct() {
     setError(null);
     try {
+      const priceUoms = activePriceUoms.length ? activePriceUoms : [unit || "pcs"];
+      const normalizedUnitPrices = priceUoms.reduce(
+        (acc, code) => ({ ...acc, [code]: Number(unitPrices[code] ?? (code === unit ? salePrice : 0)) || 0 }),
+        {} as Record<string, number>,
+      );
+      const normalizedCategoryPrices = CUSTOMER_CATEGORIES.reduce(
+        (acc, cat) => ({
+          ...acc,
+          [cat]: priceUoms.reduce(
+            (uAcc, code) => ({ ...uAcc, [code]: Number(categoryPrices?.[cat]?.[code] ?? 0) || 0 }),
+            {} as Record<string, number>,
+          ),
+        }),
+        {} as Record<string, Record<string, number>>,
+      );
       const payload = {
         sku,
         name,
         unit,
         purchasePrice: Number(purchasePrice),
         salePrice: Number(salePrice),
-        unitPrices: {
-          pcs: Number(unitPrices.pcs) || 0,
-          pack: Number(unitPrices.pack) || 0,
-          dus: Number(unitPrices.dus) || 0,
-        },
-        packSize: Number(packSize) || 1,
-        packPerDus: Number(packPerDus) || 1,
-        categoryPrices: {
-          "RETAIL": {
-            pcs: Number(categoryPrices["RETAIL"].pcs) || 0,
-            pack: Number(categoryPrices["RETAIL"].pack) || 0,
-            dus: Number(categoryPrices["RETAIL"].dus) || 0,
-          },
-          "GROSIR": {
-            pcs: Number(categoryPrices["GROSIR"].pcs) || 0,
-            pack: Number(categoryPrices["GROSIR"].pack) || 0,
-            dus: Number(categoryPrices["GROSIR"].dus) || 0,
-          },
-          "MODERN RETAIL": {
-            pcs: Number(categoryPrices["MODERN RETAIL"].pcs) || 0,
-            pack: Number(categoryPrices["MODERN RETAIL"].pack) || 0,
-            dus: Number(categoryPrices["MODERN RETAIL"].dus) || 0,
-          },
-          "HOREKA": {
-            pcs: Number(categoryPrices["HOREKA"].pcs) || 0,
-            pack: Number(categoryPrices["HOREKA"].pack) || 0,
-            dus: Number(categoryPrices["HOREKA"].dus) || 0,
-          },
-          "NASIONAL MODERN RETAIL": {
-            pcs: Number(categoryPrices["NASIONAL MODERN RETAIL"].pcs) || 0,
-            pack: Number(categoryPrices["NASIONAL MODERN RETAIL"].pack) || 0,
-            dus: Number(categoryPrices["NASIONAL MODERN RETAIL"].dus) || 0,
-          },
-        }
+        unitPrices: normalizedUnitPrices,
+        categoryPrices: normalizedCategoryPrices,
       };
       if (editingId) {
         await apiFetch(`/api/v1/products/${editingId}`, {
@@ -332,11 +374,7 @@ export default function Products() {
                   <th className="px-4 py-2">Nama</th>
                   <th className="px-4 py-2 whitespace-nowrap">Sat. Dasar</th>
                   <th className="px-4 py-2">Harga Beli</th>
-                  <th className="px-4 py-2 whitespace-nowrap">H. Retail (Pcs|Pack|Dus)</th>
-                  <th className="px-4 py-2 whitespace-nowrap">H. Grosir (Pcs|Pack|Dus)</th>
-                  <th className="px-4 py-2 whitespace-nowrap">H. Modern Retail (Pcs|Pack|Dus)</th>
-                  <th className="px-4 py-2 whitespace-nowrap">H. Horeka (Pcs|Pack|Dus)</th>
-                  <th className="px-4 py-2 whitespace-nowrap">H. Nasional MR (Pcs|Pack|Dus)</th>
+                  <th className="px-4 py-2 whitespace-nowrap">Harga Retail (Dinamis)</th>
                   <th className="px-4 py-2 text-right">Aksi</th>
                 </tr>
               </thead>
@@ -347,11 +385,13 @@ export default function Products() {
                     <td className="px-4 py-2">{p.name}</td>
                     <td className="px-4 py-2">{p.unit}</td>
                     <td className="px-4 py-2">{p.purchasePrice}</td>
-                    <td className="px-4 py-2">{p.categoryPrices?.["RETAIL"] ? `${p.categoryPrices["RETAIL"].pcs}|${p.categoryPrices["RETAIL"].pack}|${p.categoryPrices["RETAIL"].dus}` : "-"}</td>
-                    <td className="px-4 py-2">{p.categoryPrices?.["GROSIR"] ? `${p.categoryPrices["GROSIR"].pcs}|${p.categoryPrices["GROSIR"].pack}|${p.categoryPrices["GROSIR"].dus}` : "-"}</td>
-                    <td className="px-4 py-2">{p.categoryPrices?.["MODERN RETAIL"] ? `${p.categoryPrices["MODERN RETAIL"].pcs}|${p.categoryPrices["MODERN RETAIL"].pack}|${p.categoryPrices["MODERN RETAIL"].dus}` : "-"}</td>
-                    <td className="px-4 py-2">{p.categoryPrices?.["HOREKA"] ? `${p.categoryPrices["HOREKA"].pcs}|${p.categoryPrices["HOREKA"].pack}|${p.categoryPrices["HOREKA"].dus}` : "-"}</td>
-                    <td className="px-4 py-2">{p.categoryPrices?.["NASIONAL MODERN RETAIL"] ? `${p.categoryPrices["NASIONAL MODERN RETAIL"].pcs}|${p.categoryPrices["NASIONAL MODERN RETAIL"].pack}|${p.categoryPrices["NASIONAL MODERN RETAIL"].dus}` : "-"}</td>
+                    <td className="px-4 py-2">
+                      {p.categoryPrices?.["RETAIL"]
+                        ? Object.entries(p.categoryPrices["RETAIL"])
+                            .map(([code, price]) => `${code}:${price}`)
+                            .join(" | ")
+                        : "-"}
+                    </td>
                     <td className="px-4 py-2 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button onClick={() => handleOpenUomMappings(p)} className="text-emerald-600 hover:text-emerald-800 font-medium">UOM</button>
@@ -363,7 +403,7 @@ export default function Products() {
                 ))}
                 {items.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={10}>
+                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={6}>
                       Belum ada data.
                     </td>
                   </tr>
@@ -422,63 +462,59 @@ export default function Products() {
               </div>
 
               <div className="rounded-lg border border-zinc-200 p-3 mt-2 space-y-3">
-                <div className="text-xs font-semibold text-zinc-600">Konversi Satuan</div>
-                <div className="grid grid-cols-2 gap-3">
-                  <NumericInput
-                    label="1 Pack = (pcs)"
-                    value={packSize}
-                    onValueChange={(v) => setPackSize(v || "1")}
-                  />
-                  <NumericInput
-                    label="1 Dus = (pack)"
-                    value={packPerDus}
-                    onValueChange={(v) => setPackPerDus(v || "1")}
-                  />
+                <div className="text-xs font-semibold text-zinc-600">Konversi Satuan (UOM V2)</div>
+                <div className="text-xs text-zinc-600">
+                  Konversi tidak lagi diinput fixed `pack/dus`. Kelola melalui tombol <strong>UOM</strong> pada daftar produk.
                 </div>
-                <Input
-                  label="1 Dus = (pcs)"
-                  value={String((Number(packSize) || 1) * (Number(packPerDus) || 1))}
-                  readOnly
-                />
               </div>
 
               <div className="rounded-lg border border-zinc-200 p-3 mt-2 space-y-3">
-                <div className="text-xs font-semibold text-zinc-600">Harga Per Kategori Pelanggan</div>
+                <div className="text-xs font-semibold text-zinc-600">Harga Dasar per UOM Jual</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {activePriceUoms.map((uomCode) => (
+                    <NumericInput
+                      key={uomCode}
+                      label={`Harga ${uomCode}`}
+                      mode="currency"
+                      value={unitPrices[uomCode] ?? "0"}
+                      onValueChange={(v) =>
+                        setUnitPrices((prev) => ({ ...prev, [uomCode]: v || "0" }))
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-zinc-200 p-3 mt-2 space-y-3">
+                <div className="text-xs font-semibold text-zinc-600">Harga Per Kategori Pelanggan (Dinamis)</div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm text-left">
                     <thead>
                       <tr className="border-b border-zinc-200">
                         <th className="pb-2 font-medium">Kategori</th>
-                        <th className="pb-2 font-medium">H. Pcs</th>
-                        <th className="pb-2 font-medium">H. Pack</th>
-                        <th className="pb-2 font-medium">H. Dus</th>
+                        {activePriceUoms.map((uomCode) => (
+                          <th key={uomCode} className="pb-2 font-medium">{`H. ${uomCode}`}</th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {Object.keys(categoryPrices).map((cat) => (
+                      {CUSTOMER_CATEGORIES.map((cat) => (
                         <tr key={cat} className="border-b border-zinc-100 last:border-0">
                           <td className="py-2 pr-2 text-xs font-medium text-zinc-700">{cat}</td>
-                          <td className="py-2 pr-2">
-                            <NumericInput
-                              value={categoryPrices[cat].pcs}
-                              mode="currency"
-                              onValueChange={(v) => setCategoryPrices(prev => ({ ...prev, [cat]: { ...prev[cat], pcs: v || "0" } }))}
-                            />
-                          </td>
-                          <td className="py-2 pr-2">
-                            <NumericInput
-                              value={categoryPrices[cat].pack}
-                              mode="currency"
-                              onValueChange={(v) => setCategoryPrices(prev => ({ ...prev, [cat]: { ...prev[cat], pack: v || "0" } }))}
-                            />
-                          </td>
-                          <td className="py-2">
-                            <NumericInput
-                              value={categoryPrices[cat].dus}
-                              mode="currency"
-                              onValueChange={(v) => setCategoryPrices(prev => ({ ...prev, [cat]: { ...prev[cat], dus: v || "0" } }))}
-                            />
-                          </td>
+                          {activePriceUoms.map((uomCode) => (
+                            <td key={`${cat}-${uomCode}`} className="py-2 pr-2">
+                              <NumericInput
+                                value={categoryPrices[cat]?.[uomCode] ?? "0"}
+                                mode="currency"
+                                onValueChange={(v) =>
+                                  setCategoryPrices((prev) => ({
+                                    ...prev,
+                                    [cat]: { ...(prev[cat] || {}), [uomCode]: v || "0" },
+                                  }))
+                                }
+                              />
+                            </td>
+                          ))}
                         </tr>
                       ))}
                     </tbody>
