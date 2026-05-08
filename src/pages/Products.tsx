@@ -392,7 +392,20 @@ export default function Products() {
             <div className="mt-3 grid gap-3">
               <Input label="SKU" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="SKU-001" />
               <Input label="Nama" value={name} onChange={(e) => setName(e.target.value)} placeholder="Teh Botol 350ml" />
-              <Input label="Satuan" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="pcs/dus" />
+              <label className="block">
+                <div className="mb-1 text-xs font-medium text-zinc-600">Satuan Dasar</div>
+                <select
+                  className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                  value={unit}
+                  onChange={(e) => setUnit(e.target.value)}
+                >
+                  {(uomMaster.length ? uomMaster : [{ code: "pcs", name: "Pcs" }]).map((u) => (
+                    <option key={u.code} value={u.code}>
+                      {u.code} - {u.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <div className="grid grid-cols-2 gap-3">
                 <NumericInput
                   label="Harga Beli (Dasar)"

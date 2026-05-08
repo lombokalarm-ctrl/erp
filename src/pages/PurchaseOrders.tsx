@@ -5,7 +5,7 @@ import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { formatCurrency } from "@/lib/numberFormat";
-import { fetchProductUomMappings, pickDefaultUom, toUomOptions } from "@/lib/uom";
+import { fetchProductUomMappings, pickDefaultUom, toUomOptions, type ProductUomMapping } from "@/lib/uom";
 
 type Supplier = { id: string; code: string; name: string };
 type Product = { id: string; sku: string; name: string; purchasePrice: string };
@@ -22,6 +22,7 @@ export default function PurchaseOrders() {
     { productId: "", qty: "1", uom: "pcs", unitPrice: "0" },
   ]);
   const [productUoms, setProductUoms] = useState<Record<string, Array<{ code: string; name: string }>>>({});
+  const [productUomMappings, setProductUomMappings] = useState<Record<string, ProductUomMapping[]>>({});
   const [supplierId, setSupplierId] = useState("");
   const [orderDate, setOrderDate] = useState(today());
   const [rows, setRows] = useState<PoRow[]>([]);
@@ -49,11 +50,26 @@ export default function PurchaseOrders() {
     load().catch(() => {});
   }, []);
 
+  function getToBaseFactor(productId: string, uom: string) {
+    const mappings = productUomMappings[productId] ?? [];
+    const match = mappings.find((m) => m.uomCode === uom);
+    return Number(match?.toBaseFactor ?? 0);
+  }
+
+  function resolvePurchasePrice(p: Product | undefined, productId: string, uom: string) {
+    if (!p) return "0";
+    const basePrice = Number(p.purchasePrice) || 0;
+    const factor = getToBaseFactor(productId, uom);
+    if (factor > 0) return String(basePrice * factor);
+    return String(basePrice);
+  }
+
   async function ensureProductUomsLoaded(productId: string) {
-    if (!productId || productUoms[productId]) return;
+    if (!productId || productUomMappings[productId]) return;
     try {
       const mappings = await fetchProductUomMappings(productId);
       const options = toUomOptions(mappings, "purchase");
+      setProductUomMappings((prev) => ({ ...prev, [productId]: mappings }));
       if (options.length) {
         setProductUoms((prev) => ({ ...prev, [productId]: options }));
       }
@@ -176,16 +192,17 @@ export default function PurchaseOrders() {
                         if (pid) {
                           await ensureProductUomsLoaded(pid);
                           try {
-                            const mappings = await fetchProductUomMappings(pid);
+                            const mappings = productUomMappings[pid] ?? (await fetchProductUomMappings(pid));
                             nextUom = pickDefaultUom(mappings, "purchase");
                           } catch {
                             nextUom = "pcs";
                           }
                         }
+                        const nextPrice = resolvePurchasePrice(p, pid, nextUom);
                         setItems((prev) =>
                           prev.map((x, i) =>
                             i === idx
-                              ? { ...x, productId: pid, uom: nextUom, unitPrice: p?.purchasePrice ?? x.unitPrice }
+                              ? { ...x, productId: pid, uom: nextUom, unitPrice: nextPrice }
                               : x,
                           ),
                         );
@@ -211,7 +228,14 @@ export default function PurchaseOrders() {
                         <select
                           className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
                           value={it.uom}
-                          onChange={(e) => setItems((prev) => prev.map((x, i) => i === idx ? { ...x, uom: e.target.value } : x))}
+                          onChange={(e) => {
+                            const nextUom = e.target.value;
+                            const p = products.find((x) => x.id === it.productId);
+                            const nextPrice = resolvePurchasePrice(p, it.productId, nextUom);
+                            setItems((prev) =>
+                              prev.map((x, i) => (i === idx ? { ...x, uom: nextUom, unitPrice: nextPrice } : x)),
+                            );
+                          }}
                         >
                           {getUomOptions(it.productId).map((u) => (
                             <option key={u.code} value={u.code}>

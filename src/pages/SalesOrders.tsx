@@ -7,7 +7,7 @@ import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { formatCurrency } from "@/lib/numberFormat";
-import { fetchProductUomMappings, pickDefaultUom, toUomOptions } from "@/lib/uom";
+import { fetchProductUomMappings, pickDefaultUom, toUomOptions, type ProductUomMapping } from "@/lib/uom";
 
 type Customer = { id: string; name: string; code: string; category: string };
 type Product = {
@@ -91,11 +91,21 @@ export default function SalesOrders() {
     { productId: string; qty: string; uom: string; unitPrice: string }[]
   >([{ productId: "", qty: "1", uom: "pcs", unitPrice: "0" }]);
   const [productUoms, setProductUoms] = useState<Record<string, Array<{ code: string; name: string }>>>({});
+  const [productUomMappings, setProductUomMappings] = useState<Record<string, ProductUomMapping[]>>({});
   const company = useSettingsStore((s) => s.company);
   const fetchCompany = useSettingsStore((s) => s.fetchCompany);
 
+  function getToBaseFactor(productId: string, uom: string) {
+    const mappings = productUomMappings[productId] ?? [];
+    const match = mappings.find((m) => m.uomCode === uom);
+    return Number(match?.toBaseFactor ?? 0);
+  }
+
   function resolveUnitPrice(p: Product | undefined, c: Customer | undefined, uom: string) {
     if (!p) return "0";
+    const factor = getToBaseFactor(p.id, uom);
+    const basePrice = Number(p.salePrice) || 0;
+
     if (uom === "pcs" || uom === "pack" || uom === "dus") {
       if (c && p.categoryPrices && p.categoryPrices[c.category] && p.categoryPrices[c.category][uom] !== undefined) {
         const catPrice = p.categoryPrices[c.category][uom];
@@ -103,15 +113,18 @@ export default function SalesOrders() {
       }
       const up = p.unitPrices?.[uom];
       if (up !== undefined && up > 0) return String(up);
+      if (factor > 0) return String(basePrice * factor);
     }
-    return String(p.salePrice);
+    if (factor > 0) return String(basePrice * factor);
+    return String(basePrice);
   }
 
   async function ensureProductUomsLoaded(productId: string) {
-    if (!productId || productUoms[productId]) return;
+    if (!productId || productUomMappings[productId]) return;
     try {
       const mappings = await fetchProductUomMappings(productId);
       const options = toUomOptions(mappings, "sale");
+      setProductUomMappings((prev) => ({ ...prev, [productId]: mappings }));
       if (options.length) {
         setProductUoms((prev) => ({ ...prev, [productId]: options }));
       }
@@ -612,7 +625,7 @@ export default function SalesOrders() {
                         if (pid) {
                           await ensureProductUomsLoaded(pid);
                           try {
-                            const mappings = await fetchProductUomMappings(pid);
+                            const mappings = productUomMappings[pid] ?? (await fetchProductUomMappings(pid));
                             nextUom = pickDefaultUom(mappings, "sale");
                           } catch {
                             nextUom = "pcs";
