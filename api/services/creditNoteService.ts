@@ -143,6 +143,9 @@ export async function createCreditNoteFromSalesReturn(params: {
     uom: string
     uomToPcs: number
     qtyPcs: number
+    qtyBase?: number
+    baseUomId?: string | null
+    conversionSource?: 'legacy' | 'product_uom_v2'
     unitPrice: number
     discountAmount: number
     lineTotal: number
@@ -154,8 +157,9 @@ export async function createCreditNoteFromSalesReturn(params: {
       throw new ApiError({ code: 'VALIDATION_ERROR', status: 400, message: 'Item note kredit kosong' })
     }
 
-    const subtotal = roundCurrency(params.items.reduce((a, it) => a + it.qty * it.unitPrice, 0))
     const discount = roundCurrency(params.items.reduce((a, it) => a + it.discountAmount, 0))
+    const lineTotal = roundCurrency(params.items.reduce((a, it) => a + it.lineTotal, 0))
+    const subtotal = roundCurrency(lineTotal + discount)
     const total = roundCurrency(Math.max(0, subtotal - discount))
     if (total <= 0) {
       throw new ApiError({ code: 'CONFLICT', status: 409, message: 'Nilai note kredit tidak valid' })

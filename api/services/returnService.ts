@@ -5,11 +5,12 @@ import { ApiError } from '../lib/http.js'
 import { writeAuditLog } from './auditService.js'
 import { createCreditNoteFromSalesReturn } from './creditNoteService.js'
 import { applyInventoryTransaction, getDefaultWarehouseId } from './inventoryService.js'
+import { getToBaseFactorByCode } from './uomConversionService.js'
 
 export type ReturnInputItem = {
   productId: string
   qty: number
-  uom: 'pcs' | 'pack' | 'dus'
+  uom: string
   reason?: string
 }
 
@@ -30,6 +31,23 @@ function pad4(n: number) {
   return String(n).padStart(4, '0')
 }
 
+function normalizeUom(uom: string) {
+  return uom.trim().toLowerCase()
+}
+
+function toLegacyFactor(params: { uom: string; packSize: number; packPerDus: number; dusSize: number }) {
+  const code = normalizeUom(params.uom)
+  if (code === 'pcs') return 1
+  if (code === 'pack') return params.packSize
+  if (code === 'dus') {
+    return (
+      params.dusSize ||
+      (params.packSize > 0 && params.packPerDus > 0 ? params.packSize * params.packPerDus : 0)
+    )
+  }
+  return 0
+}
+
 export async function createReturn(input: ReturnInput) {
   if (!input.items || input.items.length === 0) {
     throw new ApiError({ code: 'VALIDATION_ERROR', status: 400, message: 'Minimal 1 item barang retur' })
@@ -46,37 +64,76 @@ export async function createReturn(input: ReturnInput) {
   }
 
   return withTransaction(async (client) => {
-    // Resolve UOM conversion for all items
+    // Resolve UOM conversion for all items.
     const resolvedItems = []
     for (const it of input.items) {
       const pRes = await client.query(
-        `select pack_size as "packSize", pack_per_dus as "packPerDus", dus_size as "dusSize" from products where id = $1 limit 1`,
+        `
+          select
+            pack_size as "packSize",
+            pack_per_dus as "packPerDus",
+            dus_size as "dusSize",
+            base_uom_id as "baseUomId"
+          from products
+          where id = $1
+          limit 1
+        `,
         [it.productId],
       )
-      const p = pRes.rows[0] as { packSize?: number; packPerDus?: number; dusSize?: number } | undefined
+      const p = pRes.rows[0] as
+        | { packSize?: number; packPerDus?: number; dusSize?: number; baseUomId?: string | null }
+        | undefined
       if (!p) throw new ApiError({ code: 'NOT_FOUND', status: 404, message: 'Produk tidak ditemukan' })
 
+      const uomCode = normalizeUom(it.uom)
       const packSize = Number(p.packSize ?? 0)
       const packPerDus = Number(p.packPerDus ?? 0)
-      const dusSize = Number(p.dusSize ?? 0) || (packSize > 0 && packPerDus > 0 ? packSize * packPerDus : 0)
+      const dusSize =
+        Number(p.dusSize ?? 0) || (packSize > 0 && packPerDus > 0 ? packSize * packPerDus : 0)
 
-      const uomToPcs = it.uom === 'pcs' ? 1 : it.uom === 'pack' ? packSize : dusSize
-      if (!Number.isFinite(uomToPcs) || uomToPcs < 1) {
+      let uomToPcs = toLegacyFactor({
+        uom: uomCode,
+        packSize,
+        packPerDus,
+        dusSize,
+      })
+      let qtyBase = Number(it.qty) * uomToPcs
+      let conversionSource: 'legacy' | 'product_uom_v2' = 'legacy'
+
+      try {
+        const toBaseFactor = await getToBaseFactorByCode({
+          productId: it.productId,
+          uomCode,
+        })
+        if (Number.isFinite(toBaseFactor) && toBaseFactor > 0) {
+          uomToPcs = Number(toBaseFactor)
+          qtyBase = Number(it.qty) * Number(toBaseFactor)
+          conversionSource = 'product_uom_v2'
+        }
+      } catch {
+        // Fallback ke legacy selama fase transisi.
+      }
+
+      if (!Number.isFinite(uomToPcs) || uomToPcs <= 0) {
         throw new ApiError({
           code: 'VALIDATION_ERROR',
           status: 400,
-          message: 'Konversi satuan produk belum diatur (pack/dus)',
+          message: `Konversi satuan produk belum diatur untuk unit ${uomCode}`,
         })
       }
-      
-      const qty = Math.trunc(it.qty)
-      const qtyPcs = qty * uomToPcs
+
+      const qty = Number(it.qty)
+      const qtyPcs = Math.round(qty * uomToPcs)
 
       resolvedItems.push({
         ...it,
         qty,
+        uom: uomCode,
         uomToPcs,
         qtyPcs,
+        qtyBase,
+        baseUomId: p.baseUomId ?? null,
+        conversionSource,
       })
     }
 
@@ -147,8 +204,24 @@ export async function createReturn(input: ReturnInput) {
     // Insert items only (adjust stok saat posted)
     for (const it of resolvedItems) {
       await client.query(
-        `insert into return_items (return_id, product_id, qty, uom, uom_to_pcs, qty_pcs, reason) values ($1, $2, $3, $4, $5, $6, $7)`,
-        [returnId, it.productId, it.qty, it.uom, it.uomToPcs, it.qtyPcs, it.reason ?? null]
+        `
+          insert into return_items (
+            return_id, product_id, qty, uom, uom_to_pcs, qty_pcs, qty_base, base_uom_id, conversion_source, reason
+          )
+          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        `,
+        [
+          returnId,
+          it.productId,
+          it.qty,
+          it.uom,
+          it.uomToPcs,
+          it.qtyPcs,
+          it.qtyBase,
+          it.baseUomId,
+          it.conversionSource,
+          it.reason ?? null,
+        ]
       )
     }
 
@@ -172,7 +245,7 @@ async function validateSalesReturnQty(client: PoolClient, args: {
     `
       select
         ii.product_id as "productId",
-        coalesce(sum(ii.qty_pcs), 0)::float as "invoiceQtyPcs"
+        coalesce(sum(ii.qty_base), 0)::float as "invoiceQtyBase"
       from invoice_items ii
       where ii.invoice_id = $1
       group by ii.product_id
@@ -180,15 +253,15 @@ async function validateSalesReturnQty(client: PoolClient, args: {
     [args.sourceInvoiceId],
   )
   const invoiceMap = new Map<string, number>()
-  for (const row of invoiceQtyRes.rows as Array<{ productId: string; invoiceQtyPcs: number }>) {
-    invoiceMap.set(row.productId, Number(row.invoiceQtyPcs))
+  for (const row of invoiceQtyRes.rows as Array<{ productId: string; invoiceQtyBase: number }>) {
+    invoiceMap.set(row.productId, Number(row.invoiceQtyBase))
   }
 
   const postedReturnRes = await client.query(
     `
       select
         ri.product_id as "productId",
-        coalesce(sum(ri.qty_pcs), 0)::float as "returnedQtyPcs"
+        coalesce(sum(ri.qty_base), 0)::float as "returnedQtyBase"
       from returns r
       join return_items ri on ri.return_id = r.id
       where r.type = 'SALES_RETURN'
@@ -200,13 +273,13 @@ async function validateSalesReturnQty(client: PoolClient, args: {
     [args.sourceInvoiceId, args.returnId],
   )
   const returnedMap = new Map<string, number>()
-  for (const row of postedReturnRes.rows as Array<{ productId: string; returnedQtyPcs: number }>) {
-    returnedMap.set(row.productId, Number(row.returnedQtyPcs))
+  for (const row of postedReturnRes.rows as Array<{ productId: string; returnedQtyBase: number }>) {
+    returnedMap.set(row.productId, Number(row.returnedQtyBase))
   }
 
   const thisReturnRes = await client.query(
     `
-      select product_id as "productId", coalesce(sum(qty_pcs),0)::float as "qtyPcs"
+      select product_id as "productId", coalesce(sum(qty_base),0)::float as "qtyBase"
       from return_items
       where return_id = $1
       group by product_id
@@ -214,11 +287,11 @@ async function validateSalesReturnQty(client: PoolClient, args: {
     [args.returnId],
   )
 
-  for (const row of thisReturnRes.rows as Array<{ productId: string; qtyPcs: number }>) {
+  for (const row of thisReturnRes.rows as Array<{ productId: string; qtyBase: number }>) {
     const delivered = Number(invoiceMap.get(row.productId) ?? 0)
     const alreadyReturned = Number(returnedMap.get(row.productId) ?? 0)
     const remaining = delivered - alreadyReturned
-    if (delivered <= 0 || Number(row.qtyPcs) > remaining + 0.00001) {
+    if (delivered <= 0 || Number(row.qtyBase) > remaining + 0.00001) {
       throw new ApiError({
         code: 'CONFLICT',
         status: 409,
@@ -284,6 +357,9 @@ export async function postReturn(input: { id: string; actorUserId: string }) {
           ri.uom,
           ri.uom_to_pcs as "uomToPcs",
           ri.qty_pcs::float as "qtyPcs",
+          ri.qty_base::float as "qtyBase",
+          ri.base_uom_id as "baseUomId",
+          ri.conversion_source as "conversionSource",
           ri.reason
         from return_items ri
         where ri.return_id = $1
@@ -294,9 +370,12 @@ export async function postReturn(input: { id: string; actorUserId: string }) {
       id: string
       productId: string
       qty: number
-      uom: 'pcs' | 'pack' | 'dus'
+      uom: string
       uomToPcs: number
       qtyPcs: number
+      qtyBase: number
+      baseUomId?: string | null
+      conversionSource?: 'legacy' | 'product_uom_v2'
       reason?: string
     }>
     if (!items.length) {
@@ -315,7 +394,10 @@ export async function postReturn(input: { id: string; actorUserId: string }) {
     }
 
     for (const it of items) {
-      const qtyDelta = header.type === 'SALES_RETURN' ? Number(it.qtyPcs) : -Math.abs(Number(it.qtyPcs))
+      const qtyDelta =
+        header.type === 'SALES_RETURN'
+          ? Number(it.qtyBase)
+          : -Math.abs(Number(it.qtyBase))
       await applyInventoryTransaction({
         warehouseId: header.warehouseId,
         productId: it.productId,
@@ -339,7 +421,7 @@ export async function postReturn(input: { id: string; actorUserId: string }) {
           select
             ii.id,
             ii.product_id as "productId",
-            coalesce(sum(ii.qty_pcs), 0)::float as "qtyPcs",
+            coalesce(sum(ii.qty_base), 0)::float as "qtyBase",
             coalesce(sum(ii.qty * ii.unit_price), 0)::float as "grossAmount",
             coalesce(sum(ii.discount_amount), 0)::float as "discountAmount"
           from invoice_items ii
@@ -352,19 +434,19 @@ export async function postReturn(input: { id: string; actorUserId: string }) {
 
       const invByProduct = new Map<
         string,
-        Array<{ invoiceItemId: string; qtyPcs: number; grossAmount: number; discountAmount: number }>
+        Array<{ invoiceItemId: string; qtyBase: number; grossAmount: number; discountAmount: number }>
       >()
       for (const row of invItemRes.rows as Array<{
         id: string
         productId: string
-        qtyPcs: number
+        qtyBase: number
         grossAmount: number
         discountAmount: number
       }>) {
         const arr = invByProduct.get(row.productId) ?? []
         arr.push({
           invoiceItemId: row.id,
-          qtyPcs: Number(row.qtyPcs),
+          qtyBase: Number(row.qtyBase),
           grossAmount: Number(row.grossAmount),
           discountAmount: Number(row.discountAmount),
         })
@@ -379,6 +461,9 @@ export async function postReturn(input: { id: string; actorUserId: string }) {
         uom: string
         uomToPcs: number
         qtyPcs: number
+        qtyBase: number
+        baseUomId?: string | null
+        conversionSource?: 'legacy' | 'product_uom_v2'
         unitPrice: number
         discountAmount: number
         lineTotal: number
@@ -394,15 +479,15 @@ export async function postReturn(input: { id: string; actorUserId: string }) {
             message: 'Produk retur tidak ditemukan pada invoice sumber',
           })
         }
-        const totalQtyPcs = refs.reduce((a, r) => a + r.qtyPcs, 0)
+        const totalQtyBase = refs.reduce((a, r) => a + r.qtyBase, 0)
         const totalGross = refs.reduce((a, r) => a + r.grossAmount, 0)
         const totalDiscount = refs.reduce((a, r) => a + r.discountAmount, 0)
-        const unitPricePerPcs = totalQtyPcs > 0 ? totalGross / totalQtyPcs : 0
-        const discountPerPcs = totalQtyPcs > 0 ? totalDiscount / totalQtyPcs : 0
-        const unitPrice = unitPricePerPcs * Number(it.uomToPcs)
-        const discountPerUnit = discountPerPcs * Number(it.uomToPcs)
-        const lineGross = Number(it.qty) * unitPrice
-        const lineDiscount = Number(it.qty) * discountPerUnit
+        const unitPricePerBase = totalQtyBase > 0 ? totalGross / totalQtyBase : 0
+        const discountPerBase = totalQtyBase > 0 ? totalDiscount / totalQtyBase : 0
+        const unitPrice = unitPricePerBase * Number(it.uomToPcs)
+        const discountPerUnit = discountPerBase * Number(it.uomToPcs)
+        const lineGross = Number(it.qtyBase) * unitPricePerBase
+        const lineDiscount = Number(it.qtyBase) * discountPerBase
         const lineTotal = Math.max(0, lineGross - lineDiscount)
         creditItems.push({
           sourceReturnItemId: it.id,
@@ -412,6 +497,9 @@ export async function postReturn(input: { id: string; actorUserId: string }) {
           uom: it.uom,
           uomToPcs: it.uomToPcs,
           qtyPcs: Number(it.qtyPcs),
+          qtyBase: Number(it.qtyBase),
+          baseUomId: it.baseUomId ?? null,
+          conversionSource: it.conversionSource ?? 'legacy',
           unitPrice,
           discountAmount: lineDiscount,
           lineTotal,
@@ -572,6 +660,8 @@ export async function getReturnDetail(id: string) {
         ri.qty::float as "qty",
         ri.uom,
         ri.qty_pcs::float as "qtyPcs",
+        ri.qty_base::float as "qtyBase",
+        ri.conversion_source as "conversionSource",
         ri.reason,
         p.sku,
         p.name as "productName"

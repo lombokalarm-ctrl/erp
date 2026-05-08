@@ -63,7 +63,7 @@ router.post(
               z.object({
                 productId: z.string().uuid(),
                 qty: z.coerce.number().positive(),
-                uom: z.enum(['pcs', 'pack', 'dus']),
+                uom: z.string().min(1),
                 reason: z.string().optional(),
               })
             )
@@ -79,7 +79,7 @@ router.post(
         referenceNo: body.referenceNo,
         returnDate: body.returnDate,
         notes: body.notes,
-        items: body.items as { productId: string; qty: number; uom: 'pcs' | 'pack' | 'dus'; reason?: string }[],
+        items: body.items as { productId: string; qty: number; uom: string; reason?: string }[],
         createdBy: req.user!.userId,
       })
       ok(res, result)
