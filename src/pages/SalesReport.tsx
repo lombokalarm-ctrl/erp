@@ -71,18 +71,42 @@ export default function SalesReport() {
       Number(p.breakdown?.find((b) => b.uomCode === (p.uomOrder ?? [])[2])?.qty ?? 0).toFixed(2),
       p.breakdownLabel ?? "-",
       Number(p.qtyBaseSold).toFixed(2),
+      Number(p.revenue).toFixed(2),
+      Number(p.qtyBaseSold) > 0 ? (Number(p.revenue) / Number(p.qtyBaseSold)).toFixed(2) : "0.00",
     ]);
   }
 
   function handleExportExcel() {
     if (!data) return;
-    const headers = ["SKU", "Nama Produk", "Satuan", "Qty 1", "Qty 2", "Qty 3", "Breakdown Satuan", "Qty Base Terjual"];
+    const headers = [
+      "SKU",
+      "Nama Produk",
+      "Satuan",
+      "Qty 1",
+      "Qty 2",
+      "Qty 3",
+      "Breakdown Satuan",
+      "Qty Base Terjual",
+      "Omzet",
+      "Harga Rata2/Base",
+    ];
     exportToExcel("Laporan_Penjualan_Satuan", headers, getExportRows());
   }
 
   function handlePrint() {
     if (!data) return;
-    const headers = ["SKU", "Nama Produk", "Satuan", "Qty 1", "Qty 2", "Qty 3", "Breakdown Satuan", "Qty Base Terjual"];
+    const headers = [
+      "SKU",
+      "Nama Produk",
+      "Satuan",
+      "Qty 1",
+      "Qty 2",
+      "Qty 3",
+      "Breakdown Satuan",
+      "Qty Base Terjual",
+      "Omzet",
+      "Harga Rata2/Base",
+    ];
     printTable("Laporan Penjualan Per Satuan", headers, getExportRows());
   }
 
@@ -172,6 +196,8 @@ export default function SalesReport() {
                       <th className="px-4 py-3 text-right">Qty 3</th>
                       <th className="px-4 py-3">Breakdown Satuan</th>
                       <th className="px-4 py-3 text-right">Qty Base Terjual</th>
+                      <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Omzet</th>
+                      <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Harga Rata2/Base</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -193,11 +219,19 @@ export default function SalesReport() {
                         </td>
                         <td className="px-4 py-3">{p.breakdownLabel ?? "-"}</td>
                         <td className="px-4 py-3 text-right font-medium">{Number(p.qtyBaseSold).toFixed(2)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right font-medium text-emerald-600">
+                          {formatCurrency(p.revenue)}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right">
+                          {formatCurrency(
+                            Number(p.qtyBaseSold) > 0 ? Number(p.revenue) / Number(p.qtyBaseSold) : 0,
+                          )}
+                        </td>
                       </tr>
                     ))}
                     {data.topProducts.length === 0 ? (
                       <tr>
-                        <td className="px-4 py-6 text-center text-sm text-zinc-500" colSpan={7}>
+                        <td className="px-4 py-6 text-center text-sm text-zinc-500" colSpan={9}>
                           Belum ada data produk terjual.
                         </td>
                       </tr>
