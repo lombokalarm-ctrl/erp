@@ -5,15 +5,18 @@ export async function getSalesReport(params: { startDate?: string; endDate?: str
   const values: unknown[] = []
   
   let dateConditionI = "1=1"
+  let dateConditionR = "1=1"
 
   if (params.startDate) {
     values.push(params.startDate)
     dateConditionI += ` AND i.invoice_date >= $${values.length}`
+    dateConditionR += ` AND r.return_date >= $${values.length}`
   }
   
   if (params.endDate) {
     values.push(params.endDate)
     dateConditionI += ` AND i.invoice_date <= $${values.length}`
+    dateConditionR += ` AND r.return_date <= $${values.length}`
   }
 
   // 1. Summary
@@ -26,6 +29,31 @@ export async function getSalesReport(params: { startDate?: string; endDate?: str
       where ${dateConditionI}
     `,
     values
+  )
+
+  const qtySummaryRes = await pool.query(
+    `
+      select
+        coalesce(
+          (
+            select sum(coalesce(ii.qty_base, ii.qty))
+            from invoice_items ii
+            join invoices i on i.id = ii.invoice_id
+            where ${dateConditionI}
+          ),
+          0
+        )::text as "grossQtyBaseSold",
+        coalesce(
+          (
+            select sum(coalesce(ri.qty_base, ri.qty))
+            from return_items ri
+            join returns r on r.id = ri.return_id
+            where r.type = 'SALES_RETURN' and ${dateConditionR}
+          ),
+          0
+        )::text as "salesReturnQtyBase"
+    `,
+    values,
   )
 
   // 2. Top Products with UOM breakdown
@@ -45,15 +73,27 @@ export async function getSalesReport(params: { startDate?: string; endDate?: str
         group by p.id, p.sku, p.name
         order by coalesce(sum(ii.line_total), 0) desc nulls last
         limit 20
+      ),
+      product_returns as (
+        select
+          ri.product_id,
+          coalesce(sum(coalesce(ri.qty_base, ri.qty)), 0) as return_qty_base
+        from return_items ri
+        join returns r on r.id = ri.return_id
+        where r.type = 'SALES_RETURN' and ${dateConditionR}
+        group by ri.product_id
       )
       select
         ps.product_id as "productId",
         ps.sku,
         ps.product_name as "productName",
         ps.qty_base_sold::text as "qtyBaseSold",
+        coalesce(pr.return_qty_base, 0)::text as "salesReturnQtyBase",
+        (ps.qty_base_sold - coalesce(pr.return_qty_base, 0))::text as "netQtyBaseSold",
         ps.revenue::text as "revenue",
         coalesce(m.uom_mappings, '[]'::json) as "uomMappings"
       from product_sales ps
+      left join product_returns pr on pr.product_id = ps.product_id
       left join lateral (
         select
           json_agg(
@@ -140,6 +180,8 @@ export async function getSalesReport(params: { startDate?: string; endDate?: str
       sku: row.sku,
       productName: row.productName,
       qtyBaseSold: row.qtyBaseSold,
+      salesReturnQtyBase: row.salesReturnQtyBase,
+      netQtyBaseSold: row.netQtyBaseSold,
       revenue: row.revenue,
       breakdown,
       breakdownLabel,
@@ -151,10 +193,17 @@ export async function getSalesReport(params: { startDate?: string; endDate?: str
     }
   })
 
+  const grossQtyBaseSold = Number(qtySummaryRes.rows[0]?.grossQtyBaseSold ?? 0)
+  const salesReturnQtyBase = Number(qtySummaryRes.rows[0]?.salesReturnQtyBase ?? 0)
+  const netQtyBaseSold = grossQtyBaseSold - salesReturnQtyBase
+
   return {
     summary: {
       totalTransactions: summaryRes.rows[0]?.totalTransactions ?? 0,
       totalRevenue: summaryRes.rows[0]?.totalRevenue ?? "0",
+      grossQtyBaseSold: String(grossQtyBaseSold),
+      salesReturnQtyBase: String(salesReturnQtyBase),
+      netQtyBaseSold: String(netQtyBaseSold),
     },
     topProducts: topProductsWithBreakdown,
     daily: dailyRes.rows

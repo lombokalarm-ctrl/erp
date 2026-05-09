@@ -12,12 +12,17 @@ type SalesReportData = {
   summary: {
     totalTransactions: number;
     totalRevenue: string;
+    grossQtyBaseSold: string;
+    salesReturnQtyBase: string;
+    netQtyBaseSold: string;
   };
   topProducts: {
     productId: string;
     sku: string;
     productName: string;
     qtyBaseSold: string;
+    salesReturnQtyBase: string;
+    netQtyBaseSold: string;
     revenue: string;
     uomOrder?: string[];
     satuanLabel?: string;
@@ -85,6 +90,8 @@ export default function SalesReport() {
       qtyAt(p, 2).toFixed(2),
       p.breakdownLabel ?? "-",
       Number(p.qtyBaseSold).toFixed(2),
+      Number(p.salesReturnQtyBase).toFixed(2),
+      Number(p.netQtyBaseSold).toFixed(2),
       Number(p.revenue).toFixed(2),
       Number(p.qtyBaseSold) > 0 ? (Number(p.revenue) / Number(p.qtyBaseSold)).toFixed(2) : "0.00",
     ]);
@@ -100,7 +107,9 @@ export default function SalesReport() {
       "Qty 2",
       "Qty 3",
       "Breakdown Satuan",
-      "Qty Base Terjual",
+      "Gross Qty Base Terjual",
+      "Qty Base Retur Penjualan",
+      "Net Qty Base Terjual",
       "Omzet",
       "Harga Rata2/Base",
     ];
@@ -117,7 +126,9 @@ export default function SalesReport() {
       "Qty 2",
       "Qty 3",
       "Breakdown Satuan",
-      "Qty Base Terjual",
+      "Gross Qty Base Terjual",
+      "Qty Base Retur Penjualan",
+      "Net Qty Base Terjual",
       "Omzet",
       "Harga Rata2/Base",
     ];
@@ -162,7 +173,7 @@ export default function SalesReport() {
 
       {data && (
         <>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <Card className="p-4">
               <div className="text-xs font-medium text-zinc-500">Total Omzet Penjualan</div>
               <div className="mt-2 text-2xl font-bold text-emerald-600">{formatCurrency(data.summary.totalRevenue)}</div>
@@ -170,6 +181,13 @@ export default function SalesReport() {
             <Card className="p-4">
               <div className="text-xs font-medium text-zinc-500">Total Transaksi</div>
               <div className="mt-2 text-2xl font-bold">{data.summary.totalTransactions} Order</div>
+            </Card>
+            <Card className="p-4">
+              <div className="text-xs font-medium text-zinc-500">Net Qty Base Terjual</div>
+              <div className="mt-2 text-2xl font-bold">{Number(data.summary.netQtyBaseSold).toFixed(2)}</div>
+              <div className="mt-1 text-xs text-zinc-500">
+                Gross {Number(data.summary.grossQtyBaseSold).toFixed(2)} - Retur {Number(data.summary.salesReturnQtyBase).toFixed(2)}
+              </div>
             </Card>
           </div>
 
@@ -209,7 +227,9 @@ export default function SalesReport() {
                       <th className="px-4 py-3 text-right">Qty 2</th>
                       <th className="px-4 py-3 text-right">Qty 3</th>
                       <th className="px-4 py-3">Breakdown Satuan</th>
-                      <th className="px-4 py-3 text-right">Qty Base Terjual</th>
+                      <th className="px-4 py-3 text-right">Gross Qty Base</th>
+                      <th className="px-4 py-3 text-right">Retur Qty Base</th>
+                      <th className="px-4 py-3 text-right">Net Qty Base</th>
                       <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Omzet</th>
                       <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Harga Rata2/Base</th>
                     </tr>
@@ -239,6 +259,8 @@ export default function SalesReport() {
                         </td>
                         <td className="px-4 py-3">{p.breakdownLabel ?? "-"}</td>
                         <td className="px-4 py-3 text-right font-medium">{Number(p.qtyBaseSold).toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right">{Number(p.salesReturnQtyBase).toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right font-medium">{Number(p.netQtyBaseSold).toFixed(2)}</td>
                         <td className="whitespace-nowrap px-4 py-3 text-right font-medium text-emerald-600">
                           {formatCurrency(p.revenue)}
                         </td>
@@ -251,7 +273,7 @@ export default function SalesReport() {
                     ))}
                     {data.topProducts.length === 0 ? (
                       <tr>
-                        <td className="px-4 py-6 text-center text-sm text-zinc-500" colSpan={9}>
+                        <td className="px-4 py-6 text-center text-sm text-zinc-500" colSpan={11}>
                           Belum ada data produk terjual.
                         </td>
                       </tr>
