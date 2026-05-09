@@ -67,9 +67,9 @@ export default function ProfitLossReport() {
     const headers = ["Kategori Produk", "Penjualan Bersih", "HPP (COGS)", "Laba Kotor"];
     const rows = data.byCategory.map(c => [
       c.categoryName,
-      c.netSales,
-      c.cogs,
-      c.grossProfit
+      Number(c.netSales).toFixed(2),
+      Number(c.cogs).toFixed(2),
+      Number(c.grossProfit).toFixed(2)
     ]);
     exportToCSV("Laporan_Rugi_Laba_Kotor_Per_Kategori", headers, rows);
   }
@@ -79,9 +79,9 @@ export default function ProfitLossReport() {
     const headers = ["Kategori Produk", "Penjualan Bersih", "HPP (COGS)", "Laba Kotor"];
     const rows = data.byCategory.map(c => [
       c.categoryName,
-      c.netSales,
-      c.cogs,
-      c.grossProfit
+      Number(c.netSales).toFixed(2),
+      Number(c.cogs).toFixed(2),
+      Number(c.grossProfit).toFixed(2)
     ]);
     printTable("Laporan Laba Kotor per Kategori", headers, rows);
   }
