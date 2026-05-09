@@ -20,6 +20,10 @@ type SalesReportData = {
     qtyBaseSold: string;
     revenue: string;
     uomOrder?: string[];
+    satuanLabel?: string;
+    qty1?: number;
+    qty2?: number;
+    qty3?: number;
     breakdownLabel?: string;
     breakdown?: { uomCode: string; qty: number }[];
   }[];
@@ -61,14 +65,24 @@ export default function SalesReport() {
 
   function getExportRows() {
     if (!data) return [];
-    const formatSatuan = (order: string[]) => (order.length ? order.join(", ") : "-");
+    const formatSatuan = (p: SalesReportData["topProducts"][number]) =>
+      p.satuanLabel ?? ((p.uomOrder ?? []).slice(0, 3).join(", ") || "-");
+    const qtyAt = (p: SalesReportData["topProducts"][number], index: 0 | 1 | 2) => {
+      if (index === 0 && p.qty1 !== undefined) return Number(p.qty1);
+      if (index === 1 && p.qty2 !== undefined) return Number(p.qty2);
+      if (index === 2 && p.qty3 !== undefined) return Number(p.qty3);
+      const code = (p.uomOrder ?? [])[index];
+      if (!code) return 0;
+      return Number(p.breakdown?.find((b) => b.uomCode === code)?.qty ?? 0);
+    };
+
     return data.topProducts.map((p) => [
       p.sku,
       p.productName,
-      formatSatuan((p.uomOrder ?? []).slice(0, 3)),
-      Number(p.breakdown?.find((b) => b.uomCode === (p.uomOrder ?? [])[0])?.qty ?? 0).toFixed(2),
-      Number(p.breakdown?.find((b) => b.uomCode === (p.uomOrder ?? [])[1])?.qty ?? 0).toFixed(2),
-      Number(p.breakdown?.find((b) => b.uomCode === (p.uomOrder ?? [])[2])?.qty ?? 0).toFixed(2),
+      formatSatuan(p),
+      qtyAt(p, 0).toFixed(2),
+      qtyAt(p, 1).toFixed(2),
+      qtyAt(p, 2).toFixed(2),
       p.breakdownLabel ?? "-",
       Number(p.qtyBaseSold).toFixed(2),
       Number(p.revenue).toFixed(2),
@@ -207,15 +221,21 @@ export default function SalesReport() {
                           <div className="font-medium">{p.productName}</div>
                           <div className="text-xs text-zinc-500">{p.sku}</div>
                         </td>
-                        <td className="px-4 py-3">{(p.uomOrder ?? []).slice(0, 3).join(", ") || "-"}</td>
+                        <td className="px-4 py-3">{p.satuanLabel ?? ((p.uomOrder ?? []).slice(0, 3).join(", ") || "-")}</td>
                         <td className="px-4 py-3 text-right">
-                          {Number(p.breakdown?.find((b) => b.uomCode === (p.uomOrder ?? [])[0])?.qty ?? 0).toFixed(2)}
+                          {Number(
+                            p.qty1 ?? p.breakdown?.find((b) => b.uomCode === (p.uomOrder ?? [])[0])?.qty ?? 0,
+                          ).toFixed(2)}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          {Number(p.breakdown?.find((b) => b.uomCode === (p.uomOrder ?? [])[1])?.qty ?? 0).toFixed(2)}
+                          {Number(
+                            p.qty2 ?? p.breakdown?.find((b) => b.uomCode === (p.uomOrder ?? [])[1])?.qty ?? 0,
+                          ).toFixed(2)}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          {Number(p.breakdown?.find((b) => b.uomCode === (p.uomOrder ?? [])[2])?.qty ?? 0).toFixed(2)}
+                          {Number(
+                            p.qty3 ?? p.breakdown?.find((b) => b.uomCode === (p.uomOrder ?? [])[2])?.qty ?? 0,
+                          ).toFixed(2)}
                         </td>
                         <td className="px-4 py-3">{p.breakdownLabel ?? "-"}</td>
                         <td className="px-4 py-3 text-right font-medium">{Number(p.qtyBaseSold).toFixed(2)}</td>

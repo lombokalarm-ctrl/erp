@@ -130,6 +130,10 @@ export async function getSalesReport(params: { startDate?: string; endDate?: str
         : `${Number(qtyBaseNumber.toFixed(2))} unit`
 
     const uomOrder = normalizedMappings.map((m) => m.uomCode).slice(0, 3)
+    const qty1 = Number(breakdown.find((b) => b.uomCode === uomOrder[0])?.qty ?? 0)
+    const qty2 = Number(breakdown.find((b) => b.uomCode === uomOrder[1])?.qty ?? 0)
+    const qty3 = Number(breakdown.find((b) => b.uomCode === uomOrder[2])?.qty ?? 0)
+    const satuanLabel = uomOrder.length ? uomOrder.join(', ') : '-'
 
     return {
       productId: row.productId,
@@ -140,6 +144,10 @@ export async function getSalesReport(params: { startDate?: string; endDate?: str
       breakdown,
       breakdownLabel,
       uomOrder,
+      satuanLabel,
+      qty1,
+      qty2,
+      qty3,
     }
   })
 
