@@ -4,7 +4,7 @@ import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { exportToCSV, printTable } from "@/lib/exportUtils";
+import { exportToExcel, printTable } from "@/lib/exportUtils";
 import { Printer, Download } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/numberFormat";
 
@@ -14,10 +14,14 @@ type SalesReportData = {
     totalRevenue: string;
   };
   topProducts: {
+    productId: string;
     sku: string;
     productName: string;
-    qtySold: number;
+    qtyBaseSold: string;
     revenue: string;
+    uomOrder?: string[];
+    breakdownLabel?: string;
+    breakdown?: { uomCode: string; qty: number }[];
   }[];
   daily: {
     date: string;
@@ -55,28 +59,31 @@ export default function SalesReport() {
     revenue: Number(d.revenue)
   })).reverse() || [];
 
-  function handleExportCSV() {
-    if (!data) return;
-    const headers = ["Nama Barang", "SKU", "Qty Terjual", "Omzet"];
-    const rows = data.topProducts.map(p => [
-      p.productName,
+  function getExportRows() {
+    if (!data) return [];
+    const formatSatuan = (order: string[]) => (order.length ? order.join(", ") : "-");
+    return data.topProducts.map((p) => [
       p.sku,
-      p.qtySold,
-      p.revenue
+      p.productName,
+      formatSatuan((p.uomOrder ?? []).slice(0, 3)),
+      Number(p.breakdown?.find((b) => b.uomCode === (p.uomOrder ?? [])[0])?.qty ?? 0).toFixed(2),
+      Number(p.breakdown?.find((b) => b.uomCode === (p.uomOrder ?? [])[1])?.qty ?? 0).toFixed(2),
+      Number(p.breakdown?.find((b) => b.uomCode === (p.uomOrder ?? [])[2])?.qty ?? 0).toFixed(2),
+      p.breakdownLabel ?? "-",
+      Number(p.qtyBaseSold).toFixed(2),
     ]);
-    exportToCSV("Laporan_Produk_Terlaris", headers, rows);
+  }
+
+  function handleExportExcel() {
+    if (!data) return;
+    const headers = ["SKU", "Nama Produk", "Satuan", "Qty 1", "Qty 2", "Qty 3", "Breakdown Satuan", "Qty Base Terjual"];
+    exportToExcel("Laporan_Penjualan_Satuan", headers, getExportRows());
   }
 
   function handlePrint() {
     if (!data) return;
-    const headers = ["Nama Barang", "SKU", "Qty Terjual", "Omzet"];
-    const rows = data.topProducts.map(p => [
-      p.productName,
-      p.sku,
-      p.qtySold,
-      p.revenue
-    ]);
-    printTable("Laporan Produk Terlaris", headers, rows);
+    const headers = ["SKU", "Nama Produk", "Satuan", "Qty 1", "Qty 2", "Qty 3", "Breakdown Satuan", "Qty Base Terjual"];
+    printTable("Laporan Penjualan Per Satuan", headers, getExportRows());
   }
 
   return (
@@ -100,11 +107,13 @@ export default function SalesReport() {
           <Button variant="secondary" onClick={load}>
             Filter
           </Button>
-          <Button variant="secondary" onClick={handlePrint} title="Cetak Produk Terlaris">
+          <Button variant="secondary" onClick={handlePrint} title="Export PDF">
             <Printer className="h-4 w-4" />
+            PDF
           </Button>
-          <Button variant="secondary" onClick={handleExportCSV} title="Export CSV">
+          <Button variant="secondary" onClick={handleExportExcel} title="Export Excel">
             <Download className="h-4 w-4" />
+            Excel
           </Button>
         </div>
       </div>
@@ -150,31 +159,45 @@ export default function SalesReport() {
 
             <Card className="overflow-hidden">
               <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold">
-                20 Produk Terlaris
+                20 Produk Terlaris (Format Satuan)
               </div>
-              <div className="overflow-auto h-64">
+              <div className="h-64 overflow-auto">
                 <table className="min-w-full text-sm">
                   <thead className="sticky top-0 bg-white">
                     <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
-                      <th className="px-4 py-3">Nama Barang</th>
-                      <th className="px-4 py-3 text-right">Qty Terjual</th>
-                      <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Omzet</th>
+                      <th className="px-4 py-3">Produk</th>
+                      <th className="px-4 py-3">Satuan</th>
+                      <th className="px-4 py-3 text-right">Qty 1</th>
+                      <th className="px-4 py-3 text-right">Qty 2</th>
+                      <th className="px-4 py-3 text-right">Qty 3</th>
+                      <th className="px-4 py-3">Breakdown Satuan</th>
+                      <th className="px-4 py-3 text-right">Qty Base Terjual</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.topProducts.map((p) => (
-                      <tr key={p.sku} className="border-b border-zinc-100 hover:bg-zinc-50">
+                      <tr key={p.productId} className="border-b border-zinc-100 hover:bg-zinc-50">
                         <td className="px-4 py-3">
                           <div className="font-medium">{p.productName}</div>
                           <div className="text-xs text-zinc-500">{p.sku}</div>
                         </td>
-                        <td className="px-4 py-3 text-right">{p.qtySold}</td>
-                        <td className="whitespace-nowrap px-4 py-3 text-right font-medium text-emerald-600">{formatCurrency(p.revenue)}</td>
+                        <td className="px-4 py-3">{(p.uomOrder ?? []).slice(0, 3).join(", ") || "-"}</td>
+                        <td className="px-4 py-3 text-right">
+                          {Number(p.breakdown?.find((b) => b.uomCode === (p.uomOrder ?? [])[0])?.qty ?? 0).toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {Number(p.breakdown?.find((b) => b.uomCode === (p.uomOrder ?? [])[1])?.qty ?? 0).toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {Number(p.breakdown?.find((b) => b.uomCode === (p.uomOrder ?? [])[2])?.qty ?? 0).toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3">{p.breakdownLabel ?? "-"}</td>
+                        <td className="px-4 py-3 text-right font-medium">{Number(p.qtyBaseSold).toFixed(2)}</td>
                       </tr>
                     ))}
                     {data.topProducts.length === 0 ? (
                       <tr>
-                        <td className="px-4 py-6 text-center text-sm text-zinc-500" colSpan={3}>
+                        <td className="px-4 py-6 text-center text-sm text-zinc-500" colSpan={7}>
                           Belum ada data produk terjual.
                         </td>
                       </tr>

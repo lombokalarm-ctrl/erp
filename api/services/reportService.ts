@@ -28,21 +28,47 @@ export async function getSalesReport(params: { startDate?: string; endDate?: str
     values
   )
 
-  // 2. Top Products
+  // 2. Top Products with UOM breakdown
   const topProductsRes = await pool.query(
     `
-      select 
-        p.sku, 
-        p.name as "productName", 
-        sum(ii.qty)::int as "qtySold", 
-        coalesce(sum(ii.line_total), 0)::text as "revenue"
-      from invoice_items ii
-      join invoices i on i.id = ii.invoice_id
-      join products p on p.id = ii.product_id
-      where ${dateConditionI}
-      group by p.id, p.sku, p.name
-      order by sum(ii.line_total) desc nulls last
-      limit 20
+      with product_sales as (
+        select
+          p.id as product_id,
+          p.sku,
+          p.name as product_name,
+          coalesce(sum(coalesce(ii.qty_base, ii.qty)), 0) as qty_base_sold,
+          coalesce(sum(ii.line_total), 0) as revenue
+        from invoice_items ii
+        join invoices i on i.id = ii.invoice_id
+        join products p on p.id = ii.product_id
+        where ${dateConditionI}
+        group by p.id, p.sku, p.name
+        order by coalesce(sum(ii.line_total), 0) desc nulls last
+        limit 20
+      )
+      select
+        ps.product_id as "productId",
+        ps.sku,
+        ps.product_name as "productName",
+        ps.qty_base_sold::text as "qtyBaseSold",
+        ps.revenue::text as "revenue",
+        coalesce(m.uom_mappings, '[]'::json) as "uomMappings"
+      from product_sales ps
+      left join lateral (
+        select
+          json_agg(
+            json_build_object(
+              'uomCode', u.code,
+              'uomName', u.name,
+              'toBaseFactor', pu.to_base_factor
+            )
+            order by pu.to_base_factor desc
+          ) as uom_mappings
+        from product_uoms pu
+        join uoms u on u.id = pu.uom_id
+        where pu.product_id = ps.product_id
+      ) m on true
+      order by ps.revenue desc nulls last
     `,
     values
   )
@@ -63,12 +89,66 @@ export async function getSalesReport(params: { startDate?: string; endDate?: str
     values
   )
 
+  const topProductsWithBreakdown = topProductsRes.rows.map((row) => {
+    const qtyBaseNumber = Number(row.qtyBaseSold ?? 0)
+    const mappingsRaw = Array.isArray(row.uomMappings) ? row.uomMappings : []
+
+    const normalizedMappings = mappingsRaw
+      .map((m: { uomCode?: string; uomName?: string; toBaseFactor?: string | number }) => ({
+        uomCode: String(m.uomCode ?? '').toLowerCase(),
+        uomName: String(m.uomName ?? ''),
+        toBaseFactor: Number(m.toBaseFactor ?? 0),
+      }))
+      .filter((m: { uomCode: string; toBaseFactor: number }) => m.uomCode && m.toBaseFactor > 0)
+      .sort((a: { toBaseFactor: number }, b: { toBaseFactor: number }) => b.toBaseFactor - a.toBaseFactor)
+
+    const breakdown: Array<{ uomCode: string; qty: number }> = []
+    let remaining = qtyBaseNumber
+
+    for (let i = 0; i < normalizedMappings.length; i += 1) {
+      const mapping = normalizedMappings[i]
+      const isLast = i === normalizedMappings.length - 1
+      const unitQty = isLast ? remaining / mapping.toBaseFactor : Math.floor(remaining / mapping.toBaseFactor)
+      if (unitQty > 0 || (isLast && normalizedMappings.length === 1)) {
+        breakdown.push({
+          uomCode: mapping.uomCode,
+          qty: Number(unitQty.toFixed(6)),
+        })
+      }
+      remaining -= unitQty * mapping.toBaseFactor
+      if (Math.abs(remaining) < 1e-9) {
+        remaining = 0
+      }
+    }
+
+    const breakdownLabel =
+      breakdown.length > 0
+        ? breakdown
+            .filter((b) => b.qty > 0)
+            .map((b) => `${Number(b.qty.toFixed(2))} ${b.uomCode}`)
+            .join(' ')
+        : `${Number(qtyBaseNumber.toFixed(2))} unit`
+
+    const uomOrder = normalizedMappings.map((m) => m.uomCode).slice(0, 3)
+
+    return {
+      productId: row.productId,
+      sku: row.sku,
+      productName: row.productName,
+      qtyBaseSold: row.qtyBaseSold,
+      revenue: row.revenue,
+      breakdown,
+      breakdownLabel,
+      uomOrder,
+    }
+  })
+
   return {
     summary: {
       totalTransactions: summaryRes.rows[0]?.totalTransactions ?? 0,
       totalRevenue: summaryRes.rows[0]?.totalRevenue ?? "0",
     },
-    topProducts: topProductsRes.rows,
+    topProducts: topProductsWithBreakdown,
     daily: dailyRes.rows
   }
 }
