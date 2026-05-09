@@ -12,6 +12,7 @@ type ProfitLossData = {
   summary: {
     grossSales: string;
     totalDiscounts: string;
+    salesReturnAmount: string;
     netSales: string;
     cogs: string;
     grossProfit: string;
@@ -121,7 +122,7 @@ export default function ProfitLossReport() {
 
       {data && (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <Card className="p-4 bg-zinc-50">
               <div className="text-xs font-medium text-zinc-500">Penjualan Kotor</div>
               <div className="mt-2 text-xl font-semibold">{formatCurrency(data.summary.grossSales)}</div>
@@ -130,8 +131,12 @@ export default function ProfitLossReport() {
               <div className="text-xs font-medium text-red-600">Total Potongan/Diskon</div>
               <div className="mt-2 text-xl font-semibold text-red-700">- {formatCurrency(data.summary.totalDiscounts)}</div>
             </Card>
+            <Card className="p-4 bg-amber-50/60">
+              <div className="text-xs font-medium text-amber-700">Retur Penjualan (Net)</div>
+              <div className="mt-2 text-xl font-semibold text-amber-700">- {formatCurrency(data.summary.salesReturnAmount)}</div>
+            </Card>
             <Card className="p-4 bg-emerald-50/50">
-              <div className="text-xs font-medium text-emerald-600">Penjualan Bersih (Net Sales)</div>
+              <div className="text-xs font-medium text-emerald-600">Penjualan Bersih (Setelah Retur)</div>
               <div className="mt-2 text-xl font-bold text-emerald-700">{formatCurrency(data.summary.netSales)}</div>
             </Card>
             <Card className="p-4 bg-orange-50/50">

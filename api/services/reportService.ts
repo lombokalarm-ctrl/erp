@@ -386,30 +386,71 @@ export async function getProfitLossReport(params: { startDate?: string; endDate?
   const pool = getPool()
   const values: unknown[] = []
   
-  let dateCondition = "1=1"
+  let dateConditionI = "1=1"
+  let dateConditionR = "1=1"
 
   if (params.startDate) {
     values.push(params.startDate)
-    dateCondition += ` AND i.invoice_date >= $${values.length}`
+    dateConditionI += ` AND i.invoice_date >= $${values.length}`
+    dateConditionR += ` AND r.return_date >= $${values.length}`
   }
   
   if (params.endDate) {
     values.push(params.endDate)
-    dateCondition += ` AND i.invoice_date <= $${values.length}`
+    dateConditionI += ` AND i.invoice_date <= $${values.length}`
+    dateConditionR += ` AND r.return_date <= $${values.length}`
   }
 
-  // 1. Summary of Sales, Discounts, COGS, and Gross Profit
+  // 1. Summary of Sales, Returns, Discounts, COGS, and Gross Profit.
   const summaryRes = await pool.query(
     `
-      select 
-        coalesce(sum(ii.qty * ii.unit_price), 0)::text as "grossSales",
-        coalesce(sum(ii.discount_amount), 0)::text as "totalDiscounts",
-        coalesce(sum(ii.line_total), 0)::text as "netSales",
-        coalesce(sum(ii.qty * p.purchase_price), 0)::text as "cogs"
-      from invoice_items ii
-      join invoices i on i.id = ii.invoice_id
-      join products p on p.id = ii.product_id
-      where ${dateCondition}
+      with sales_rows as (
+        select
+          coalesce(ii.qty_base, ii.qty)::numeric as qty_base,
+          coalesce(ii.qty_base, ii.qty)::numeric * coalesce(ii.unit_price, 0)::numeric as gross_amount,
+          coalesce(ii.discount_amount, 0)::numeric as discount_amount,
+          coalesce(ii.line_total, 0)::numeric as net_amount,
+          coalesce(ii.qty_base, ii.qty)::numeric * coalesce(p.purchase_price, 0)::numeric as cogs_amount
+        from invoice_items ii
+        join invoices i on i.id = ii.invoice_id
+        join products p on p.id = ii.product_id
+        where ${dateConditionI}
+      ),
+      invoice_unit as (
+        select
+          ii.invoice_id,
+          ii.product_id,
+          case
+            when coalesce(sum(coalesce(ii.qty_base, ii.qty)), 0) > 0
+              then coalesce(sum(coalesce(ii.line_total, 0)), 0) / sum(coalesce(ii.qty_base, ii.qty))
+            else 0
+          end as net_unit_price
+        from invoice_items ii
+        group by ii.invoice_id, ii.product_id
+      ),
+      return_rows as (
+        select
+          coalesce(ri.qty_base, ri.qty)::numeric as qty_base,
+          coalesce(ri.qty_base, ri.qty)::numeric * coalesce(iu.net_unit_price, 0)::numeric as return_net_amount,
+          coalesce(ri.qty_base, ri.qty)::numeric * coalesce(p.purchase_price, 0)::numeric as return_cogs_amount
+        from return_items ri
+        join returns r on r.id = ri.return_id and r.type = 'SALES_RETURN'
+        join products p on p.id = ri.product_id
+        left join invoice_unit iu on iu.invoice_id = r.source_invoice_id and iu.product_id = ri.product_id
+        where ${dateConditionR}
+      )
+      select
+        coalesce((select sum(gross_amount) from sales_rows), 0)::text as "grossSales",
+        coalesce((select sum(discount_amount) from sales_rows), 0)::text as "totalDiscounts",
+        coalesce((select sum(return_net_amount) from return_rows), 0)::text as "salesReturnAmount",
+        (
+          coalesce((select sum(net_amount) from sales_rows), 0)
+          - coalesce((select sum(return_net_amount) from return_rows), 0)
+        )::text as "netSales",
+        (
+          coalesce((select sum(cogs_amount) from sales_rows), 0)
+          - coalesce((select sum(return_cogs_amount) from return_rows), 0)
+        )::text as "cogs"
     `,
     values
   )
@@ -417,45 +458,121 @@ export async function getProfitLossReport(params: { startDate?: string; endDate?
   const s = summaryRes.rows[0]
   const grossSales = Number(s?.grossSales ?? 0)
   const totalDiscounts = Number(s?.totalDiscounts ?? 0)
+  const salesReturnAmount = Number(s?.salesReturnAmount ?? 0)
   const netSales = Number(s?.netSales ?? 0)
   const cogs = Number(s?.cogs ?? 0)
   const grossProfit = netSales - cogs
   const marginPercentage = netSales > 0 ? (grossProfit / netSales) * 100 : 0
 
-  // 2. Breakdown by Product Category
+  // 2. Breakdown by Product Category with return-adjusted net/cogs.
   const byCategoryRes = await pool.query(
     `
-      select 
+      with sales_category as (
+        select
+          p.category_id,
+          coalesce(sum(coalesce(ii.line_total, 0)), 0)::numeric as sales_net,
+          coalesce(sum(coalesce(ii.qty_base, ii.qty)::numeric * coalesce(p.purchase_price, 0)::numeric), 0)::numeric as sales_cogs
+        from invoice_items ii
+        join invoices i on i.id = ii.invoice_id
+        join products p on p.id = ii.product_id
+        where ${dateConditionI}
+        group by p.category_id
+      ),
+      invoice_unit as (
+        select
+          ii.invoice_id,
+          ii.product_id,
+          case
+            when coalesce(sum(coalesce(ii.qty_base, ii.qty)), 0) > 0
+              then coalesce(sum(coalesce(ii.line_total, 0)), 0) / sum(coalesce(ii.qty_base, ii.qty))
+            else 0
+          end as net_unit_price
+        from invoice_items ii
+        group by ii.invoice_id, ii.product_id
+      ),
+      return_category as (
+        select
+          p.category_id,
+          coalesce(sum(coalesce(ri.qty_base, ri.qty)::numeric * coalesce(iu.net_unit_price, 0)::numeric), 0)::numeric as return_net,
+          coalesce(sum(coalesce(ri.qty_base, ri.qty)::numeric * coalesce(p.purchase_price, 0)::numeric), 0)::numeric as return_cogs
+        from return_items ri
+        join returns r on r.id = ri.return_id and r.type = 'SALES_RETURN'
+        join products p on p.id = ri.product_id
+        left join invoice_unit iu on iu.invoice_id = r.source_invoice_id and iu.product_id = ri.product_id
+        where ${dateConditionR}
+        group by p.category_id
+      )
+      select
         coalesce(pc.name, 'Tanpa Kategori') as "categoryName",
-        coalesce(sum(ii.line_total), 0)::text as "netSales",
-        coalesce(sum(ii.qty * p.purchase_price), 0)::text as "cogs",
-        coalesce(sum(ii.line_total) - sum(ii.qty * p.purchase_price), 0)::text as "grossProfit"
-      from invoice_items ii
-      join invoices i on i.id = ii.invoice_id
-      join products p on p.id = ii.product_id
-      left join product_categories pc on pc.id = p.category_id
-      where ${dateCondition}
-      group by pc.id, pc.name
-      order by sum(ii.line_total) desc
+        (coalesce(sc.sales_net, 0) - coalesce(rc.return_net, 0))::text as "netSales",
+        (coalesce(sc.sales_cogs, 0) - coalesce(rc.return_cogs, 0))::text as "cogs",
+        (
+          (coalesce(sc.sales_net, 0) - coalesce(rc.return_net, 0))
+          - (coalesce(sc.sales_cogs, 0) - coalesce(rc.return_cogs, 0))
+        )::text as "grossProfit"
+      from sales_category sc
+      left join return_category rc on rc.category_id is not distinct from sc.category_id
+      left join product_categories pc on pc.id = sc.category_id
+      order by (coalesce(sc.sales_net, 0) - coalesce(rc.return_net, 0)) desc
     `,
     values
   )
 
-  // 3. Monthly / Daily Trend (last 30 items or grouped by month if long period)
-  // We'll just do daily trend for simplicity
+  // 3. Daily trend with return-adjusted net/cogs.
   const trendRes = await pool.query(
     `
-      select 
-        i.invoice_date::text as "date",
-        coalesce(sum(ii.line_total), 0)::text as "netSales",
-        coalesce(sum(ii.qty * p.purchase_price), 0)::text as "cogs",
-        coalesce(sum(ii.line_total) - sum(ii.qty * p.purchase_price), 0)::text as "grossProfit"
-      from invoice_items ii
-      join invoices i on i.id = ii.invoice_id
-      join products p on p.id = ii.product_id
-      where ${dateCondition}
-      group by i.invoice_date
-      order by i.invoice_date desc
+      with sales_daily as (
+        select
+          i.invoice_date::date as dt,
+          coalesce(sum(coalesce(ii.line_total, 0)), 0)::numeric as sales_net,
+          coalesce(sum(coalesce(ii.qty_base, ii.qty)::numeric * coalesce(p.purchase_price, 0)::numeric), 0)::numeric as sales_cogs
+        from invoice_items ii
+        join invoices i on i.id = ii.invoice_id
+        join products p on p.id = ii.product_id
+        where ${dateConditionI}
+        group by i.invoice_date::date
+      ),
+      invoice_unit as (
+        select
+          ii.invoice_id,
+          ii.product_id,
+          case
+            when coalesce(sum(coalesce(ii.qty_base, ii.qty)), 0) > 0
+              then coalesce(sum(coalesce(ii.line_total, 0)), 0) / sum(coalesce(ii.qty_base, ii.qty))
+            else 0
+          end as net_unit_price
+        from invoice_items ii
+        group by ii.invoice_id, ii.product_id
+      ),
+      return_daily as (
+        select
+          r.return_date::date as dt,
+          coalesce(sum(coalesce(ri.qty_base, ri.qty)::numeric * coalesce(iu.net_unit_price, 0)::numeric), 0)::numeric as return_net,
+          coalesce(sum(coalesce(ri.qty_base, ri.qty)::numeric * coalesce(p.purchase_price, 0)::numeric), 0)::numeric as return_cogs
+        from return_items ri
+        join returns r on r.id = ri.return_id and r.type = 'SALES_RETURN'
+        join products p on p.id = ri.product_id
+        left join invoice_unit iu on iu.invoice_id = r.source_invoice_id and iu.product_id = ri.product_id
+        where ${dateConditionR}
+        group by r.return_date::date
+      ),
+      all_dates as (
+        select dt from sales_daily
+        union
+        select dt from return_daily
+      )
+      select
+        ad.dt::text as "date",
+        (coalesce(sd.sales_net, 0) - coalesce(rd.return_net, 0))::text as "netSales",
+        (coalesce(sd.sales_cogs, 0) - coalesce(rd.return_cogs, 0))::text as "cogs",
+        (
+          (coalesce(sd.sales_net, 0) - coalesce(rd.return_net, 0))
+          - (coalesce(sd.sales_cogs, 0) - coalesce(rd.return_cogs, 0))
+        )::text as "grossProfit"
+      from all_dates ad
+      left join sales_daily sd on sd.dt = ad.dt
+      left join return_daily rd on rd.dt = ad.dt
+      order by ad.dt desc
       limit 30
     `,
     values
@@ -465,6 +582,7 @@ export async function getProfitLossReport(params: { startDate?: string; endDate?
     summary: {
       grossSales: String(grossSales),
       totalDiscounts: String(totalDiscounts),
+      salesReturnAmount: String(salesReturnAmount),
       netSales: String(netSales),
       cogs: String(cogs),
       grossProfit: String(grossProfit),
