@@ -76,17 +76,19 @@ export default function ProfitLossReport() {
     'Net Sales': Number(d.netSales)
   })).reverse() || [];
 
+  const num2 = (value: string | number) => Math.round(Number(value) * 100) / 100;
+
   function getWaterfallRows(summary: ProfitLossData["summary"]) {
     return [
-      ["Gross Sales", Number(summary.grossSales).toFixed(2)],
-      ["Diskon", Number(summary.totalDiscounts).toFixed(2)],
-      ["Retur Penjualan (Net)", Number(summary.salesReturnAmount).toFixed(2)],
-      ["Net Sales", Number(summary.netSales).toFixed(2)],
-      ["HPP Sales", Number(summary.hppSales).toFixed(2)],
-      ["HPP Retur", Number(summary.hppReturn).toFixed(2)],
-      ["HPP Net", Number(summary.hppNet).toFixed(2)],
-      ["Gross Profit", Number(summary.grossProfit).toFixed(2)],
-      ["Margin Laba Kotor (%)", Number(summary.marginPercentage).toFixed(2)],
+      ["Gross Sales", num2(summary.grossSales)],
+      ["Diskon", num2(summary.totalDiscounts)],
+      ["Retur Penjualan (Net)", num2(summary.salesReturnAmount)],
+      ["Net Sales", num2(summary.netSales)],
+      ["HPP Sales", num2(summary.hppSales)],
+      ["HPP Retur", num2(summary.hppReturn)],
+      ["HPP Net", num2(summary.hppNet)],
+      ["Gross Profit", num2(summary.grossProfit)],
+      ["Margin Laba Kotor (%)", num2(summary.marginPercentage)],
     ] as (string | number)[][];
   }
 
@@ -96,20 +98,20 @@ export default function ProfitLossReport() {
 
     const categoryRows = data.byCategory.map((c) => [
       c.categoryName,
-      Number(c.netSales).toFixed(2),
-      Number(c.cogs).toFixed(2),
-      Number(c.grossProfit).toFixed(2),
+      num2(c.netSales),
+      num2(c.cogs),
+      num2(c.grossProfit),
     ]);
 
     const topSkuRows = data.topProducts.map((p) => [
       p.sku,
       p.productName,
-      Number(p.grossQtyBaseSold).toFixed(2),
-      Number(p.returnQtyBase).toFixed(2),
-      Number(p.netQtyBaseSold).toFixed(2),
-      Number(p.netSales).toFixed(2),
-      Number(p.cogs).toFixed(2),
-      Number(p.grossProfit).toFixed(2),
+      num2(p.grossQtyBaseSold),
+      num2(p.returnQtyBase),
+      num2(p.netQtyBaseSold),
+      num2(p.netSales),
+      num2(p.cogs),
+      num2(p.grossProfit),
     ]);
 
     return {
