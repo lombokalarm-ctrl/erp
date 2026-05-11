@@ -3,6 +3,7 @@ import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import { apiFetch, ApiError } from "@/api/client";
 import { formatCurrency } from "@/lib/numberFormat";
 import { fetchProductUomMappings, pickDefaultUom, toUomOptions, type ProductUomMapping } from "@/lib/uom";
@@ -161,18 +162,13 @@ export default function PurchaseOrders() {
             <div className="mt-3 grid gap-3">
               <label className="block">
                 <div className="mb-1 text-xs font-medium text-zinc-600">Supplier</div>
-                <select
-                  className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                <SearchableSelect
                   value={supplierId}
-                  onChange={(e) => setSupplierId(e.target.value)}
-                >
-                  <option value="">Pilih supplier</option>
-                  {suppliers.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.code} - {s.name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setSupplierId}
+                  placeholder="Pilih supplier"
+                  searchPlaceholder="Cari supplier..."
+                  options={suppliers.map((s) => ({ value: s.id, label: `${s.code} - ${s.name}` }))}
+                />
               </label>
 
             <Input label="Tanggal" type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
@@ -182,11 +178,9 @@ export default function PurchaseOrders() {
               <div className="grid gap-2 p-3">
                 {items.map((it, idx) => (
                   <div key={idx} className="grid gap-2">
-                    <select
-                      className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                    <SearchableSelect
                       value={it.productId}
-                      onChange={async (e) => {
-                        const pid = e.target.value;
+                      onChange={async (pid) => {
                         const p = products.find((x) => x.id === pid);
                         let nextUom = "pcs";
                         if (pid) {
@@ -207,14 +201,10 @@ export default function PurchaseOrders() {
                           ),
                         );
                       }}
-                    >
-                      <option value="">Pilih produk</option>
-                      {products.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.sku} - {p.name}
-                        </option>
-                      ))}
-                    </select>
+                      placeholder="Pilih produk"
+                      searchPlaceholder="Cari SKU / nama produk..."
+                      options={products.map((p) => ({ value: p.id, label: `${p.sku} - ${p.name}` }))}
+                    />
                     <div className="grid grid-cols-2 gap-2">
                       <NumericInput
                         label="Qty"

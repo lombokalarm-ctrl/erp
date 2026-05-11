@@ -4,6 +4,7 @@ import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import { apiFetch, ApiError } from "@/api/client";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { formatCurrency } from "@/lib/numberFormat";
@@ -579,11 +580,9 @@ export default function SalesOrders() {
             <div className="mt-3 grid gap-3">
               <label className="block">
                 <div className="mb-1 text-xs font-medium text-zinc-600">Pelanggan</div>
-                <select
-                  className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                <SearchableSelect
                   value={customerId}
-                  onChange={(e) => {
-                    const newCustId = e.target.value;
+                  onChange={(newCustId) => {
                     setCustomerId(newCustId);
                     const c = customers.find(x => x.id === newCustId);
                     if (c) {
@@ -596,14 +595,10 @@ export default function SalesOrders() {
                       }));
                     }
                   }}
-                >
-                  <option value="">Pilih pelanggan</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.code} - {c.name}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Pilih pelanggan"
+                  searchPlaceholder="Cari pelanggan..."
+                  options={customers.map((c) => ({ value: c.id, label: `${c.code} - ${c.name}` }))}
+                />
               </label>
 
             <Input label="Tanggal" type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
@@ -616,11 +611,9 @@ export default function SalesOrders() {
               <div className="grid gap-2 p-3">
                 {items.map((it, idx) => (
                   <div key={idx} className="grid grid-cols-1 gap-2">
-                    <select
-                      className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                    <SearchableSelect
                       value={it.productId}
-                      onChange={async (e) => {
-                        const pid = e.target.value;
+                      onChange={async (pid) => {
                         const p = products.find((x) => x.id === pid);
                         const c = customers.find((x) => x.id === customerId);
                         let nextUom = it.uom || "pcs";
@@ -643,14 +636,10 @@ export default function SalesOrders() {
                           ),
                         );
                       }}
-                    >
-                      <option value="">Pilih produk</option>
-                      {products.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.sku} - {p.name}
-                        </option>
-                      ))}
-                    </select>
+                      placeholder="Pilih produk"
+                      searchPlaceholder="Cari SKU / nama produk..."
+                      options={products.map((p) => ({ value: p.id, label: `${p.sku} - ${p.name}` }))}
+                    />
                     <div className="grid grid-cols-2 gap-2">
                       <NumericInput
                         label="Qty"

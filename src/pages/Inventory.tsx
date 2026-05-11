@@ -4,6 +4,7 @@ import Input from "@/components/ui/Input";
 import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 
 type SummaryRow = {
   productId: string;
@@ -192,17 +193,13 @@ export default function Inventory() {
                 <div className="mt-3 grid gap-3">
                   <label className="block">
                     <div className="mb-1 text-xs font-medium text-zinc-600">Produk</div>
-                    <select
-                      className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                    <SearchableSelect
                       value={productId}
-                      onChange={(e) => setProductId(e.target.value)}
-                    >
-                      {products.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.sku} - {p.name}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={setProductId}
+                      includePlaceholder={false}
+                      searchPlaceholder="Cari SKU / nama produk..."
+                      options={products.map((p) => ({ value: p.id, label: `${p.sku} - ${p.name}` }))}
+                    />
                   </label>
                   <NumericInput
                     label="Qty Delta"

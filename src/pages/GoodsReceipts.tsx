@@ -4,6 +4,7 @@ import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import { apiFetch, ApiError } from "@/api/client";
 import { BarcodeScanner } from "@/components/ui/BarcodeScanner";
 import { fetchProductUomMappings, pickDefaultUom, toUomOptions } from "@/lib/uom";
@@ -166,18 +167,13 @@ export default function GoodsReceipts() {
             <div className="mt-3 grid gap-3">
               <label className="block">
                 <div className="mb-1 text-xs font-medium text-zinc-600">Gudang</div>
-                <select
-                  className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                <SearchableSelect
                   value={warehouseId}
-                  onChange={(e) => setWarehouseId(e.target.value)}
-                >
-                  <option value="">Pilih gudang</option>
-                  {warehouses.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.code} - {w.name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setWarehouseId}
+                  placeholder="Pilih gudang"
+                  searchPlaceholder="Cari gudang..."
+                  options={warehouses.map((w) => ({ value: w.id, label: `${w.code} - ${w.name}` }))}
+                />
               </label>
 
             <Input label="Tanggal Terima" type="date" value={receivedDate} onChange={(e) => setReceivedDate(e.target.value)} />
@@ -188,33 +184,28 @@ export default function GoodsReceipts() {
                 {items.map((it, idx) => (
                   <div key={idx} className="grid gap-2">
                     <div className="flex gap-2">
-                      <select
-                        className="h-10 flex-1 rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                      <SearchableSelect
+                        className="flex-1"
                         value={it.productId}
-                      onChange={async (e) => {
-                        const productId = e.target.value;
-                        let nextUom = "pcs";
-                        if (productId) {
-                          await ensureProductUomsLoaded(productId);
-                          try {
-                            const mappings = await fetchProductUomMappings(productId);
-                            nextUom = pickDefaultUom(mappings, "purchase");
-                          } catch {
-                            nextUom = "pcs";
+                        onChange={async (productId) => {
+                          let nextUom = "pcs";
+                          if (productId) {
+                            await ensureProductUomsLoaded(productId);
+                            try {
+                              const mappings = await fetchProductUomMappings(productId);
+                              nextUom = pickDefaultUom(mappings, "purchase");
+                            } catch {
+                              nextUom = "pcs";
+                            }
                           }
-                        }
-                        setItems((prev) =>
-                          prev.map((x, i) => (i === idx ? { ...x, productId, uom: nextUom } : x)),
-                        );
-                      }}
-                      >
-                        <option value="">Pilih produk</option>
-                        {products.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.sku} - {p.name}
-                          </option>
-                        ))}
-                      </select>
+                          setItems((prev) =>
+                            prev.map((x, i) => (i === idx ? { ...x, productId, uom: nextUom } : x)),
+                          );
+                        }}
+                        placeholder="Pilih produk"
+                        searchPlaceholder="Cari SKU / nama produk..."
+                        options={products.map((p) => ({ value: p.id, label: `${p.sku} - ${p.name}` }))}
+                      />
                       <Button
                         type="button"
                         variant="secondary"

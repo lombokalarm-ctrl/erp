@@ -3,6 +3,7 @@ import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import { apiFetch, ApiError } from "@/api/client";
 import { RotateCcw } from "lucide-react";
 import { fetchProductUomMappings, pickDefaultUom, toUomOptions } from "@/lib/uom";
@@ -321,45 +322,36 @@ export default function Returns() {
               <div className="mb-1 text-xs font-medium text-zinc-600">
                 {type === "SALES_RETURN" ? "Pilih Pelanggan" : "Pilih Supplier"}
               </div>
-              <select
-                className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+              <SearchableSelect
                 value={partnerId}
-                onChange={(e) => setPartnerId(e.target.value)}
-              >
-                <option value="">-- Pilih --</option>
-                {type === "SALES_RETURN"
-                  ? customers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.code} - {c.name}
-                      </option>
-                    ))
-                  : suppliers.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.code} - {s.name}
-                      </option>
-                    ))}
-              </select>
+                onChange={setPartnerId}
+                placeholder="-- Pilih --"
+                searchPlaceholder={type === "SALES_RETURN" ? "Cari pelanggan..." : "Cari supplier..."}
+                options={
+                  type === "SALES_RETURN"
+                    ? customers.map((c) => ({ value: c.id, label: `${c.code} - ${c.name}` }))
+                    : suppliers.map((s) => ({ value: s.id, label: `${s.code} - ${s.name}` }))
+                }
+              />
             </label>
 
             {type === "SALES_RETURN" ? (
               <label className="block">
                 <div className="mb-1 text-xs font-medium text-zinc-600">Invoice Sumber</div>
-                <select
-                  className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                <SearchableSelect
                   value={sourceInvoiceId}
-                  onChange={(e) => {
-                    setSourceInvoiceId(e.target.value);
-                    const selected = salesInvoices.find((x) => x.id === e.target.value);
+                  onChange={(nextInvoiceId) => {
+                    setSourceInvoiceId(nextInvoiceId);
+                    const selected = salesInvoices.find((x) => x.id === nextInvoiceId);
                     if (selected && !referenceNo) setReferenceNo(selected.invoiceNo);
                   }}
-                >
-                  <option value="">-- Pilih Invoice --</option>
-                  {salesInvoices.map((inv) => (
-                    <option key={inv.id} value={inv.id}>
-                      {inv.invoiceNo} ({inv.status})
-                    </option>
-                  ))}
-                </select>
+                  placeholder="-- Pilih Invoice --"
+                  searchPlaceholder="Cari nomor invoice..."
+                  options={salesInvoices.map((inv) => ({
+                    value: inv.id,
+                    label: `${inv.invoiceNo} (${inv.status})`,
+                  }))}
+                />
               </label>
             ) : null}
 
@@ -383,11 +375,9 @@ export default function Returns() {
               <div className="grid gap-3 p-3">
                 {items.map((it, idx) => (
                   <div key={idx} className="grid gap-2 border-b border-zinc-100 pb-3 last:border-0 last:pb-0">
-                    <select
-                      className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                    <SearchableSelect
                       value={it.productId}
-                      onChange={async (e) => {
-                        const productId = e.target.value;
+                      onChange={async (productId) => {
                         let nextUom = "pcs";
                         if (productId) {
                           await ensureProductUomsLoaded(productId);
@@ -402,14 +392,10 @@ export default function Returns() {
                           prev.map((x, i) => (i === idx ? { ...x, productId, uom: nextUom } : x)),
                         );
                       }}
-                    >
-                      <option value="">Pilih produk...</option>
-                      {selectableProducts.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.sku} - {p.name}
-                        </option>
-                      ))}
-                    </select>
+                      placeholder="Pilih produk..."
+                      searchPlaceholder="Cari SKU / nama produk..."
+                      options={selectableProducts.map((p) => ({ value: p.id, label: `${p.sku} - ${p.name}` }))}
+                    />
                     <div className="flex gap-2">
                       <NumericInput
                         label="Qty"
