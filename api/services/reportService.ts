@@ -443,6 +443,8 @@ export async function getProfitLossReport(params: { startDate?: string; endDate?
         coalesce((select sum(gross_amount) from sales_rows), 0)::text as "grossSales",
         coalesce((select sum(discount_amount) from sales_rows), 0)::text as "totalDiscounts",
         coalesce((select sum(return_net_amount) from return_rows), 0)::text as "salesReturnAmount",
+        coalesce((select sum(cogs_amount) from sales_rows), 0)::text as "hppSales",
+        coalesce((select sum(return_cogs_amount) from return_rows), 0)::text as "hppReturn",
         (
           coalesce((select sum(net_amount) from sales_rows), 0)
           - coalesce((select sum(return_net_amount) from return_rows), 0)
@@ -450,7 +452,7 @@ export async function getProfitLossReport(params: { startDate?: string; endDate?
         (
           coalesce((select sum(cogs_amount) from sales_rows), 0)
           - coalesce((select sum(return_cogs_amount) from return_rows), 0)
-        )::text as "cogs"
+        )::text as "hppNet"
     `,
     values
   )
@@ -459,9 +461,11 @@ export async function getProfitLossReport(params: { startDate?: string; endDate?
   const grossSales = Number(s?.grossSales ?? 0)
   const totalDiscounts = Number(s?.totalDiscounts ?? 0)
   const salesReturnAmount = Number(s?.salesReturnAmount ?? 0)
+  const hppSales = Number(s?.hppSales ?? 0)
+  const hppReturn = Number(s?.hppReturn ?? 0)
+  const hppNet = Number(s?.hppNet ?? 0)
   const netSales = Number(s?.netSales ?? 0)
-  const cogs = Number(s?.cogs ?? 0)
-  const grossProfit = netSales - cogs
+  const grossProfit = netSales - hppNet
   const marginPercentage = netSales > 0 ? (grossProfit / netSales) * 100 : 0
 
   // 2. Breakdown by Product Category with return-adjusted net/cogs.
@@ -649,7 +653,10 @@ export async function getProfitLossReport(params: { startDate?: string; endDate?
       totalDiscounts: String(totalDiscounts),
       salesReturnAmount: String(salesReturnAmount),
       netSales: String(netSales),
-      cogs: String(cogs),
+      cogs: String(hppNet),
+      hppSales: String(hppSales),
+      hppReturn: String(hppReturn),
+      hppNet: String(hppNet),
       grossProfit: String(grossProfit),
       marginPercentage: marginPercentage.toFixed(2),
     },

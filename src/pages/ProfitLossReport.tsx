@@ -15,6 +15,9 @@ type ProfitLossData = {
     salesReturnAmount: string;
     netSales: string;
     cogs: string;
+    hppSales: string;
+    hppReturn: string;
+    hppNet: string;
     grossProfit: string;
     marginPercentage: string;
   };
@@ -73,17 +76,23 @@ export default function ProfitLossReport() {
     'Net Sales': Number(d.netSales)
   })).reverse() || [];
 
+  function getWaterfallRows(summary: ProfitLossData["summary"]) {
+    return [
+      ["Gross Sales", Number(summary.grossSales).toFixed(2)],
+      ["Diskon", Number(summary.totalDiscounts).toFixed(2)],
+      ["Retur Penjualan (Net)", Number(summary.salesReturnAmount).toFixed(2)],
+      ["Net Sales", Number(summary.netSales).toFixed(2)],
+      ["HPP Sales", Number(summary.hppSales).toFixed(2)],
+      ["HPP Retur", Number(summary.hppReturn).toFixed(2)],
+      ["HPP Net", Number(summary.hppNet).toFixed(2)],
+      ["Gross Profit", Number(summary.grossProfit).toFixed(2)],
+      ["Margin Laba Kotor (%)", Number(summary.marginPercentage).toFixed(2)],
+    ] as (string | number)[][];
+  }
+
   function buildExportSections() {
     if (!data) return;
-    const summaryRows = [
-      ["Gross Sales", Number(data.summary.grossSales).toFixed(2)],
-      ["Diskon", Number(data.summary.totalDiscounts).toFixed(2)],
-      ["Retur Penjualan (Net)", Number(data.summary.salesReturnAmount).toFixed(2)],
-      ["Net Sales", Number(data.summary.netSales).toFixed(2)],
-      ["HPP (COGS)", Number(data.summary.cogs).toFixed(2)],
-      ["Gross Profit", Number(data.summary.grossProfit).toFixed(2)],
-      ["Margin Laba Kotor (%)", Number(data.summary.marginPercentage).toFixed(2)],
-    ] as (string | number)[][];
+    const summaryRows = getWaterfallRows(data.summary);
 
     const categoryRows = data.byCategory.map((c) => [
       c.categoryName,
@@ -121,7 +130,7 @@ export default function ProfitLossReport() {
       },
       {
         name: "Per Kategori",
-        headers: ["Kategori Produk", "Penjualan Bersih", "HPP (COGS)", "Laba Kotor"],
+        headers: ["Kategori Produk", "Penjualan Bersih", "HPP Net", "Laba Kotor"],
         rows: sections.categoryRows,
       },
       {
@@ -152,7 +161,7 @@ export default function ProfitLossReport() {
       },
       {
         title: "Laba Kotor per Kategori Produk",
-        headers: ["Kategori Produk", "Penjualan Bersih", "HPP (COGS)", "Laba Kotor"],
+        headers: ["Kategori Produk", "Penjualan Bersih", "HPP Net", "Laba Kotor"],
         rows: sections.categoryRows,
       },
       {
@@ -226,8 +235,11 @@ export default function ProfitLossReport() {
               <div className="mt-2 text-xl font-bold text-emerald-700">{formatCurrency(data.summary.netSales)}</div>
             </Card>
             <Card className="p-4 bg-orange-50/50">
-              <div className="text-xs font-medium text-orange-600">Harga Pokok Penjualan (HPP)</div>
-              <div className="mt-2 text-xl font-semibold text-orange-700">- {formatCurrency(data.summary.cogs)}</div>
+              <div className="text-xs font-medium text-orange-600">Harga Pokok Penjualan (HPP Net)</div>
+              <div className="mt-2 text-xl font-semibold text-orange-700">- {formatCurrency(data.summary.hppNet)}</div>
+              <div className="mt-1 text-xs text-orange-700">
+                Sales {formatCurrency(data.summary.hppSales)} - Retur {formatCurrency(data.summary.hppReturn)}
+              </div>
             </Card>
           </div>
 
@@ -264,8 +276,8 @@ export default function ProfitLossReport() {
                 <div className="mt-1 text-sm font-semibold text-emerald-700">{formatCurrency(data.summary.netSales)}</div>
               </div>
               <div className="rounded-lg border border-orange-200 bg-orange-50 p-3">
-                <div className="text-xs text-orange-700">COGS</div>
-                <div className="mt-1 text-sm font-semibold text-orange-700">- {formatCurrency(data.summary.cogs)}</div>
+                <div className="text-xs text-orange-700">HPP Net</div>
+                <div className="mt-1 text-sm font-semibold text-orange-700">- {formatCurrency(data.summary.hppNet)}</div>
               </div>
               <div className="rounded-lg border border-zinc-300 bg-zinc-50 p-3">
                 <div className="text-xs text-zinc-700">Gross Profit</div>
@@ -307,7 +319,7 @@ export default function ProfitLossReport() {
                     <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
                       <th className="px-4 py-3">Kategori</th>
                       <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Net Sales</th>
-                      <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">HPP</th>
+                      <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">HPP Net</th>
                       <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Laba Kotor</th>
                     </tr>
                   </thead>
@@ -346,7 +358,7 @@ export default function ProfitLossReport() {
                     <th className="px-4 py-3 text-right">Retur Qty Base</th>
                     <th className="px-4 py-3 text-right">Net Qty Base</th>
                     <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Net Sales</th>
-                    <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">COGS</th>
+                    <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">HPP Net</th>
                     <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Gross Profit</th>
                   </tr>
                 </thead>
