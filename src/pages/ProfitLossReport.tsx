@@ -3,7 +3,7 @@ import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
-import { exportToCSV, printTable } from "@/lib/exportUtils";
+import { exportToExcelWorkbook, printSections } from "@/lib/exportUtils";
 import { Printer, Download } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatCurrency, formatCurrencyCompact } from "@/lib/numberFormat";
@@ -73,28 +73,103 @@ export default function ProfitLossReport() {
     'Net Sales': Number(d.netSales)
   })).reverse() || [];
 
-  function handleExportCSV() {
+  function buildExportSections() {
     if (!data) return;
-    const headers = ["Kategori Produk", "Penjualan Bersih", "HPP (COGS)", "Laba Kotor"];
-    const rows = data.byCategory.map(c => [
+    const summaryRows = [
+      ["Gross Sales", Number(data.summary.grossSales).toFixed(2)],
+      ["Diskon", Number(data.summary.totalDiscounts).toFixed(2)],
+      ["Retur Penjualan (Net)", Number(data.summary.salesReturnAmount).toFixed(2)],
+      ["Net Sales", Number(data.summary.netSales).toFixed(2)],
+      ["HPP (COGS)", Number(data.summary.cogs).toFixed(2)],
+      ["Gross Profit", Number(data.summary.grossProfit).toFixed(2)],
+      ["Margin Laba Kotor (%)", Number(data.summary.marginPercentage).toFixed(2)],
+    ] as (string | number)[][];
+
+    const categoryRows = data.byCategory.map((c) => [
       c.categoryName,
       Number(c.netSales).toFixed(2),
       Number(c.cogs).toFixed(2),
-      Number(c.grossProfit).toFixed(2)
+      Number(c.grossProfit).toFixed(2),
     ]);
-    exportToCSV("Laporan_Rugi_Laba_Kotor_Per_Kategori", headers, rows);
+
+    const topSkuRows = data.topProducts.map((p) => [
+      p.sku,
+      p.productName,
+      Number(p.grossQtyBaseSold).toFixed(2),
+      Number(p.returnQtyBase).toFixed(2),
+      Number(p.netQtyBaseSold).toFixed(2),
+      Number(p.netSales).toFixed(2),
+      Number(p.cogs).toFixed(2),
+      Number(p.grossProfit).toFixed(2),
+    ]);
+
+    return {
+      summaryRows,
+      categoryRows,
+      topSkuRows,
+    };
+  }
+
+  function handleExportExcel() {
+    const sections = buildExportSections();
+    if (!sections) return;
+    exportToExcelWorkbook("Laporan_Rugi_Laba_Analitik", [
+      {
+        name: "Waterfall",
+        headers: ["Komponen", "Nilai"],
+        rows: sections.summaryRows,
+      },
+      {
+        name: "Per Kategori",
+        headers: ["Kategori Produk", "Penjualan Bersih", "HPP (COGS)", "Laba Kotor"],
+        rows: sections.categoryRows,
+      },
+      {
+        name: "Top SKU",
+        headers: [
+          "SKU",
+          "Nama Produk",
+          "Gross Qty Base",
+          "Retur Qty Base",
+          "Net Qty Base",
+          "Net Sales",
+          "COGS",
+          "Gross Profit",
+        ],
+        rows: sections.topSkuRows,
+      },
+    ]);
   }
 
   function handlePrint() {
-    if (!data) return;
-    const headers = ["Kategori Produk", "Penjualan Bersih", "HPP (COGS)", "Laba Kotor"];
-    const rows = data.byCategory.map(c => [
-      c.categoryName,
-      Number(c.netSales).toFixed(2),
-      Number(c.cogs).toFixed(2),
-      Number(c.grossProfit).toFixed(2)
+    const sections = buildExportSections();
+    if (!sections) return;
+    printSections("Laporan Rugi Laba Analitik", [
+      {
+        title: "Waterfall Laba Kotor",
+        headers: ["Komponen", "Nilai"],
+        rows: sections.summaryRows,
+      },
+      {
+        title: "Laba Kotor per Kategori Produk",
+        headers: ["Kategori Produk", "Penjualan Bersih", "HPP (COGS)", "Laba Kotor"],
+        rows: sections.categoryRows,
+      },
+      {
+        title: "Top Kontributor Laba Kotor per SKU",
+        headers: [
+          "SKU",
+          "Nama Produk",
+          "Gross Qty Base",
+          "Retur Qty Base",
+          "Net Qty Base",
+          "Net Sales",
+          "COGS",
+          "Gross Profit",
+        ],
+        rows: sections.topSkuRows,
+      },
     ]);
-    printTable("Laporan Laba Kotor per Kategori", headers, rows);
   }
 
   return (
@@ -118,10 +193,10 @@ export default function ProfitLossReport() {
           <Button variant="secondary" onClick={load}>
             Filter
           </Button>
-          <Button variant="secondary" onClick={handlePrint} title="Cetak Laporan Kategori">
+          <Button variant="secondary" onClick={handlePrint} title="Export PDF">
             <Printer className="h-4 w-4" />
           </Button>
-          <Button variant="secondary" onClick={handleExportCSV} title="Export CSV Kategori">
+          <Button variant="secondary" onClick={handleExportExcel} title="Export Excel Analitik">
             <Download className="h-4 w-4" />
           </Button>
         </div>
