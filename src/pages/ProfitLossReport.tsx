@@ -78,6 +78,39 @@ export default function ProfitLossReport() {
 
   const num2 = (value: string | number) => Math.round(Number(value) * 100) / 100;
 
+  function buildInterpretation(current: ProfitLossData) {
+    const margin = Number(current.summary.marginPercentage);
+    const sortedByProfit = [...current.topProducts].sort(
+      (a, b) => Number(b.grossProfit) - Number(a.grossProfit),
+    );
+    const topProfit = sortedByProfit.find((p) => Number(p.grossProfit) > 0) || null;
+    const topLoss = [...current.topProducts]
+      .sort((a, b) => Number(a.grossProfit) - Number(b.grossProfit))
+      .find((p) => Number(p.grossProfit) < 0) || null;
+
+    let marginStatus = "Sehat";
+    if (margin < 0) marginStatus = "Negatif";
+    else if (margin < 10) marginStatus = "Tipis";
+    else if (margin < 20) marginStatus = "Waspada";
+
+    const notes: string[] = [];
+    if (Number(current.summary.salesReturnAmount) > 0) {
+      notes.push("Retur penjualan aktif dan mengurangi penjualan bersih.");
+    }
+    if (Number(current.summary.hppReturn) > 0) {
+      notes.push("HPP retur sudah mengoreksi HPP bersih (HPP Net).");
+    }
+    if (margin < 0) {
+      notes.push("Margin negatif: evaluasi harga jual, diskon, dan biaya pokok.");
+    } else if (margin < 10) {
+      notes.push("Margin tipis: monitor SKU rugi dan efisiensi diskon.");
+    } else {
+      notes.push("Margin masih aman, lanjutkan pemantauan SKU loss maker.");
+    }
+
+    return { marginStatus, topProfit, topLoss, notes };
+  }
+
   function getWaterfallRows(summary: ProfitLossData["summary"]) {
     return [
       ["Gross Sales", num2(summary.grossSales)],
@@ -95,6 +128,7 @@ export default function ProfitLossReport() {
   function buildExportSections() {
     if (!data) return;
     const summaryRows = getWaterfallRows(data.summary);
+    const interpretation = buildInterpretation(data);
 
     const categoryRows = data.byCategory.map((c) => [
       c.categoryName,
@@ -114,10 +148,32 @@ export default function ProfitLossReport() {
       num2(p.grossProfit),
     ]);
 
+    const interpretationRows = [
+      ["Status Margin", interpretation.marginStatus],
+      ["Margin Laba Kotor (%)", num2(data.summary.marginPercentage)],
+      [
+        "Top Profit Driver",
+        interpretation.topProfit
+          ? `${interpretation.topProfit.sku} - ${interpretation.topProfit.productName}`
+          : "-",
+      ],
+      ["Nilai Top Profit", interpretation.topProfit ? num2(interpretation.topProfit.grossProfit) : 0],
+      [
+        "Top Loss Driver",
+        interpretation.topLoss
+          ? `${interpretation.topLoss.sku} - ${interpretation.topLoss.productName}`
+          : "-",
+      ],
+      ["Nilai Top Loss", interpretation.topLoss ? num2(interpretation.topLoss.grossProfit) : 0],
+      ...interpretation.notes.map((note, idx) => [`Catatan ${idx + 1}`, note]),
+    ] as (string | number)[][];
+
     return {
       summaryRows,
       categoryRows,
       topSkuRows,
+      interpretationRows,
+      interpretation,
     };
   }
 
@@ -129,6 +185,11 @@ export default function ProfitLossReport() {
         name: "Waterfall",
         headers: ["Komponen", "Nilai"],
         rows: sections.summaryRows,
+      },
+      {
+        name: "Interpretasi",
+        headers: ["Item", "Nilai"],
+        rows: sections.interpretationRows,
       },
       {
         name: "Per Kategori",
@@ -160,6 +221,11 @@ export default function ProfitLossReport() {
         title: "Waterfall Laba Kotor",
         headers: ["Komponen", "Nilai"],
         rows: sections.summaryRows,
+      },
+      {
+        title: "Interpretasi Otomatis",
+        headers: ["Item", "Nilai"],
+        rows: sections.interpretationRows,
       },
       {
         title: "Laba Kotor per Kategori Produk",
@@ -219,6 +285,42 @@ export default function ProfitLossReport() {
 
       {data && (
         <>
+          {(() => {
+            const interpretation = buildInterpretation(data);
+            return (
+              <Card className="p-4">
+                <div className="mb-3 text-sm font-semibold">Interpretasi Otomatis</div>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                    <div className="text-xs text-zinc-500">Status Margin</div>
+                    <div className="mt-1 text-sm font-semibold">{interpretation.marginStatus}</div>
+                  </div>
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                    <div className="text-xs text-emerald-700">Top Profit Driver</div>
+                    <div className="mt-1 text-sm font-semibold text-emerald-700">
+                      {interpretation.topProfit
+                        ? `${interpretation.topProfit.sku} (${formatCurrency(interpretation.topProfit.grossProfit)})`
+                        : "-"}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                    <div className="text-xs text-red-700">Top Loss Driver</div>
+                    <div className="mt-1 text-sm font-semibold text-red-700">
+                      {interpretation.topLoss
+                        ? `${interpretation.topLoss.sku} (${formatCurrency(interpretation.topLoss.grossProfit)})`
+                        : "-"}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 space-y-1 text-xs text-zinc-600">
+                  {interpretation.notes.map((note, idx) => (
+                    <div key={idx}>- {note}</div>
+                  ))}
+                </div>
+              </Card>
+            );
+          })()}
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <Card className="p-4 bg-zinc-50">
               <div className="text-xs font-medium text-zinc-500">Penjualan Kotor</div>
