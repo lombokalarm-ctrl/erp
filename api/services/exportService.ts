@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { getCompanySettings } from "./settingService.js";
+import { listReplenishmentSuggestions } from "./inventoryService.js";
 import { getProfitLossReport, getSalesReport, getStockReport } from "./reportService.js";
 import { buildSimplePdfLines, createSimplePdfBuffer } from "../lib/simplePdf.js";
 
@@ -243,6 +244,74 @@ export async function exportProfitLossReport(params: {
     buffer: makePdfBuffer({
       companyName: company.name,
       title: "Laporan Rugi Laba",
+      sections,
+    }),
+  };
+}
+
+export async function exportReplenishmentReport(params: {
+  warehouseId?: string;
+  q?: string;
+  format: ExportFormat;
+}): Promise<ExportFile> {
+  const [company, report] = await Promise.all([
+    getCompanySettings(),
+    listReplenishmentSuggestions({ warehouseId: params.warehouseId, q: params.q }),
+  ]);
+
+  const rows = report.items.map((row: any) => [
+    row.sku,
+    row.productName,
+    num2(row.currentQtyBase),
+    num2(row.minStockBase),
+    num2(row.shortageQtyBase),
+    num2(row.recommendedQtyBase),
+    num2(row.purchasePrice),
+    num2(row.estimatedPurchaseValue),
+  ]);
+
+  const summaryRows: Array<Array<string | number>> = [
+    ["Total SKU Alert", Number(report.summary.totalItems || 0)],
+    ["Total Shortage Qty Base", num2(report.summary.totalShortageQtyBase)],
+    ["Total Recommended Qty Base", num2(report.summary.totalRecommendedQtyBase)],
+    ["Total Estimasi Nilai Pembelian", num2(report.summary.totalEstimatedPurchase)],
+  ];
+
+  const sections = [
+    { title: "Ringkasan Replenishment", headers: ["Komponen", "Nilai"], rows: summaryRows },
+    {
+      title: "Daftar Rekomendasi",
+      headers: [
+        "SKU",
+        "Nama Produk",
+        "Stok Saat Ini (Base)",
+        "Min Stock (Base)",
+        "Kekurangan (Base)",
+        "Rekomendasi PO (Base)",
+        "Harga Beli",
+        "Estimasi Nilai",
+      ],
+      rows,
+    },
+  ];
+
+  if (params.format === "xlsx") {
+    return {
+      fileName: `Laporan_Replenishment_${nowTag()}.xlsx`,
+      contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      buffer: makeWorkbookBuffer([
+        { name: "Ringkasan", headers: sections[0].headers, rows: sections[0].rows },
+        { name: "Rekomendasi", headers: sections[1].headers, rows: sections[1].rows },
+      ]),
+    };
+  }
+
+  return {
+    fileName: `Laporan_Replenishment_${nowTag()}.pdf`,
+    contentType: "application/pdf",
+    buffer: makePdfBuffer({
+      companyName: company.name,
+      title: "Laporan Replenishment",
       sections,
     }),
   };

@@ -18,6 +18,8 @@ type Product = {
   packSize?: number;
   packPerDus?: number;
   dusSize?: number;
+  minStockBase?: string;
+  reorderQtyBase?: string;
 };
 
 type UomMaster = {
@@ -52,6 +54,8 @@ export default function Products() {
   const [unit, setUnit] = useState("pcs");
   const [purchasePrice, setPurchasePrice] = useState("0");
   const [salePrice, setSalePrice] = useState("0");
+  const [minStockBase, setMinStockBase] = useState("0");
+  const [reorderQtyBase, setReorderQtyBase] = useState("0");
   const [unitPrices, setUnitPrices] = useState<Record<string, string>>({ pcs: "0" });
   const [categoryPrices, setCategoryPrices] = useState<Record<string, Record<string, string>>>(
     CUSTOMER_CATEGORIES.reduce(
@@ -109,6 +113,8 @@ export default function Products() {
     setUnit(p.unit);
     setPurchasePrice(p.purchasePrice);
     setSalePrice(p.salePrice);
+    setMinStockBase(p.minStockBase ?? "0");
+    setReorderQtyBase(p.reorderQtyBase ?? "0");
     try {
       const res = await apiFetch<{
         data: Array<{
@@ -167,6 +173,8 @@ export default function Products() {
     setUnit("pcs");
     setPurchasePrice("0");
     setSalePrice("0");
+    setMinStockBase("0");
+    setReorderQtyBase("0");
     setUnitPrices({ pcs: "0" });
     setCategoryPrices(emptyCategoryPrices(["pcs"]));
     setEditingMappings([]);
@@ -320,6 +328,8 @@ export default function Products() {
         unit,
         purchasePrice: Number(purchasePrice),
         salePrice: Number(salePrice),
+        minStockBase: Number(minStockBase),
+        reorderQtyBase: Number(reorderQtyBase),
         unitPrices: normalizedUnitPrices,
         categoryPrices: normalizedCategoryPrices,
       };
@@ -374,6 +384,7 @@ export default function Products() {
                   <th className="px-4 py-2">Nama</th>
                   <th className="px-4 py-2 whitespace-nowrap">Sat. Dasar</th>
                   <th className="px-4 py-2">Harga Beli</th>
+                  <th className="px-4 py-2 whitespace-nowrap">Min/Reorder Base</th>
                   <th className="px-4 py-2 whitespace-nowrap">Harga Retail (Dinamis)</th>
                   <th className="px-4 py-2 text-right">Aksi</th>
                 </tr>
@@ -385,6 +396,7 @@ export default function Products() {
                     <td className="px-4 py-2">{p.name}</td>
                     <td className="px-4 py-2">{p.unit}</td>
                     <td className="px-4 py-2">{p.purchasePrice}</td>
+                    <td className="px-4 py-2">{`${Number(p.minStockBase ?? 0).toFixed(2)} / ${Number(p.reorderQtyBase ?? 0).toFixed(2)}`}</td>
                     <td className="px-4 py-2">
                       {p.categoryPrices?.["RETAIL"]
                         ? Object.entries(p.categoryPrices["RETAIL"])
@@ -403,7 +415,7 @@ export default function Products() {
                 ))}
                 {items.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={6}>
+                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={7}>
                       Belum ada data.
                     </td>
                   </tr>
@@ -458,6 +470,18 @@ export default function Products() {
                   mode="currency"
                   value={salePrice}
                   onValueChange={(v) => setSalePrice(v || "0")}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <NumericInput
+                  label="Min Stock (Qty Base)"
+                  value={minStockBase}
+                  onValueChange={(v) => setMinStockBase(v || "0")}
+                />
+                <NumericInput
+                  label="Reorder Qty (Qty Base)"
+                  value={reorderQtyBase}
+                  onValueChange={(v) => setReorderQtyBase(v || "0")}
                 />
               </div>
 

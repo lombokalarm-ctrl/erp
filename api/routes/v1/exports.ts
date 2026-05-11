@@ -1,7 +1,12 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { z } from "zod";
 import { authenticate, authorizeAny } from "../../middlewares/auth.js";
-import { exportProfitLossReport, exportSalesReport, exportStockReport } from "../../services/exportService.js";
+import {
+  exportProfitLossReport,
+  exportReplenishmentReport,
+  exportSalesReport,
+  exportStockReport,
+} from "../../services/exportService.js";
 
 const router = Router();
 
@@ -78,6 +83,34 @@ router.get(
       const file = await exportProfitLossReport({
         startDate: query.startDate,
         endDate: query.endDate,
+        format: query.format ?? "xlsx",
+      });
+      res.setHeader("Content-Type", file.contentType);
+      res.setHeader("Content-Disposition", `attachment; filename="${file.fileName}"`);
+      res.send(file.buffer);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+router.get(
+  "/replenishment",
+  authenticate,
+  authorizeAny(["reports:read", "inventory:read", "purchasing:read"]),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const query = z
+        .object({
+          warehouseId: z.string().uuid().optional(),
+          q: z.string().optional(),
+          format: formatSchema,
+        })
+        .parse(req.query);
+
+      const file = await exportReplenishmentReport({
+        warehouseId: query.warehouseId,
+        q: query.q,
         format: query.format ?? "xlsx",
       });
       res.setHeader("Content-Type", file.contentType);

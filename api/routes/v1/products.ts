@@ -57,6 +57,8 @@ router.post(
           packSize: z.coerce.number().int().min(1).default(1).optional(),
           packPerDus: z.coerce.number().int().min(1).default(1).optional(),
           dusSize: z.coerce.number().int().min(1).optional(),
+          minStockBase: z.coerce.number().min(0).optional(),
+          reorderQtyBase: z.coerce.number().min(0).optional(),
         })
         .parse(req.body)
 
@@ -71,6 +73,8 @@ router.post(
         packSize: body.packSize ?? 1,
         packPerDus: body.packPerDus ?? 1,
         dusSize: body.dusSize,
+        minStockBase: body.minStockBase ?? 0,
+        reorderQtyBase: body.reorderQtyBase ?? 0,
       } as any)
       await writeAuditLog({
         actorUserId: req.user!.userId,
@@ -189,6 +193,8 @@ router.patch(
           packSize: z.coerce.number().int().min(1).optional(),
           packPerDus: z.coerce.number().int().min(1).optional(),
           dusSize: z.coerce.number().int().min(1).optional(),
+          minStockBase: z.coerce.number().min(0).optional(),
+          reorderQtyBase: z.coerce.number().min(0).optional(),
         })
         .parse(req.body)
 

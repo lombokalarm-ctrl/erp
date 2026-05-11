@@ -1,5 +1,7 @@
 import type { PoolClient } from 'pg'
 import { getPool } from '../db/pool.js'
+import { withTransaction } from '../db/tx.js'
+import { randomUUID } from 'node:crypto'
 
 export async function getDefaultWarehouseId(client?: PoolClient) {
   const q = client ?? getPool()
@@ -128,4 +130,159 @@ export async function listInventoryTransactions(params: {
   )
 
   return { items: res.rows, total }
+}
+
+export async function listReplenishmentSuggestions(params: { warehouseId?: string; q?: string }) {
+  const pool = getPool()
+  const values: unknown[] = []
+  const conditions: string[] = ['coalesce(p.min_stock_base, 0) > 0']
+
+  if (params.q?.trim()) {
+    values.push(`%${params.q.trim().toLowerCase()}%`)
+    conditions.push(`(lower(p.sku) like $${values.length} or lower(p.name) like $${values.length})`)
+  }
+
+  const warehouseFilter = params.warehouseId?.trim() ? params.warehouseId.trim() : null
+  let warehouseJoinSql = ''
+  if (warehouseFilter) {
+    values.push(warehouseFilter)
+    warehouseJoinSql = `and b.warehouse_id = $${values.length}`
+  }
+
+  const res = await pool.query(
+    `
+      with stock as (
+        select
+          p.id as "productId",
+          p.sku,
+          p.name as "productName",
+          p.purchase_price::numeric as "purchasePrice",
+          coalesce(p.min_stock_base, 0)::numeric as "minStockBase",
+          coalesce(p.reorder_qty_base, 0)::numeric as "reorderQtyBase",
+          coalesce(sum(b.qty), 0)::numeric as "currentQtyBase"
+        from products p
+        left join inventory_balances b on b.product_id = p.id ${warehouseJoinSql}
+        where ${conditions.join(' and ')}
+        group by p.id, p.sku, p.name, p.purchase_price, p.min_stock_base, p.reorder_qty_base
+      )
+      select
+        s."productId",
+        s.sku,
+        s."productName",
+        s."purchasePrice"::text as "purchasePrice",
+        s."currentQtyBase"::text as "currentQtyBase",
+        s."minStockBase"::text as "minStockBase",
+        s."reorderQtyBase"::text as "reorderQtyBase",
+        greatest(s."minStockBase" - s."currentQtyBase", 0)::text as "shortageQtyBase",
+        (
+          case
+            when s."currentQtyBase" >= s."minStockBase" then 0
+            when s."reorderQtyBase" > 0 then greatest(s."reorderQtyBase", s."minStockBase" - s."currentQtyBase")
+            else (s."minStockBase" - s."currentQtyBase")
+          end
+        )::text as "recommendedQtyBase",
+        (
+          (
+            case
+              when s."currentQtyBase" >= s."minStockBase" then 0
+              when s."reorderQtyBase" > 0 then greatest(s."reorderQtyBase", s."minStockBase" - s."currentQtyBase")
+              else (s."minStockBase" - s."currentQtyBase")
+            end
+          ) * s."purchasePrice"
+        )::text as "estimatedPurchaseValue"
+      from stock s
+      where s."currentQtyBase" < s."minStockBase"
+      order by (s."minStockBase" - s."currentQtyBase") desc, s."productName" asc
+    `,
+    values,
+  )
+
+  const summary = res.rows.reduce(
+    (acc, row) => {
+      acc.totalItems += 1
+      acc.totalShortageQtyBase += Number(row.shortageQtyBase ?? 0)
+      acc.totalRecommendedQtyBase += Number(row.recommendedQtyBase ?? 0)
+      acc.totalEstimatedPurchase += Number(row.estimatedPurchaseValue ?? 0)
+      return acc
+    },
+    {
+      totalItems: 0,
+      totalShortageQtyBase: 0,
+      totalRecommendedQtyBase: 0,
+      totalEstimatedPurchase: 0,
+    },
+  )
+
+  return {
+    summary: {
+      ...summary,
+      totalShortageQtyBase: String(summary.totalShortageQtyBase),
+      totalRecommendedQtyBase: String(summary.totalRecommendedQtyBase),
+      totalEstimatedPurchase: String(summary.totalEstimatedPurchase),
+    },
+    items: res.rows,
+  }
+}
+
+export async function createInventoryTransfer(input: {
+  sourceWarehouseId: string
+  targetWarehouseId: string
+  items: Array<{ productId: string; qtyBase: number }>
+  createdBy: string
+  note?: string
+}) {
+  if (input.sourceWarehouseId === input.targetWarehouseId) {
+    throw new Error('Gudang asal dan tujuan tidak boleh sama')
+  }
+  if (!input.items.length) {
+    throw new Error('Item transfer tidak boleh kosong')
+  }
+
+  return withTransaction(async (client) => {
+    const transferRefId = randomUUID()
+    for (const item of input.items) {
+      const qtyBase = Number(item.qtyBase)
+      if (!Number.isFinite(qtyBase) || qtyBase <= 0) continue
+
+      const stockRes = await client.query(
+        `
+          select coalesce(qty, 0)::numeric as qty
+          from inventory_balances
+          where warehouse_id = $1 and product_id = $2
+          limit 1
+        `,
+        [input.sourceWarehouseId, item.productId],
+      )
+      const available = Number(stockRes.rows[0]?.qty ?? 0)
+      if (available < qtyBase) {
+        throw new Error('Stok gudang asal tidak cukup untuk transfer')
+      }
+
+      await applyInventoryTransaction({
+        warehouseId: input.sourceWarehouseId,
+        productId: item.productId,
+        type: 'TRANSFER_OUT',
+        qtyDelta: -qtyBase,
+        createdBy: input.createdBy,
+        refType: 'inventory_transfer',
+        refId: transferRefId,
+        note: input.note,
+        client,
+      })
+
+      await applyInventoryTransaction({
+        warehouseId: input.targetWarehouseId,
+        productId: item.productId,
+        type: 'TRANSFER_IN',
+        qtyDelta: qtyBase,
+        createdBy: input.createdBy,
+        refType: 'inventory_transfer',
+        refId: transferRefId,
+        note: input.note,
+        client,
+      })
+    }
+
+    return { transferRefId }
+  })
 }
