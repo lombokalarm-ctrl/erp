@@ -17,6 +17,7 @@ import purchaseOrderRoutes from './purchase-orders.js'
 import goodsReceiptRoutes from './goods-receipts.js'
 import warehouseRoutes from './warehouses.js'
 import reportRoutes from './reports.js'
+import exportRoutes from './exports.js'
 import promoRoutes from './promos.js'
 import dashboardRoutes from './dashboard.js'
 import returnRoutes from './returns.js'
@@ -47,6 +48,7 @@ router.use('/purchase-orders', purchaseOrderRoutes)
 router.use('/goods-receipts', goodsReceiptRoutes)
 router.use('/warehouses', warehouseRoutes)
 router.use('/reports', reportRoutes)
+router.use('/exports', exportRoutes)
 router.use('/promos', promoRoutes)
 router.use('/dashboard', dashboardRoutes)
 router.use('/returns', returnRoutes)

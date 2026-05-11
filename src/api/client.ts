@@ -22,6 +22,11 @@ export class ApiError extends Error {
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 let refreshPromise: Promise<{ token: string; refreshToken: string; user: any } | null> | null = null;
 
+type DownloadResult = {
+  blob: Blob;
+  filename: string;
+};
+
 export async function apiFetch<T>(
   path: string,
   init?: RequestInit & { skipAuth?: boolean; _retryOnAuth?: boolean },
@@ -92,6 +97,41 @@ export async function apiFetch<T>(
   }
 
   return data as T;
+}
+
+export async function apiDownload(
+  path: string,
+  init?: RequestInit & { skipAuth?: boolean },
+): Promise<DownloadResult> {
+  const store = useAuthStore.getState();
+  const token = store.token;
+  const headers = new Headers(init?.headers);
+
+  if (!init?.skipAuth && token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers,
+  });
+
+  if (!res.ok) {
+    const contentType = res.headers.get("content-type") || "";
+    let message = `Request gagal (${res.status})`;
+    if (contentType.includes("application/json")) {
+      const shaped = (await res.json()) as Partial<ApiErrorShape>;
+      message = shaped.error?.message ?? message;
+      throw new ApiError(shaped.error?.code ?? "HTTP_ERROR", message, shaped.error?.details);
+    }
+    throw new ApiError("HTTP_ERROR", message);
+  }
+
+  const blob = await res.blob();
+  const disposition = res.headers.get("content-disposition") || "";
+  const filenameMatch = disposition.match(/filename="([^"]+)"/i);
+  const filename = filenameMatch?.[1] ?? `download-${Date.now()}`;
+  return { blob, filename };
 }
 
 async function ensureRefreshedToken() {

@@ -2,9 +2,8 @@ import { useEffect, useState } from "react";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
-import { apiFetch, ApiError } from "@/api/client";
+import { apiDownload, apiFetch, ApiError } from "@/api/client";
 import { Download, Printer } from "lucide-react";
-import { exportToExcel, printTable } from "@/lib/exportUtils";
 
 type StockReportData = {
   summary: {
@@ -52,56 +51,24 @@ export default function StockReport() {
     void load();
   }, []);
 
-  function getExportRows() {
-    if (!data) return [];
-    const formatSatuan = (order: string[]) => (order.length ? order.join(", ") : "-");
-
-    return data.stock.map((row) => [
-      row.sku,
-      row.productName,
-      formatSatuan((row.uomOrder ?? []).slice(0, 3)),
-      Number(
-        row.breakdown?.find((b) => b.uomCode === (row.uomOrder ?? [])[0])?.qty ?? 0,
-      ).toFixed(2),
-      Number(
-        row.breakdown?.find((b) => b.uomCode === (row.uomOrder ?? [])[1])?.qty ?? 0,
-      ).toFixed(2),
-      Number(
-        row.breakdown?.find((b) => b.uomCode === (row.uomOrder ?? [])[2])?.qty ?? 0,
-      ).toFixed(2),
-      row.breakdownLabel ?? "-",
-      Number(row.qty).toFixed(2),
-    ]);
-  }
-
-  function handleExportExcel() {
-    if (!data) return;
-    const headers = [
-      "SKU",
-      "Nama Produk",
-      "Satuan",
-      "Qty 1",
-      "Qty 2",
-      "Qty 3",
-      "Breakdown Satuan",
-      "Qty Base",
-    ];
-    exportToExcel("Laporan_Stok", headers, getExportRows());
-  }
-
-  function handleExportPdf() {
-    if (!data) return;
-    const headers = [
-      "SKU",
-      "Nama Produk",
-      "Satuan",
-      "Qty 1",
-      "Qty 2",
-      "Qty 3",
-      "Breakdown Satuan",
-      "Qty Base",
-    ];
-    printTable("Laporan Stok", headers, getExportRows());
+  async function handleExport(format: "xlsx" | "pdf") {
+    try {
+      setError(null);
+      const url = new URL("/api/v1/exports/stocks", window.location.origin);
+      url.searchParams.set("format", format);
+      if (q.trim()) url.searchParams.set("q", q.trim());
+      const file = await apiDownload(url.pathname + url.search);
+      const blobUrl = URL.createObjectURL(file.blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = file.filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Gagal export laporan stok");
+    }
   }
 
   return (
@@ -120,11 +87,11 @@ export default function StockReport() {
           <Button variant="secondary" onClick={load}>
             Filter
           </Button>
-          <Button variant="secondary" onClick={handleExportPdf} title="Export PDF">
+          <Button variant="secondary" onClick={() => void handleExport("pdf")} title="Export PDF">
             <Printer className="h-4 w-4" />
             PDF
           </Button>
-          <Button variant="secondary" onClick={handleExportExcel} title="Export Excel">
+          <Button variant="secondary" onClick={() => void handleExport("xlsx")} title="Export Excel">
             <Download className="h-4 w-4" />
             Excel
           </Button>

@@ -2,9 +2,8 @@ import { useEffect, useState } from "react";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
-import { apiFetch, ApiError } from "@/api/client";
+import { apiDownload, apiFetch, ApiError } from "@/api/client";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { exportToExcel, printTable } from "@/lib/exportUtils";
 import { Printer, Download } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/numberFormat";
 
@@ -68,71 +67,25 @@ export default function SalesReport() {
     revenue: Number(d.revenue)
   })).reverse() || [];
 
-  function getExportRows() {
-    if (!data) return [];
-    const formatSatuan = (p: SalesReportData["topProducts"][number]) =>
-      p.satuanLabel ?? ((p.uomOrder ?? []).slice(0, 3).join(", ") || "-");
-    const qtyAt = (p: SalesReportData["topProducts"][number], index: 0 | 1 | 2) => {
-      if (index === 0 && p.qty1 !== undefined) return Number(p.qty1);
-      if (index === 1 && p.qty2 !== undefined) return Number(p.qty2);
-      if (index === 2 && p.qty3 !== undefined) return Number(p.qty3);
-      const code = (p.uomOrder ?? [])[index];
-      if (!code) return 0;
-      return Number(p.breakdown?.find((b) => b.uomCode === code)?.qty ?? 0);
-    };
-
-    return data.topProducts.map((p) => [
-      p.sku,
-      p.productName,
-      formatSatuan(p),
-      qtyAt(p, 0).toFixed(2),
-      qtyAt(p, 1).toFixed(2),
-      qtyAt(p, 2).toFixed(2),
-      p.breakdownLabel ?? "-",
-      Number(p.qtyBaseSold).toFixed(2),
-      Number(p.salesReturnQtyBase).toFixed(2),
-      Number(p.netQtyBaseSold).toFixed(2),
-      Number(p.revenue).toFixed(2),
-      Number(p.qtyBaseSold) > 0 ? (Number(p.revenue) / Number(p.qtyBaseSold)).toFixed(2) : "0.00",
-    ]);
-  }
-
-  function handleExportExcel() {
-    if (!data) return;
-    const headers = [
-      "SKU",
-      "Nama Produk",
-      "Satuan",
-      "Qty 1",
-      "Qty 2",
-      "Qty 3",
-      "Breakdown Satuan",
-      "Gross Qty Base Terjual",
-      "Qty Base Retur Penjualan",
-      "Net Qty Base Terjual",
-      "Omzet",
-      "Harga Rata2/Base",
-    ];
-    exportToExcel("Laporan_Penjualan_Satuan", headers, getExportRows());
-  }
-
-  function handlePrint() {
-    if (!data) return;
-    const headers = [
-      "SKU",
-      "Nama Produk",
-      "Satuan",
-      "Qty 1",
-      "Qty 2",
-      "Qty 3",
-      "Breakdown Satuan",
-      "Gross Qty Base Terjual",
-      "Qty Base Retur Penjualan",
-      "Net Qty Base Terjual",
-      "Omzet",
-      "Harga Rata2/Base",
-    ];
-    printTable("Laporan Penjualan Per Satuan", headers, getExportRows());
+  async function handleExport(format: "xlsx" | "pdf") {
+    try {
+      setError(null);
+      const url = new URL("/api/v1/exports/sales", window.location.origin);
+      url.searchParams.set("format", format);
+      if (startDate) url.searchParams.set("startDate", startDate);
+      if (endDate) url.searchParams.set("endDate", endDate);
+      const file = await apiDownload(url.pathname + url.search);
+      const blobUrl = URL.createObjectURL(file.blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = file.filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Gagal export laporan penjualan");
+    }
   }
 
   return (
@@ -156,11 +109,11 @@ export default function SalesReport() {
           <Button variant="secondary" onClick={load}>
             Filter
           </Button>
-          <Button variant="secondary" onClick={handlePrint} title="Export PDF">
+          <Button variant="secondary" onClick={() => void handleExport("pdf")} title="Export PDF">
             <Printer className="h-4 w-4" />
             PDF
           </Button>
-          <Button variant="secondary" onClick={handleExportExcel} title="Export Excel">
+          <Button variant="secondary" onClick={() => void handleExport("xlsx")} title="Export Excel">
             <Download className="h-4 w-4" />
             Excel
           </Button>

@@ -2,8 +2,7 @@ import { useEffect, useState } from "react";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
-import { apiFetch, ApiError } from "@/api/client";
-import { exportToExcelWorkbook, printSections } from "@/lib/exportUtils";
+import { apiDownload, apiFetch, ApiError } from "@/api/client";
 import { Printer, Download } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatCurrency, formatCurrencyCompact } from "@/lib/numberFormat";
@@ -111,142 +110,25 @@ export default function ProfitLossReport() {
     return { marginStatus, topProfit, topLoss, notes };
   }
 
-  function getWaterfallRows(summary: ProfitLossData["summary"]) {
-    return [
-      ["Gross Sales", num2(summary.grossSales)],
-      ["Diskon", num2(summary.totalDiscounts)],
-      ["Retur Penjualan (Net)", num2(summary.salesReturnAmount)],
-      ["Net Sales", num2(summary.netSales)],
-      ["HPP Sales", num2(summary.hppSales)],
-      ["HPP Retur", num2(summary.hppReturn)],
-      ["HPP Net", num2(summary.hppNet)],
-      ["Gross Profit", num2(summary.grossProfit)],
-      ["Margin Laba Kotor (%)", num2(summary.marginPercentage)],
-    ] as (string | number)[][];
-  }
-
-  function buildExportSections() {
-    if (!data) return;
-    const summaryRows = getWaterfallRows(data.summary);
-    const interpretation = buildInterpretation(data);
-
-    const categoryRows = data.byCategory.map((c) => [
-      c.categoryName,
-      num2(c.netSales),
-      num2(c.cogs),
-      num2(c.grossProfit),
-    ]);
-
-    const topSkuRows = data.topProducts.map((p) => [
-      p.sku,
-      p.productName,
-      num2(p.grossQtyBaseSold),
-      num2(p.returnQtyBase),
-      num2(p.netQtyBaseSold),
-      num2(p.netSales),
-      num2(p.cogs),
-      num2(p.grossProfit),
-    ]);
-
-    const interpretationRows = [
-      ["Status Margin", interpretation.marginStatus],
-      ["Margin Laba Kotor (%)", num2(data.summary.marginPercentage)],
-      [
-        "Top Profit Driver",
-        interpretation.topProfit
-          ? `${interpretation.topProfit.sku} - ${interpretation.topProfit.productName}`
-          : "-",
-      ],
-      ["Nilai Top Profit", interpretation.topProfit ? num2(interpretation.topProfit.grossProfit) : 0],
-      [
-        "Top Loss Driver",
-        interpretation.topLoss
-          ? `${interpretation.topLoss.sku} - ${interpretation.topLoss.productName}`
-          : "-",
-      ],
-      ["Nilai Top Loss", interpretation.topLoss ? num2(interpretation.topLoss.grossProfit) : 0],
-      ...interpretation.notes.map((note, idx) => [`Catatan ${idx + 1}`, note]),
-    ] as (string | number)[][];
-
-    return {
-      summaryRows,
-      categoryRows,
-      topSkuRows,
-      interpretationRows,
-      interpretation,
-    };
-  }
-
-  function handleExportExcel() {
-    const sections = buildExportSections();
-    if (!sections) return;
-    exportToExcelWorkbook("Laporan_Rugi_Laba_Analitik", [
-      {
-        name: "Waterfall",
-        headers: ["Komponen", "Nilai"],
-        rows: sections.summaryRows,
-      },
-      {
-        name: "Interpretasi",
-        headers: ["Item", "Nilai"],
-        rows: sections.interpretationRows,
-      },
-      {
-        name: "Per Kategori",
-        headers: ["Kategori Produk", "Penjualan Bersih", "HPP Net", "Laba Kotor"],
-        rows: sections.categoryRows,
-      },
-      {
-        name: "Top SKU",
-        headers: [
-          "SKU",
-          "Nama Produk",
-          "Gross Qty Base",
-          "Retur Qty Base",
-          "Net Qty Base",
-          "Net Sales",
-          "COGS",
-          "Gross Profit",
-        ],
-        rows: sections.topSkuRows,
-      },
-    ]);
-  }
-
-  function handlePrint() {
-    const sections = buildExportSections();
-    if (!sections) return;
-    printSections("Laporan Rugi Laba Analitik", [
-      {
-        title: "Waterfall Laba Kotor",
-        headers: ["Komponen", "Nilai"],
-        rows: sections.summaryRows,
-      },
-      {
-        title: "Interpretasi Otomatis",
-        headers: ["Item", "Nilai"],
-        rows: sections.interpretationRows,
-      },
-      {
-        title: "Laba Kotor per Kategori Produk",
-        headers: ["Kategori Produk", "Penjualan Bersih", "HPP Net", "Laba Kotor"],
-        rows: sections.categoryRows,
-      },
-      {
-        title: "Top Kontributor Laba Kotor per SKU",
-        headers: [
-          "SKU",
-          "Nama Produk",
-          "Gross Qty Base",
-          "Retur Qty Base",
-          "Net Qty Base",
-          "Net Sales",
-          "COGS",
-          "Gross Profit",
-        ],
-        rows: sections.topSkuRows,
-      },
-    ]);
+  async function handleExport(format: "xlsx" | "pdf") {
+    try {
+      setError(null);
+      const url = new URL("/api/v1/exports/profit-loss", window.location.origin);
+      url.searchParams.set("format", format);
+      if (startDate) url.searchParams.set("startDate", startDate);
+      if (endDate) url.searchParams.set("endDate", endDate);
+      const file = await apiDownload(url.pathname + url.search);
+      const blobUrl = URL.createObjectURL(file.blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = file.filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Gagal export laporan rugi laba");
+    }
   }
 
   return (
@@ -270,10 +152,10 @@ export default function ProfitLossReport() {
           <Button variant="secondary" onClick={load}>
             Filter
           </Button>
-          <Button variant="secondary" onClick={handlePrint} title="Export PDF">
+          <Button variant="secondary" onClick={() => void handleExport("pdf")} title="Export PDF">
             <Printer className="h-4 w-4" />
           </Button>
-          <Button variant="secondary" onClick={handleExportExcel} title="Export Excel Analitik">
+          <Button variant="secondary" onClick={() => void handleExport("xlsx")} title="Export Excel Analitik">
             <Download className="h-4 w-4" />
           </Button>
         </div>
