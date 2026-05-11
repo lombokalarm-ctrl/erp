@@ -578,6 +578,71 @@ export async function getProfitLossReport(params: { startDate?: string; endDate?
     values
   )
 
+  // 4. Top SKU contributors (return-adjusted).
+  const topProductsRes = await pool.query(
+    `
+      with sales_product as (
+        select
+          ii.product_id,
+          coalesce(sum(coalesce(ii.qty_base, ii.qty)::numeric), 0)::numeric as gross_qty_base_sold,
+          coalesce(sum(coalesce(ii.line_total, 0)::numeric), 0)::numeric as sales_net,
+          coalesce(sum(coalesce(ii.qty_base, ii.qty)::numeric * coalesce(p.purchase_price, 0)::numeric), 0)::numeric as sales_cogs
+        from invoice_items ii
+        join invoices i on i.id = ii.invoice_id
+        join products p on p.id = ii.product_id
+        where ${dateConditionI}
+        group by ii.product_id
+      ),
+      invoice_unit as (
+        select
+          ii.invoice_id,
+          ii.product_id,
+          case
+            when coalesce(sum(coalesce(ii.qty_base, ii.qty)), 0) > 0
+              then coalesce(sum(coalesce(ii.line_total, 0)), 0) / sum(coalesce(ii.qty_base, ii.qty))
+            else 0
+          end as net_unit_price
+        from invoice_items ii
+        group by ii.invoice_id, ii.product_id
+      ),
+      return_product as (
+        select
+          ri.product_id,
+          coalesce(sum(coalesce(ri.qty_base, ri.qty)::numeric), 0)::numeric as return_qty_base,
+          coalesce(sum(coalesce(ri.qty_base, ri.qty)::numeric * coalesce(iu.net_unit_price, 0)::numeric), 0)::numeric as return_net,
+          coalesce(sum(coalesce(ri.qty_base, ri.qty)::numeric * coalesce(p.purchase_price, 0)::numeric), 0)::numeric as return_cogs
+        from return_items ri
+        join returns r on r.id = ri.return_id and r.type = 'SALES_RETURN'
+        join products p on p.id = ri.product_id
+        left join invoice_unit iu on iu.invoice_id = r.source_invoice_id and iu.product_id = ri.product_id
+        where ${dateConditionR}
+        group by ri.product_id
+      )
+      select
+        p.id as "productId",
+        p.sku,
+        p.name as "productName",
+        coalesce(sp.gross_qty_base_sold, 0)::text as "grossQtyBaseSold",
+        coalesce(rp.return_qty_base, 0)::text as "returnQtyBase",
+        (coalesce(sp.gross_qty_base_sold, 0) - coalesce(rp.return_qty_base, 0))::text as "netQtyBaseSold",
+        (coalesce(sp.sales_net, 0) - coalesce(rp.return_net, 0))::text as "netSales",
+        (coalesce(sp.sales_cogs, 0) - coalesce(rp.return_cogs, 0))::text as "cogs",
+        (
+          (coalesce(sp.sales_net, 0) - coalesce(rp.return_net, 0))
+          - (coalesce(sp.sales_cogs, 0) - coalesce(rp.return_cogs, 0))
+        )::text as "grossProfit"
+      from sales_product sp
+      join products p on p.id = sp.product_id
+      left join return_product rp on rp.product_id = sp.product_id
+      order by (
+        (coalesce(sp.sales_net, 0) - coalesce(rp.return_net, 0))
+        - (coalesce(sp.sales_cogs, 0) - coalesce(rp.return_cogs, 0))
+      ) desc
+      limit 20
+    `,
+    values,
+  )
+
   return {
     summary: {
       grossSales: String(grossSales),
@@ -589,7 +654,8 @@ export async function getProfitLossReport(params: { startDate?: string; endDate?
       marginPercentage: marginPercentage.toFixed(2),
     },
     byCategory: byCategoryRes.rows,
-    trend: trendRes.rows
+    trend: trendRes.rows,
+    topProducts: topProductsRes.rows,
   }
 }
 

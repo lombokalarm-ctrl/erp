@@ -30,6 +30,17 @@ type ProfitLossData = {
     cogs: string;
     grossProfit: string;
   }[];
+  topProducts: {
+    productId: string;
+    sku: string;
+    productName: string;
+    grossQtyBaseSold: string;
+    returnQtyBase: string;
+    netQtyBaseSold: string;
+    netSales: string;
+    cogs: string;
+    grossProfit: string;
+  }[];
 };
 
 export default function ProfitLossReport() {
@@ -158,6 +169,36 @@ export default function ProfitLossReport() {
             </div>
           </Card>
 
+          <Card className="p-4">
+            <div className="mb-3 text-sm font-semibold">Waterfall Laba Kotor</div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
+              <div className="rounded-lg border border-zinc-200 p-3">
+                <div className="text-xs text-zinc-500">Gross Sales</div>
+                <div className="mt-1 text-sm font-semibold">{formatCurrency(data.summary.grossSales)}</div>
+              </div>
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                <div className="text-xs text-red-700">Diskon</div>
+                <div className="mt-1 text-sm font-semibold text-red-700">- {formatCurrency(data.summary.totalDiscounts)}</div>
+              </div>
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <div className="text-xs text-amber-700">Retur (Net)</div>
+                <div className="mt-1 text-sm font-semibold text-amber-700">- {formatCurrency(data.summary.salesReturnAmount)}</div>
+              </div>
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                <div className="text-xs text-emerald-700">Net Sales</div>
+                <div className="mt-1 text-sm font-semibold text-emerald-700">{formatCurrency(data.summary.netSales)}</div>
+              </div>
+              <div className="rounded-lg border border-orange-200 bg-orange-50 p-3">
+                <div className="text-xs text-orange-700">COGS</div>
+                <div className="mt-1 text-sm font-semibold text-orange-700">- {formatCurrency(data.summary.cogs)}</div>
+              </div>
+              <div className="rounded-lg border border-zinc-300 bg-zinc-50 p-3">
+                <div className="text-xs text-zinc-700">Gross Profit</div>
+                <div className="mt-1 text-sm font-semibold text-zinc-900">{formatCurrency(data.summary.grossProfit)}</div>
+              </div>
+            </div>
+          </Card>
+
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card className="p-4">
               <div className="mb-4 text-sm font-semibold">Tren Laba Kotor Harian</div>
@@ -216,6 +257,56 @@ export default function ProfitLossReport() {
               </div>
             </Card>
           </div>
+
+          <Card className="overflow-hidden">
+            <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold">
+              Top Kontributor Laba Kotor per SKU
+            </div>
+            <div className="max-h-[420px] overflow-auto">
+              <table className="min-w-full text-sm">
+                <thead className="sticky top-0 bg-white">
+                  <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
+                    <th className="px-4 py-3">Produk</th>
+                    <th className="px-4 py-3 text-right">Gross Qty Base</th>
+                    <th className="px-4 py-3 text-right">Retur Qty Base</th>
+                    <th className="px-4 py-3 text-right">Net Qty Base</th>
+                    <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Net Sales</th>
+                    <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">COGS</th>
+                    <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Gross Profit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.topProducts.map((p) => (
+                    <tr key={p.productId} className="border-b border-zinc-100 hover:bg-zinc-50">
+                      <td className="px-4 py-3">
+                        <div className="font-medium">{p.productName}</div>
+                        <div className="text-xs text-zinc-500">{p.sku}</div>
+                      </td>
+                      <td className="px-4 py-3 text-right">{Number(p.grossQtyBaseSold).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right">{Number(p.returnQtyBase).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right">{Number(p.netQtyBaseSold).toFixed(2)}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right">{formatCurrency(p.netSales)}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right">{formatCurrency(p.cogs)}</td>
+                      <td
+                        className={`whitespace-nowrap px-4 py-3 text-right font-medium ${
+                          Number(p.grossProfit) < 0 ? "text-red-600" : "text-emerald-600"
+                        }`}
+                      >
+                        {formatCurrency(p.grossProfit)}
+                      </td>
+                    </tr>
+                  ))}
+                  {data.topProducts.length === 0 ? (
+                    <tr>
+                      <td className="px-4 py-6 text-center text-sm text-zinc-500" colSpan={7}>
+                        Belum ada data SKU.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         </>
       )}
     </div>
