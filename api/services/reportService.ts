@@ -407,7 +407,7 @@ export async function getProfitLossReport(params: { startDate?: string; endDate?
       with sales_rows as (
         select
           coalesce(ii.qty_base, ii.qty)::numeric as qty_base,
-          coalesce(ii.qty_base, ii.qty)::numeric * coalesce(ii.unit_price, 0)::numeric as gross_amount,
+          (coalesce(ii.line_total, 0)::numeric + coalesce(ii.discount_amount, 0)::numeric) as gross_amount,
           coalesce(ii.discount_amount, 0)::numeric as discount_amount,
           coalesce(ii.line_total, 0)::numeric as net_amount,
           coalesce(ii.qty_base, ii.qty)::numeric * coalesce(p.purchase_price, 0)::numeric as cogs_amount
