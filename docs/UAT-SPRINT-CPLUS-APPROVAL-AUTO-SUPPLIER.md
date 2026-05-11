@@ -23,9 +23,23 @@ export BASE_URL="http://127.0.0.1:3005/api/v1"
 export ADMIN_EMAIL="admin@apli.my.id"
 export ADMIN_PASSWORD="adminapli"
 export STEP_MODE="true"
+export LOG_DIR="./scripts/uat/logs"
 
 bash scripts/uat/sprint-cplus-approval-auto-supplier-uat.sh
 ```
+
+## Mode Non-Interaktif (Direkomendasikan untuk CI/UAT cepat)
+```bash
+export STEP_MODE="false"
+export LOG_DIR="./scripts/uat/logs"
+bash scripts/uat/sprint-cplus-approval-auto-supplier-uat.sh
+```
+
+Output akhir akan menampilkan ringkasan:
+- `PASS=<jumlah>`
+- `INFO=<jumlah>`
+- `FAIL=<jumlah>`
+- `LOG_FILE=<path log>`
 
 ## Skenario yang Diuji Script
 1. Login admin.

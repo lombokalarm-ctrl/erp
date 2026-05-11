@@ -5,6 +5,7 @@ BASE_URL="${BASE_URL:-http://127.0.0.1:3005/api/v1}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
 STEP_MODE="${STEP_MODE:-true}"
+LOG_DIR="${LOG_DIR:-./scripts/uat/logs}"
 
 if [[ -z "$ADMIN_EMAIL" || -z "$ADMIN_PASSWORD" ]]; then
   echo "ERROR: set ADMIN_EMAIL dan ADMIN_PASSWORD terlebih dahulu."
@@ -17,6 +18,7 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 TS="$(date +%s)"
+RUN_TS="$(date +%Y%m%d_%H%M%S)"
 SKU="UAT-CPLUS-$TS"
 PRODUCT_NAME="Produk UAT C+ $TS"
 SUP_A_CODE="SUA$TS"
@@ -38,9 +40,36 @@ GRN_B_ID=""
 APPROVAL_L1_ID=""
 APPROVAL_L2_ID=""
 
-pass() { echo "[PASS] $1"; }
-info() { echo "[INFO] $1"; }
-fail() { echo "[FAIL] $1"; exit 1; }
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/sprint-cplus-approval-auto-supplier-uat-$RUN_TS.log"
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+PASS_COUNT=0
+INFO_COUNT=0
+FAIL_COUNT=0
+
+pass() {
+  PASS_COUNT=$((PASS_COUNT + 1))
+  echo "[PASS] $1"
+}
+info() {
+  INFO_COUNT=$((INFO_COUNT + 1))
+  echo "[INFO] $1"
+}
+print_summary() {
+  echo
+  echo "=== RINGKASAN UAT ==="
+  echo "PASS=$PASS_COUNT"
+  echo "INFO=$INFO_COUNT"
+  echo "FAIL=$FAIL_COUNT"
+  echo "LOG_FILE=$LOG_FILE"
+}
+fail() {
+  FAIL_COUNT=$((FAIL_COUNT + 1))
+  echo "[FAIL] $1"
+  print_summary
+  exit 1
+}
 
 pause_step() {
   if [[ "$STEP_MODE" == "true" ]]; then
@@ -80,6 +109,8 @@ assert_non_empty() {
 
 echo "=== UAT Sprint C+ (Approval Transfer + Auto Supplier) START ==="
 echo "BASE_URL=$BASE_URL"
+echo "STEP_MODE=$STEP_MODE"
+echo "LOG_FILE=$LOG_FILE"
 
 echo
 echo "Scenario 1 - Login admin"
@@ -226,3 +257,4 @@ echo "SUPPLIER_A_ID=$SUPPLIER_A_ID"
 echo "SUPPLIER_B_ID=$SUPPLIER_B_ID"
 echo "REQUEST_ID=$REQUEST_ID"
 echo "POSTED_TRANSFER_NO=$POSTED_TRF_NO"
+print_summary
