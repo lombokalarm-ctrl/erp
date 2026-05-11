@@ -5,6 +5,7 @@ import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
 import { apiDownload, apiFetch, ApiError } from "@/api/client";
 import SearchableSelect from "@/components/ui/SearchableSelect";
+import { useAuthStore } from "@/stores/authStore";
 
 type SummaryRow = {
   productId: string;
@@ -59,7 +60,27 @@ type TransferRow = {
   createdAt: string;
 };
 
+type TransferApprovalRow = {
+  approvalId: string;
+  level: number;
+  approvalStatus: string;
+  requestId: string;
+  requestNo: string;
+  requestStatus: string;
+  transferDate: string;
+  requestNote?: string;
+  sourceWarehouseCode: string;
+  targetWarehouseCode: string;
+  requestedByName?: string;
+  requestedAt: string;
+  totalQtyBase: string;
+  itemCount: number;
+};
+
 export default function Inventory() {
+  const hasAnyPermission = useAuthStore((s) => s.hasAnyPermission);
+  const canApproveTransfer = hasAnyPermission(["inventory:approve_level1", "inventory:approve_level2"]);
+
   const [activeTab, setActiveTab] = useState<"summary" | "transactions" | "replenishment" | "transfer">("summary");
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<SummaryRow[]>([]);
@@ -79,6 +100,7 @@ export default function Inventory() {
   const [replenishmentLookbackDays, setReplenishmentLookbackDays] = useState("30");
   const [selectedReplenishmentProductIds, setSelectedReplenishmentProductIds] = useState<string[]>([]);
   const [selectedSupplierId, setSelectedSupplierId] = useState("");
+  const [autoBySupplier, setAutoBySupplier] = useState(true);
   const [poOrderDate, setPoOrderDate] = useState(new Date().toISOString().slice(0, 10));
 
   const [transferSourceWarehouseId, setTransferSourceWarehouseId] = useState("");
@@ -89,6 +111,7 @@ export default function Inventory() {
     { productId: "", qtyBase: "0" },
   ]);
   const [transferRows, setTransferRows] = useState<TransferRow[]>([]);
+  const [transferApprovals, setTransferApprovals] = useState<TransferApprovalRow[]>([]);
 
   async function load() {
     setError(null);
@@ -141,16 +164,19 @@ export default function Inventory() {
     }
     if (activeTab === "transfer") {
       void loadTransfers();
+      void loadTransferApprovals();
     }
-  }, [activeTab]);
+  }, [activeTab, canApproveTransfer]);
 
-  async function handleCreateDraftPo() {
+  async function handleCreateDraftPo(mode: "manual" | "auto") {
     try {
       setError(null);
       await apiFetch("/api/v1/inventory/replenishment/draft-po", {
         method: "POST",
         body: JSON.stringify({
-          supplierId: selectedSupplierId,
+          supplierId: mode === "manual" ? selectedSupplierId : undefined,
+          fallbackSupplierId: mode === "auto" ? selectedSupplierId || undefined : undefined,
+          autoBySupplier: mode === "auto",
           orderDate: poOrderDate,
           warehouseId: replenishmentWarehouseId || undefined,
           q: replenishmentQ || undefined,
@@ -195,6 +221,21 @@ export default function Inventory() {
     }
   }
 
+  async function loadTransferApprovals() {
+    if (!canApproveTransfer) {
+      setTransferApprovals([]);
+      return;
+    }
+    try {
+      const res = await apiFetch<{ data: TransferApprovalRow[] }>(
+        "/api/v1/inventory/transfers/approvals?page=1&pageSize=100&status=PENDING",
+      );
+      setTransferApprovals(res.data || []);
+    } catch {
+      setTransferApprovals([]);
+    }
+  }
+
   async function handleExportTransfers(format: "xlsx" | "pdf") {
     try {
       setError(null);
@@ -236,10 +277,29 @@ export default function Inventory() {
       });
       setTransferClientRef("");
       setTransferItems([{ productId: "", qtyBase: "0" }]);
+      await loadTransferApprovals();
       await loadTransfers();
       await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Gagal menyimpan transfer gudang");
+    }
+  }
+
+  async function handleProcessTransferApproval(approvalId: string, action: "APPROVED" | "REJECTED") {
+    if (!confirm(`Apakah Anda yakin ingin ${action === "APPROVED" ? "MENYETUJUI" : "MENOLAK"} request transfer ini?`)) {
+      return;
+    }
+    try {
+      setError(null);
+      await apiFetch(`/api/v1/inventory/transfers/approvals/${approvalId}/process`, {
+        method: "POST",
+        body: JSON.stringify({ action }),
+      });
+      await loadTransferApprovals();
+      await loadTransfers();
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Gagal memproses approval transfer");
     }
   }
 
@@ -517,7 +577,7 @@ export default function Inventory() {
           </Card>
 
           <Card className="p-3">
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-4">
               <label className="block">
                 <div className="mb-1 text-xs font-medium text-zinc-600">Supplier Draft PO</div>
                 <SearchableSelect
@@ -533,10 +593,24 @@ export default function Inventory() {
                 <Input type="date" value={poOrderDate} onChange={(e) => setPoOrderDate(e.target.value)} />
               </label>
               <div className="flex items-end">
-                <Button onClick={() => void handleCreateDraftPo()} disabled={!selectedSupplierId}>
-                  Buat Draft PO dari Rekomendasi
+                <label className="inline-flex items-center gap-2 text-xs text-zinc-600">
+                  <input type="checkbox" checked={autoBySupplier} onChange={(e) => setAutoBySupplier(e.target.checked)} />
+                  Auto by supplier
+                </label>
+              </div>
+              <div className="flex items-end gap-2">
+                <Button variant="secondary" onClick={() => void handleCreateDraftPo("manual")} disabled={!selectedSupplierId}>
+                  Draft PO Manual
+                </Button>
+                <Button onClick={() => void handleCreateDraftPo("auto")} disabled={!selectedSupplierId && autoBySupplier}>
+                  Auto Draft PO
                 </Button>
               </div>
+            </div>
+            <div className="mt-2 text-xs text-zinc-500">
+              {autoBySupplier
+                ? "Mode auto: sistem kelompokkan rekomendasi per supplier berdasarkan histori PO, supplier dipilih jadi fallback."
+                : "Mode manual: semua item diproses ke satu supplier terpilih."}
             </div>
           </Card>
 
@@ -675,11 +749,68 @@ export default function Inventory() {
               >
                 Tambah Item
               </Button>
-              <Button onClick={() => void handleSaveTransfer()}>Simpan Transfer</Button>
+              <Button onClick={() => void handleSaveTransfer()}>Ajukan Transfer</Button>
               <Button variant="secondary" onClick={() => void handleExportTransfers("xlsx")}>Excel Transfer</Button>
               <Button variant="secondary" onClick={() => void handleExportTransfers("pdf")}>PDF Transfer</Button>
             </div>
           </Card>
+          {canApproveTransfer ? (
+            <Card className="overflow-hidden">
+              <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold">
+                Antrean Approval Transfer (2-Level)
+              </div>
+              <div className="overflow-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="sticky top-0 bg-white">
+                    <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
+                      <th className="px-4 py-2">No Request</th>
+                      <th className="px-4 py-2">Level</th>
+                      <th className="px-4 py-2">Tanggal</th>
+                      <th className="px-4 py-2">Asal</th>
+                      <th className="px-4 py-2">Tujuan</th>
+                      <th className="px-4 py-2 text-right">Item</th>
+                      <th className="px-4 py-2 text-right">Qty Base</th>
+                      <th className="px-4 py-2">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transferApprovals.map((row) => (
+                      <tr key={row.approvalId} className="border-b border-zinc-100 hover:bg-zinc-50">
+                        <td className="px-4 py-2 font-medium">{row.requestNo}</td>
+                        <td className="px-4 py-2">L{row.level}</td>
+                        <td className="px-4 py-2">{row.transferDate}</td>
+                        <td className="px-4 py-2">{row.sourceWarehouseCode}</td>
+                        <td className="px-4 py-2">{row.targetWarehouseCode}</td>
+                        <td className="px-4 py-2 text-right">{Number(row.itemCount || 0)}</td>
+                        <td className="px-4 py-2 text-right">{Number(row.totalQtyBase || 0).toFixed(2)}</td>
+                        <td className="px-4 py-2">
+                          <div className="flex gap-2">
+                            <Button size="sm" onClick={() => void handleProcessTransferApproval(row.approvalId, "APPROVED")}>
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => void handleProcessTransferApproval(row.approvalId, "REJECTED")}
+                            >
+                              Reject
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {transferApprovals.length === 0 ? (
+                      <tr>
+                        <td className="px-4 py-6 text-sm text-zinc-500" colSpan={8}>
+                          Tidak ada antrean approval transfer.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          ) : null}
           <Card className="overflow-hidden">
             <div className="overflow-auto">
               <table className="min-w-full text-sm">

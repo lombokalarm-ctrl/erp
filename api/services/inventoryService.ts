@@ -18,6 +18,18 @@ async function generateTransferNumber(client: PoolClient, transferDate: string) 
   return `TRF-${dateKey}-${pad4(nextSeq)}`
 }
 
+async function generateTransferRequestNumber(client: PoolClient, transferDate: string) {
+  const dateKey = transferDate.replace(/-/g, '')
+  const like = `TRQ-${dateKey}-%`
+  const res = await client.query(
+    `select request_no from inventory_transfer_requests where request_no like $1 order by request_no desc limit 1`,
+    [like],
+  )
+  const last = res.rows[0]?.request_no as string | undefined
+  const nextSeq = last ? Number(last.split('-').pop()) + 1 : 1
+  return `TRQ-${dateKey}-${pad4(nextSeq)}`
+}
+
 export async function getDefaultWarehouseId(client?: PoolClient) {
   const q = client ?? getPool()
   const res = await q.query(
@@ -330,24 +342,169 @@ export async function createInventoryTransfer(input: {
       }
     }
 
-    const normalizedDate = input.transferDate ?? new Date().toISOString().slice(0, 10)
-    const transferNo = await generateTransferNumber(client, normalizedDate)
-    const headerRes = await client.query(
+    const result = await postInventoryTransfer(client, input)
+    return { ...result, duplicate: false }
+  })
+}
+
+async function postInventoryTransfer(
+  client: PoolClient,
+  input: {
+    sourceWarehouseId: string
+    targetWarehouseId: string
+    items: Array<{ productId: string; qtyBase: number }>
+    createdBy: string
+    transferDate?: string
+    clientRef?: string
+    note?: string
+  },
+) {
+  const normalizedDate = input.transferDate ?? new Date().toISOString().slice(0, 10)
+  const transferNo = await generateTransferNumber(client, normalizedDate)
+  const headerRes = await client.query(
+    `
+      insert into inventory_transfers(
+        transfer_no,
+        client_ref,
+        source_warehouse_id,
+        target_warehouse_id,
+        transfer_date,
+        note,
+        created_by
+      )
+      values ($1,$2,$3,$4,$5,$6,$7)
+      returning id, transfer_no as "transferNo"
+    `,
+    [
+      transferNo,
+      input.clientRef?.trim() || null,
+      input.sourceWarehouseId,
+      input.targetWarehouseId,
+      normalizedDate,
+      input.note ?? null,
+      input.createdBy,
+    ],
+  )
+  const transferRefId = headerRes.rows[0].id as string
+  const transferNoCreated = headerRes.rows[0].transferNo as string
+
+  const mergedItems = new Map<string, number>()
+  for (const item of input.items) {
+    mergedItems.set(item.productId, (mergedItems.get(item.productId) ?? 0) + Number(item.qtyBase))
+  }
+
+  for (const [productId, qtyBaseRaw] of mergedItems.entries()) {
+    const qtyBase = Number(qtyBaseRaw)
+    if (!Number.isFinite(qtyBase) || qtyBase <= 0) continue
+
+    const stockRes = await client.query(
       `
-        insert into inventory_transfers(
-          transfer_no,
+        select coalesce(qty, 0)::numeric as qty
+        from inventory_balances
+        where warehouse_id = $1 and product_id = $2
+        limit 1
+      `,
+      [input.sourceWarehouseId, productId],
+    )
+    const available = Number(stockRes.rows[0]?.qty ?? 0)
+    if (available < qtyBase) {
+      throw new Error('Stok gudang asal tidak cukup untuk transfer')
+    }
+
+    await applyInventoryTransaction({
+      warehouseId: input.sourceWarehouseId,
+      productId,
+      type: 'TRANSFER_OUT',
+      qtyDelta: -qtyBase,
+      createdBy: input.createdBy,
+      refType: 'inventory_transfer',
+      refId: transferRefId,
+      note: `${transferNoCreated}${input.note ? ` - ${input.note}` : ''}`,
+      client,
+    })
+
+    await applyInventoryTransaction({
+      warehouseId: input.targetWarehouseId,
+      productId,
+      type: 'TRANSFER_IN',
+      qtyDelta: qtyBase,
+      createdBy: input.createdBy,
+      refType: 'inventory_transfer',
+      refId: transferRefId,
+      note: `${transferNoCreated}${input.note ? ` - ${input.note}` : ''}`,
+      client,
+    })
+
+    await client.query(
+      `
+        insert into inventory_transfer_items(transfer_id, product_id, qty_base)
+        values ($1,$2,$3)
+      `,
+      [transferRefId, productId, qtyBase],
+    )
+  }
+
+  return { transferRefId, transferNo: transferNoCreated }
+}
+
+export async function createInventoryTransferRequest(input: {
+  sourceWarehouseId: string
+  targetWarehouseId: string
+  items: Array<{ productId: string; qtyBase: number }>
+  createdBy: string
+  transferDate?: string
+  clientRef?: string
+  note?: string
+}) {
+  if (input.sourceWarehouseId === input.targetWarehouseId) {
+    throw new Error('Gudang asal dan tujuan tidak boleh sama')
+  }
+  if (!input.items.length) {
+    throw new Error('Item transfer tidak boleh kosong')
+  }
+
+  return withTransaction(async (client) => {
+    const normalizedDate = input.transferDate ?? new Date().toISOString().slice(0, 10)
+
+    if (input.clientRef?.trim()) {
+      const existingRes = await client.query(
+        `
+          select id, request_no as "requestNo", status
+          from inventory_transfer_requests
+          where client_ref = $1
+          limit 1
+        `,
+        [input.clientRef.trim()],
+      )
+      const existing = existingRes.rows[0]
+      if (existing) {
+        return {
+          requestId: existing.id as string,
+          requestNo: existing.requestNo as string,
+          requestStatus: existing.status as string,
+          duplicate: true,
+        }
+      }
+    }
+
+    const requestNo = await generateTransferRequestNumber(client, normalizedDate)
+    const requestRes = await client.query(
+      `
+        insert into inventory_transfer_requests(
+          request_no,
           client_ref,
           source_warehouse_id,
           target_warehouse_id,
           transfer_date,
+          status,
           note,
           created_by
         )
-        values ($1,$2,$3,$4,$5,$6,$7)
-        returning id, transfer_no as "transferNo"
+        values ($1,$2,$3,$4,$5,'PENDING_L1',$6,$7)
+        returning id, request_no as "requestNo", status as "requestStatus"
       `,
       [
-        transferNo,
+        requestNo,
         input.clientRef?.trim() || null,
         input.sourceWarehouseId,
         input.targetWarehouseId,
@@ -356,8 +513,7 @@ export async function createInventoryTransfer(input: {
         input.createdBy,
       ],
     )
-    const transferRefId = headerRes.rows[0].id as string
-    const transferNoCreated = headerRes.rows[0].transferNo as string
+    const requestId = requestRes.rows[0].id as string
 
     const mergedItems = new Map<string, number>()
     for (const item of input.items) {
@@ -368,54 +524,29 @@ export async function createInventoryTransfer(input: {
       const qtyBase = Number(qtyBaseRaw)
       if (!Number.isFinite(qtyBase) || qtyBase <= 0) continue
 
-      const stockRes = await client.query(
-        `
-          select coalesce(qty, 0)::numeric as qty
-          from inventory_balances
-          where warehouse_id = $1 and product_id = $2
-          limit 1
-        `,
-        [input.sourceWarehouseId, productId],
-      )
-      const available = Number(stockRes.rows[0]?.qty ?? 0)
-      if (available < qtyBase) {
-        throw new Error('Stok gudang asal tidak cukup untuk transfer')
-      }
-
-      await applyInventoryTransaction({
-        warehouseId: input.sourceWarehouseId,
-        productId,
-        type: 'TRANSFER_OUT',
-        qtyDelta: -qtyBase,
-        createdBy: input.createdBy,
-        refType: 'inventory_transfer',
-        refId: transferRefId,
-        note: `${transferNoCreated}${input.note ? ` - ${input.note}` : ''}`,
-        client,
-      })
-
-      await applyInventoryTransaction({
-        warehouseId: input.targetWarehouseId,
-        productId,
-        type: 'TRANSFER_IN',
-        qtyDelta: qtyBase,
-        createdBy: input.createdBy,
-        refType: 'inventory_transfer',
-        refId: transferRefId,
-        note: `${transferNoCreated}${input.note ? ` - ${input.note}` : ''}`,
-        client,
-      })
-
       await client.query(
         `
-          insert into inventory_transfer_items(transfer_id, product_id, qty_base)
+          insert into inventory_transfer_request_items(request_id, product_id, qty_base)
           values ($1,$2,$3)
         `,
-        [transferRefId, productId, qtyBase],
+        [requestId, productId, qtyBase],
       )
     }
 
-    return { transferRefId, transferNo: transferNoCreated, duplicate: false }
+    await client.query(
+      `
+        insert into inventory_transfer_approvals(request_id, level, status)
+        values ($1,1,'PENDING'),($1,2,'PENDING')
+      `,
+      [requestId],
+    )
+
+    return {
+      requestId,
+      requestNo: requestRes.rows[0].requestNo as string,
+      requestStatus: requestRes.rows[0].requestStatus as string,
+      duplicate: false,
+    }
   })
 }
 
@@ -451,4 +582,266 @@ export async function listInventoryTransfers(params: { page?: number; pageSize?:
   )
 
   return { items: res.rows, total }
+}
+
+export async function listInventoryTransferApprovals(params: {
+  page?: number
+  pageSize?: number
+  level?: 1 | 2
+  status?: 'PENDING' | 'APPROVED' | 'REJECTED'
+}) {
+  const pool = getPool()
+  const page = params.page ?? 1
+  const pageSize = params.pageSize ?? 50
+  const offset = (page - 1) * pageSize
+
+  const where: string[] = []
+  const values: unknown[] = []
+  if (params.level) {
+    values.push(params.level)
+    where.push(`a.level = $${values.length}`)
+  }
+  if (params.status) {
+    values.push(params.status)
+    where.push(`a.status = $${values.length}`)
+  }
+  const whereSql = where.length ? `where ${where.join(' and ')}` : ''
+
+  const totalRes = await pool.query(
+    `
+      select count(*)::int as c
+      from inventory_transfer_approvals a
+      join inventory_transfer_requests r on r.id = a.request_id
+      ${whereSql}
+    `,
+    values,
+  )
+  const total = Number(totalRes.rows[0]?.c ?? 0)
+
+  const res = await pool.query(
+    `
+      select
+        a.id as "approvalId",
+        a.level,
+        a.status as "approvalStatus",
+        a.notes as "approvalNotes",
+        r.id as "requestId",
+        r.request_no as "requestNo",
+        r.status as "requestStatus",
+        r.transfer_date::text as "transferDate",
+        r.note as "requestNote",
+        ws.code as "sourceWarehouseCode",
+        wt.code as "targetWarehouseCode",
+        u.full_name as "requestedByName",
+        r.created_at as "requestedAt",
+        coalesce(sum(ri.qty_base), 0)::text as "totalQtyBase",
+        count(ri.id)::int as "itemCount"
+      from inventory_transfer_approvals a
+      join inventory_transfer_requests r on r.id = a.request_id
+      join warehouses ws on ws.id = r.source_warehouse_id
+      join warehouses wt on wt.id = r.target_warehouse_id
+      left join users u on u.id = r.created_by
+      left join inventory_transfer_request_items ri on ri.request_id = r.id
+      ${whereSql}
+      group by
+        a.id, a.level, a.status, a.notes,
+        r.id, r.request_no, r.status, r.transfer_date, r.note, r.created_at,
+        ws.code, wt.code, u.full_name
+      order by r.created_at asc
+      limit $${values.length + 1} offset $${values.length + 2}
+    `,
+    [...values, pageSize, offset],
+  )
+
+  return { items: res.rows, total }
+}
+
+export async function processInventoryTransferApproval(input: {
+  approvalId: string
+  action: 'APPROVED' | 'REJECTED'
+  approverId: string
+  notes?: string
+  actorLevels: Array<1 | 2>
+}) {
+  return withTransaction(async (client) => {
+    const approvalRes = await client.query(
+      `
+        select
+          a.id as "approvalId",
+          a.level,
+          a.status as "approvalStatus",
+          r.id as "requestId",
+          r.request_no as "requestNo",
+          r.status as "requestStatus",
+          r.source_warehouse_id as "sourceWarehouseId",
+          r.target_warehouse_id as "targetWarehouseId",
+          r.transfer_date::text as "transferDate",
+          r.client_ref as "clientRef",
+          r.note as "requestNote",
+          r.created_by as "createdBy"
+        from inventory_transfer_approvals a
+        join inventory_transfer_requests r on r.id = a.request_id
+        where a.id = $1
+        limit 1
+        for update of a, r
+      `,
+      [input.approvalId],
+    )
+    const approval = approvalRes.rows[0] as
+      | {
+          approvalId: string
+          level: 1 | 2
+          approvalStatus: 'PENDING' | 'APPROVED' | 'REJECTED'
+          requestId: string
+          requestNo: string
+          requestStatus: 'PENDING_L1' | 'PENDING_L2' | 'APPROVED' | 'REJECTED'
+          sourceWarehouseId: string
+          targetWarehouseId: string
+          transferDate: string
+          clientRef?: string | null
+          requestNote?: string | null
+          createdBy: string
+        }
+      | undefined
+
+    if (!approval) {
+      throw new Error('Approval transfer tidak ditemukan')
+    }
+    if (!input.actorLevels.includes(approval.level)) {
+      throw new Error('Anda tidak berhak memproses level approval ini')
+    }
+    if (approval.approvalStatus !== 'PENDING') {
+      throw new Error('Approval transfer sudah diproses')
+    }
+
+    const expectedStatus = approval.level === 1 ? 'PENDING_L1' : 'PENDING_L2'
+    if (approval.requestStatus !== expectedStatus) {
+      throw new Error(`Status request tidak sesuai (${approval.requestStatus})`)
+    }
+
+    await client.query(
+      `
+        update inventory_transfer_approvals
+        set status = $2,
+            approver_id = $3,
+            notes = $4,
+            acted_at = now(),
+            updated_at = now()
+        where id = $1
+      `,
+      [input.approvalId, input.action, input.approverId, input.notes ?? null],
+    )
+
+    if (input.action === 'REJECTED') {
+      await client.query(
+        `
+          update inventory_transfer_requests
+          set status = 'REJECTED',
+              updated_at = now()
+          where id = $1
+        `,
+        [approval.requestId],
+      )
+      await client.query(
+        `
+          update inventory_transfer_approvals
+          set status = 'REJECTED',
+              notes = coalesce(notes, 'Auto reject karena request ditolak di level lain'),
+              acted_at = now(),
+              updated_at = now()
+          where request_id = $1 and status = 'PENDING'
+        `,
+        [approval.requestId],
+      )
+      return {
+        requestId: approval.requestId,
+        requestNo: approval.requestNo,
+        newRequestStatus: 'REJECTED' as const,
+      }
+    }
+
+    if (approval.level === 1) {
+      await client.query(
+        `
+          update inventory_transfer_requests
+          set status = 'PENDING_L2',
+              updated_at = now()
+          where id = $1
+        `,
+        [approval.requestId],
+      )
+      return {
+        requestId: approval.requestId,
+        requestNo: approval.requestNo,
+        newRequestStatus: 'PENDING_L2' as const,
+      }
+    }
+
+    const itemsRes = await client.query(
+      `
+        select product_id as "productId", qty_base::text as "qtyBase"
+        from inventory_transfer_request_items
+        where request_id = $1
+      `,
+      [approval.requestId],
+    )
+    const transferItems = itemsRes.rows.map((r) => ({
+      productId: r.productId as string,
+      qtyBase: Number(r.qtyBase ?? 0),
+    }))
+    if (!transferItems.length) {
+      throw new Error('Item transfer request tidak ditemukan')
+    }
+
+    const posted = await postInventoryTransfer(client, {
+      sourceWarehouseId: approval.sourceWarehouseId,
+      targetWarehouseId: approval.targetWarehouseId,
+      transferDate: approval.transferDate,
+      clientRef: approval.clientRef ?? undefined,
+      note: approval.requestNote ?? undefined,
+      createdBy: approval.createdBy,
+      items: transferItems,
+    })
+
+    await client.query(
+      `
+        update inventory_transfer_requests
+        set status = 'APPROVED',
+            posted_transfer_id = $2,
+            updated_at = now()
+        where id = $1
+      `,
+      [approval.requestId, posted.transferRefId],
+    )
+
+    return {
+      requestId: approval.requestId,
+      requestNo: approval.requestNo,
+      newRequestStatus: 'APPROVED' as const,
+      postedTransferId: posted.transferRefId,
+      postedTransferNo: posted.transferNo,
+    }
+  })
+}
+
+export async function inferSuppliersForProducts(productIds: string[]) {
+  if (!productIds.length) return new Map<string, string>()
+  const pool = getPool()
+  const res = await pool.query(
+    `
+      select distinct on (poi.product_id)
+        poi.product_id as "productId",
+        po.supplier_id as "supplierId"
+      from purchase_order_items poi
+      join purchase_orders po on po.id = poi.purchase_order_id
+      where poi.product_id = any($1::uuid[])
+      order by poi.product_id, po.order_date desc, po.created_at desc
+    `,
+    [productIds],
+  )
+  const map = new Map<string, string>()
+  for (const row of res.rows) {
+    map.set(row.productId as string, row.supplierId as string)
+  }
+  return map
 }
