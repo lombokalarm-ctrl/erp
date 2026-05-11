@@ -3,6 +3,7 @@ import { z } from "zod";
 import { authenticate, authorizeAny } from "../../middlewares/auth.js";
 import {
   exportProfitLossReport,
+  exportInventoryTransferReport,
   exportReplenishmentReport,
   exportSalesReport,
   exportStockReport,
@@ -104,6 +105,7 @@ router.get(
         .object({
           warehouseId: z.string().uuid().optional(),
           q: z.string().optional(),
+          lookbackDays: z.coerce.number().int().min(1).max(180).optional(),
           format: formatSchema,
         })
         .parse(req.query);
@@ -111,6 +113,31 @@ router.get(
       const file = await exportReplenishmentReport({
         warehouseId: query.warehouseId,
         q: query.q,
+        lookbackDays: query.lookbackDays,
+        format: query.format ?? "xlsx",
+      });
+      res.setHeader("Content-Type", file.contentType);
+      res.setHeader("Content-Disposition", `attachment; filename="${file.fileName}"`);
+      res.send(file.buffer);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+router.get(
+  "/inventory-transfers",
+  authenticate,
+  authorizeAny(["reports:read", "inventory:read"]),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const query = z
+        .object({
+          format: formatSchema,
+        })
+        .parse(req.query);
+
+      const file = await exportInventoryTransferReport({
         format: query.format ?? "xlsx",
       });
       res.setHeader("Content-Type", file.contentType);

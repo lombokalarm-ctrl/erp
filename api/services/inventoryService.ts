@@ -1,7 +1,22 @@
 import type { PoolClient } from 'pg'
 import { getPool } from '../db/pool.js'
 import { withTransaction } from '../db/tx.js'
-import { randomUUID } from 'node:crypto'
+
+function pad4(n: number) {
+  return String(n).padStart(4, '0')
+}
+
+async function generateTransferNumber(client: PoolClient, transferDate: string) {
+  const dateKey = transferDate.replace(/-/g, '')
+  const like = `TRF-${dateKey}-%`
+  const res = await client.query(
+    `select transfer_no from inventory_transfers where transfer_no like $1 order by transfer_no desc limit 1`,
+    [like],
+  )
+  const last = res.rows[0]?.transfer_no as string | undefined
+  const nextSeq = last ? Number(last.split('-').pop()) + 1 : 1
+  return `TRF-${dateKey}-${pad4(nextSeq)}`
+}
 
 export async function getDefaultWarehouseId(client?: PoolClient) {
   const q = client ?? getPool()
@@ -132,9 +147,14 @@ export async function listInventoryTransactions(params: {
   return { items: res.rows, total }
 }
 
-export async function listReplenishmentSuggestions(params: { warehouseId?: string; q?: string }) {
+export async function listReplenishmentSuggestions(params: {
+  warehouseId?: string
+  q?: string
+  lookbackDays?: number
+}) {
   const pool = getPool()
-  const values: unknown[] = []
+  const lookbackDays = Math.max(1, Math.min(180, Number(params.lookbackDays ?? 30)))
+  const values: unknown[] = [lookbackDays]
   const conditions: string[] = ['coalesce(p.min_stock_base, 0) > 0']
 
   if (params.q?.trim()) {
@@ -151,7 +171,16 @@ export async function listReplenishmentSuggestions(params: { warehouseId?: strin
 
   const res = await pool.query(
     `
-      with stock as (
+      with sales as (
+        select
+          ii.product_id as "productId",
+          coalesce(sum(coalesce(ii.qty_base, ii.qty * coalesce(ii.uom_to_pcs, 1))), 0)::numeric as "soldQtyBase"
+        from invoice_items ii
+        join invoices i on i.id = ii.invoice_id
+        where i.invoice_date >= current_date - ($1::int || ' days')::interval
+        group by ii.product_id
+      ),
+      stock as (
         select
           p.id as "productId",
           p.sku,
@@ -159,11 +188,15 @@ export async function listReplenishmentSuggestions(params: { warehouseId?: strin
           p.purchase_price::numeric as "purchasePrice",
           coalesce(p.min_stock_base, 0)::numeric as "minStockBase",
           coalesce(p.reorder_qty_base, 0)::numeric as "reorderQtyBase",
+          coalesce(p.lead_time_days, 0)::int as "leadTimeDays",
+          coalesce(p.buffer_days, 0)::int as "bufferDays",
+          coalesce(s."soldQtyBase", 0)::numeric as "soldQtyBase",
           coalesce(sum(b.qty), 0)::numeric as "currentQtyBase"
         from products p
+        left join sales s on s."productId" = p.id
         left join inventory_balances b on b.product_id = p.id ${warehouseJoinSql}
         where ${conditions.join(' and ')}
-        group by p.id, p.sku, p.name, p.purchase_price, p.min_stock_base, p.reorder_qty_base
+        group by p.id, p.sku, p.name, p.purchase_price, p.min_stock_base, p.reorder_qty_base, p.lead_time_days, p.buffer_days, s."soldQtyBase"
       )
       select
         s."productId",
@@ -173,26 +206,61 @@ export async function listReplenishmentSuggestions(params: { warehouseId?: strin
         s."currentQtyBase"::text as "currentQtyBase",
         s."minStockBase"::text as "minStockBase",
         s."reorderQtyBase"::text as "reorderQtyBase",
-        greatest(s."minStockBase" - s."currentQtyBase", 0)::text as "shortageQtyBase",
+        s."leadTimeDays",
+        s."bufferDays",
+        (s."soldQtyBase" / greatest($1::int, 1))::text as "avgDailySalesBase",
+        (
+          s."minStockBase" + ((s."soldQtyBase" / greatest($1::int, 1)) * greatest((s."leadTimeDays" + s."bufferDays"), 0))
+        )::text as "targetStockBase",
+        greatest(
+          (
+            s."minStockBase" + ((s."soldQtyBase" / greatest($1::int, 1)) * greatest((s."leadTimeDays" + s."bufferDays"), 0))
+          ) - s."currentQtyBase",
+          0
+        )::text as "shortageQtyBase",
         (
           case
-            when s."currentQtyBase" >= s."minStockBase" then 0
-            when s."reorderQtyBase" > 0 then greatest(s."reorderQtyBase", s."minStockBase" - s."currentQtyBase")
-            else (s."minStockBase" - s."currentQtyBase")
+            when s."currentQtyBase" >= (
+              s."minStockBase" + ((s."soldQtyBase" / greatest($1::int, 1)) * greatest((s."leadTimeDays" + s."bufferDays"), 0))
+            ) then 0
+            when s."reorderQtyBase" > 0 then greatest(
+              s."reorderQtyBase",
+              (
+                s."minStockBase" + ((s."soldQtyBase" / greatest($1::int, 1)) * greatest((s."leadTimeDays" + s."bufferDays"), 0))
+              ) - s."currentQtyBase"
+            )
+            else (
+              s."minStockBase" + ((s."soldQtyBase" / greatest($1::int, 1)) * greatest((s."leadTimeDays" + s."bufferDays"), 0))
+            ) - s."currentQtyBase"
           end
         )::text as "recommendedQtyBase",
         (
           (
             case
-              when s."currentQtyBase" >= s."minStockBase" then 0
-              when s."reorderQtyBase" > 0 then greatest(s."reorderQtyBase", s."minStockBase" - s."currentQtyBase")
-              else (s."minStockBase" - s."currentQtyBase")
+              when s."currentQtyBase" >= (
+                s."minStockBase" + ((s."soldQtyBase" / greatest($1::int, 1)) * greatest((s."leadTimeDays" + s."bufferDays"), 0))
+              ) then 0
+              when s."reorderQtyBase" > 0 then greatest(
+                s."reorderQtyBase",
+                (
+                  s."minStockBase" + ((s."soldQtyBase" / greatest($1::int, 1)) * greatest((s."leadTimeDays" + s."bufferDays"), 0))
+                ) - s."currentQtyBase"
+              )
+              else (
+                s."minStockBase" + ((s."soldQtyBase" / greatest($1::int, 1)) * greatest((s."leadTimeDays" + s."bufferDays"), 0))
+              ) - s."currentQtyBase"
             end
           ) * s."purchasePrice"
         )::text as "estimatedPurchaseValue"
       from stock s
-      where s."currentQtyBase" < s."minStockBase"
-      order by (s."minStockBase" - s."currentQtyBase") desc, s."productName" asc
+      where s."currentQtyBase" < (
+        s."minStockBase" + ((s."soldQtyBase" / greatest($1::int, 1)) * greatest((s."leadTimeDays" + s."bufferDays"), 0))
+      )
+      order by (
+        (
+          s."minStockBase" + ((s."soldQtyBase" / greatest($1::int, 1)) * greatest((s."leadTimeDays" + s."bufferDays"), 0))
+        ) - s."currentQtyBase"
+      ) desc, s."productName" asc
     `,
     values,
   )
@@ -216,6 +284,7 @@ export async function listReplenishmentSuggestions(params: { warehouseId?: strin
   return {
     summary: {
       ...summary,
+      lookbackDays,
       totalShortageQtyBase: String(summary.totalShortageQtyBase),
       totalRecommendedQtyBase: String(summary.totalRecommendedQtyBase),
       totalEstimatedPurchase: String(summary.totalEstimatedPurchase),
@@ -229,6 +298,8 @@ export async function createInventoryTransfer(input: {
   targetWarehouseId: string
   items: Array<{ productId: string; qtyBase: number }>
   createdBy: string
+  transferDate?: string
+  clientRef?: string
   note?: string
 }) {
   if (input.sourceWarehouseId === input.targetWarehouseId) {
@@ -239,9 +310,62 @@ export async function createInventoryTransfer(input: {
   }
 
   return withTransaction(async (client) => {
-    const transferRefId = randomUUID()
+    if (input.clientRef?.trim()) {
+      const existingRes = await client.query(
+        `
+          select id, transfer_no as "transferNo"
+          from inventory_transfers
+          where client_ref = $1
+          limit 1
+        `,
+        [input.clientRef.trim()],
+      )
+      const existing = existingRes.rows[0]
+      if (existing) {
+        return {
+          transferRefId: existing.id as string,
+          transferNo: existing.transferNo as string,
+          duplicate: true,
+        }
+      }
+    }
+
+    const normalizedDate = input.transferDate ?? new Date().toISOString().slice(0, 10)
+    const transferNo = await generateTransferNumber(client, normalizedDate)
+    const headerRes = await client.query(
+      `
+        insert into inventory_transfers(
+          transfer_no,
+          client_ref,
+          source_warehouse_id,
+          target_warehouse_id,
+          transfer_date,
+          note,
+          created_by
+        )
+        values ($1,$2,$3,$4,$5,$6,$7)
+        returning id, transfer_no as "transferNo"
+      `,
+      [
+        transferNo,
+        input.clientRef?.trim() || null,
+        input.sourceWarehouseId,
+        input.targetWarehouseId,
+        normalizedDate,
+        input.note ?? null,
+        input.createdBy,
+      ],
+    )
+    const transferRefId = headerRes.rows[0].id as string
+    const transferNoCreated = headerRes.rows[0].transferNo as string
+
+    const mergedItems = new Map<string, number>()
     for (const item of input.items) {
-      const qtyBase = Number(item.qtyBase)
+      mergedItems.set(item.productId, (mergedItems.get(item.productId) ?? 0) + Number(item.qtyBase))
+    }
+
+    for (const [productId, qtyBaseRaw] of mergedItems.entries()) {
+      const qtyBase = Number(qtyBaseRaw)
       if (!Number.isFinite(qtyBase) || qtyBase <= 0) continue
 
       const stockRes = await client.query(
@@ -251,7 +375,7 @@ export async function createInventoryTransfer(input: {
           where warehouse_id = $1 and product_id = $2
           limit 1
         `,
-        [input.sourceWarehouseId, item.productId],
+        [input.sourceWarehouseId, productId],
       )
       const available = Number(stockRes.rows[0]?.qty ?? 0)
       if (available < qtyBase) {
@@ -260,29 +384,71 @@ export async function createInventoryTransfer(input: {
 
       await applyInventoryTransaction({
         warehouseId: input.sourceWarehouseId,
-        productId: item.productId,
+        productId,
         type: 'TRANSFER_OUT',
         qtyDelta: -qtyBase,
         createdBy: input.createdBy,
         refType: 'inventory_transfer',
         refId: transferRefId,
-        note: input.note,
+        note: `${transferNoCreated}${input.note ? ` - ${input.note}` : ''}`,
         client,
       })
 
       await applyInventoryTransaction({
         warehouseId: input.targetWarehouseId,
-        productId: item.productId,
+        productId,
         type: 'TRANSFER_IN',
         qtyDelta: qtyBase,
         createdBy: input.createdBy,
         refType: 'inventory_transfer',
         refId: transferRefId,
-        note: input.note,
+        note: `${transferNoCreated}${input.note ? ` - ${input.note}` : ''}`,
         client,
       })
+
+      await client.query(
+        `
+          insert into inventory_transfer_items(transfer_id, product_id, qty_base)
+          values ($1,$2,$3)
+        `,
+        [transferRefId, productId, qtyBase],
+      )
     }
 
-    return { transferRefId }
+    return { transferRefId, transferNo: transferNoCreated, duplicate: false }
   })
+}
+
+export async function listInventoryTransfers(params: { page?: number; pageSize?: number }) {
+  const pool = getPool()
+  const page = params.page ?? 1
+  const pageSize = params.pageSize ?? 50
+  const offset = (page - 1) * pageSize
+
+  const totalRes = await pool.query(`select count(*)::int as c from inventory_transfers`)
+  const total = Number(totalRes.rows[0]?.c ?? 0)
+
+  const res = await pool.query(
+    `
+      select
+        t.id,
+        t.transfer_no as "transferNo",
+        t.transfer_date::text as "transferDate",
+        ws.code as "sourceWarehouseCode",
+        wt.code as "targetWarehouseCode",
+        coalesce(sum(ti.qty_base), 0)::text as "totalQtyBase",
+        count(ti.id)::int as "itemCount",
+        t.created_at as "createdAt"
+      from inventory_transfers t
+      join warehouses ws on ws.id = t.source_warehouse_id
+      join warehouses wt on wt.id = t.target_warehouse_id
+      left join inventory_transfer_items ti on ti.transfer_id = t.id
+      group by t.id, t.transfer_no, t.transfer_date, ws.code, wt.code, t.created_at
+      order by t.created_at desc
+      limit $1 offset $2
+    `,
+    [pageSize, offset],
+  )
+
+  return { items: res.rows, total }
 }

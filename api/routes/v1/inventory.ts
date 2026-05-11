@@ -7,6 +7,7 @@ import {
   createInventoryTransfer,
   getDefaultWarehouseId,
   listReplenishmentSuggestions,
+  listInventoryTransfers,
   listInventorySummary,
   listInventoryTransactions,
 } from '../../services/inventoryService.js'
@@ -103,6 +104,7 @@ router.get(
         .object({
           warehouseId: z.string().uuid().optional(),
           q: z.string().optional(),
+          lookbackDays: z.coerce.number().int().min(1).max(180).optional(),
         })
         .parse(req.query)
       const result = await listReplenishmentSuggestions(query)
@@ -126,6 +128,7 @@ router.post(
           warehouseId: z.string().uuid().optional(),
           notes: z.string().optional(),
           q: z.string().optional(),
+          lookbackDays: z.coerce.number().int().min(1).max(180).optional(),
           productIds: z.array(z.string().uuid()).optional(),
         })
         .parse(req.body)
@@ -133,6 +136,7 @@ router.post(
       const suggestions = await listReplenishmentSuggestions({
         warehouseId: body.warehouseId,
         q: body.q,
+        lookbackDays: body.lookbackDays,
       })
       const selected = body.productIds?.length
         ? suggestions.items.filter((it: any) => body.productIds!.includes(it.productId))
@@ -185,6 +189,8 @@ router.post(
         .object({
           sourceWarehouseId: z.string().uuid(),
           targetWarehouseId: z.string().uuid(),
+          transferDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+          clientRef: z.string().min(3).max(100).optional(),
           note: z.string().optional(),
           items: z
             .array(
@@ -200,6 +206,8 @@ router.post(
       const result = await createInventoryTransfer({
         sourceWarehouseId: body.sourceWarehouseId,
         targetWarehouseId: body.targetWarehouseId,
+        transferDate: body.transferDate,
+        clientRef: body.clientRef,
         note: body.note,
         createdBy: req.user!.userId,
         items: body.items.map((it) => ({ productId: it.productId, qtyBase: it.qtyBase })),
@@ -214,6 +222,27 @@ router.post(
       })
 
       ok(res, result)
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+router.get(
+  '/transfers',
+  authenticate,
+  authorizeAny(['inventory:read']),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const query = z
+        .object({
+          page: z.coerce.number().int().min(1).default(1),
+          pageSize: z.coerce.number().int().min(1).max(200).default(50),
+        })
+        .parse(req.query)
+
+      const result = await listInventoryTransfers(query)
+      ok(res, result.items, { total: result.total })
     } catch (err) {
       next(err)
     }

@@ -12,6 +12,10 @@ type DashboardData = {
     monthlyCollection: string;
     monthlyOrders: number;
     activeCustomers: number;
+    replenishmentAlertItems: number;
+    replenishmentEstimatedPurchase: string;
+    todayTransferCount: number;
+    todayTransferQtyBase: string;
   };
   trend: {
     date: string;
@@ -103,6 +107,27 @@ export default function Dashboard() {
               <Users className="h-5 w-5" />
             </div>
           </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Card className="p-4 border-l-4 border-l-red-500">
+          <div className="text-xs font-medium text-zinc-500">SKU Alert Replenishment</div>
+          <div className="mt-1 text-2xl font-bold">{data?.kpi.replenishmentAlertItems ?? 0}</div>
+        </Card>
+        <Card className="p-4 border-l-4 border-l-amber-500">
+          <div className="text-xs font-medium text-zinc-500">Estimasi Nilai Replenishment</div>
+          <div className="mt-1 text-2xl font-bold">
+            {data ? formatCurrency(data.kpi.replenishmentEstimatedPurchase) : "—"}
+          </div>
+        </Card>
+        <Card className="p-4 border-l-4 border-l-sky-500">
+          <div className="text-xs font-medium text-zinc-500">Transfer Gudang Hari Ini</div>
+          <div className="mt-1 text-2xl font-bold">
+            {data?.kpi.todayTransferCount ?? 0}
+            <span className="ml-1 text-xs font-normal text-zinc-500">trx</span>
+          </div>
+          <div className="text-xs text-zinc-500">Qty Base: {Number(data?.kpi.todayTransferQtyBase ?? 0).toFixed(2)}</div>
         </Card>
       </div>
 

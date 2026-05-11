@@ -21,6 +21,8 @@ export type Product = {
   baseUomId?: string | null
   minStockBase?: string
   reorderQtyBase?: string
+  leadTimeDays?: number
+  bufferDays?: number
   uomMappings?: ProductUomMapping[]
 }
 
@@ -67,7 +69,9 @@ export async function listProducts(params: {
         pack_per_dus as "packPerDus",
         base_uom_id as "baseUomId",
         min_stock_base::text as "minStockBase",
-        reorder_qty_base::text as "reorderQtyBase"
+        reorder_qty_base::text as "reorderQtyBase",
+        lead_time_days as "leadTimeDays",
+        buffer_days as "bufferDays"
       from products
       ${whereSql}
       order by created_at desc
@@ -100,7 +104,9 @@ export async function getProductById(id: string) {
         pack_per_dus as "packPerDus",
         base_uom_id as "baseUomId",
         min_stock_base::text as "minStockBase",
-        reorder_qty_base::text as "reorderQtyBase"
+        reorder_qty_base::text as "reorderQtyBase",
+        lead_time_days as "leadTimeDays",
+        buffer_days as "bufferDays"
       from products
       where id = $1
       limit 1
@@ -128,6 +134,8 @@ export async function createProduct(input: {
   dusSize?: number
   minStockBase?: number
   reorderQtyBase?: number
+  leadTimeDays?: number
+  bufferDays?: number
 }) {
   const pool = getPool()
   const packSize = input.packSize ?? 1
@@ -137,9 +145,9 @@ export async function createProduct(input: {
     `
       insert into products(
         sku, name, unit, purchase_price, sale_price, category_prices, unit_prices, pack_size, pack_per_dus, dus_size,
-        min_stock_base, reorder_qty_base
+        min_stock_base, reorder_qty_base, lead_time_days, buffer_days
       )
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       returning
         id,
         sku,
@@ -154,7 +162,9 @@ export async function createProduct(input: {
         pack_per_dus as "packPerDus",
         base_uom_id as "baseUomId",
         min_stock_base::text as "minStockBase",
-        reorder_qty_base::text as "reorderQtyBase"
+        reorder_qty_base::text as "reorderQtyBase",
+        lead_time_days as "leadTimeDays",
+        buffer_days as "bufferDays"
     `,
     [
       input.sku,
@@ -169,6 +179,8 @@ export async function createProduct(input: {
       dusSize,
       input.minStockBase ?? 0,
       input.reorderQtyBase ?? 0,
+      input.leadTimeDays ?? 0,
+      input.bufferDays ?? 0,
     ],
   )
   const created = res.rows[0] as Product
@@ -210,6 +222,8 @@ export async function updateProduct(
     dusSize: number
     minStockBase: number
     reorderQtyBase: number
+    leadTimeDays: number
+    bufferDays: number
   }>,
 ) {
   const pool = getPool()
@@ -236,6 +250,8 @@ export async function updateProduct(
           dus_size = $11,
           min_stock_base = $12,
           reorder_qty_base = $13,
+          lead_time_days = $14,
+          buffer_days = $15,
           updated_at = now()
       where id = $1
       returning
@@ -252,7 +268,9 @@ export async function updateProduct(
         pack_per_dus as "packPerDus",
         base_uom_id as "baseUomId",
         min_stock_base::text as "minStockBase",
-        reorder_qty_base::text as "reorderQtyBase"
+        reorder_qty_base::text as "reorderQtyBase",
+        lead_time_days as "leadTimeDays",
+        buffer_days as "bufferDays"
     `,
     [
       id,
@@ -268,6 +286,8 @@ export async function updateProduct(
       nextDusSize,
       input.minStockBase ?? Number(current.minStockBase ?? 0),
       input.reorderQtyBase ?? Number(current.reorderQtyBase ?? 0),
+      input.leadTimeDays ?? Number(current.leadTimeDays ?? 0),
+      input.bufferDays ?? Number(current.bufferDays ?? 0),
     ],
   )
 

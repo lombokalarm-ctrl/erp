@@ -1,4 +1,5 @@
 import { getPool } from '../db/pool.js'
+import { listReplenishmentSuggestions } from './inventoryService.js'
 
 export async function getDashboardMetrics() {
   const pool = getPool()
@@ -78,12 +79,30 @@ export async function getDashboardMetrics() {
     `
   )
 
+  const replenishmentRes = await listReplenishmentSuggestions({ lookbackDays: 30 })
+
+  const transferTodayRes = await pool.query(
+    `
+      select
+        count(*)::int as "todayTransferCount",
+        coalesce(sum(ti.qty_base), 0)::numeric::text as "todayTransferQtyBase"
+      from inventory_transfers t
+      left join inventory_transfer_items ti on ti.transfer_id = t.id
+      where t.transfer_date = current_date
+    `,
+  )
+  const transferToday = transferTodayRes.rows[0] ?? { todayTransferCount: 0, todayTransferQtyBase: '0' }
+
   return {
     kpi: {
       monthlyRevenue: String(kpi.monthlyRevenue ?? 0),
       monthlyCollection: String(kpi.monthlyCollection ?? 0),
       monthlyOrders: Number(kpi.monthlyOrders ?? 0),
       activeCustomers: Number(kpi.activeCustomers ?? 0),
+      replenishmentAlertItems: Number(replenishmentRes.summary.totalItems ?? 0),
+      replenishmentEstimatedPurchase: String(replenishmentRes.summary.totalEstimatedPurchase ?? 0),
+      todayTransferCount: Number(transferToday.todayTransferCount ?? 0),
+      todayTransferQtyBase: String(transferToday.todayTransferQtyBase ?? 0),
     },
     trend: trendRes.rows,
     overdues,

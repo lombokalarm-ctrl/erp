@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
 import { getCompanySettings } from "./settingService.js";
-import { listReplenishmentSuggestions } from "./inventoryService.js";
+import { listInventoryTransfers, listReplenishmentSuggestions } from "./inventoryService.js";
 import { getProfitLossReport, getSalesReport, getStockReport } from "./reportService.js";
 import { buildSimplePdfLines, createSimplePdfBuffer } from "../lib/simplePdf.js";
 
@@ -252,11 +252,12 @@ export async function exportProfitLossReport(params: {
 export async function exportReplenishmentReport(params: {
   warehouseId?: string;
   q?: string;
+  lookbackDays?: number;
   format: ExportFormat;
 }): Promise<ExportFile> {
   const [company, report] = await Promise.all([
     getCompanySettings(),
-    listReplenishmentSuggestions({ warehouseId: params.warehouseId, q: params.q }),
+    listReplenishmentSuggestions({ warehouseId: params.warehouseId, q: params.q, lookbackDays: params.lookbackDays }),
   ]);
 
   const rows = report.items.map((row: any) => [
@@ -266,6 +267,10 @@ export async function exportReplenishmentReport(params: {
     num2(row.minStockBase),
     num2(row.shortageQtyBase),
     num2(row.recommendedQtyBase),
+    Number(row.leadTimeDays ?? 0),
+    Number(row.bufferDays ?? 0),
+    num2(row.avgDailySalesBase ?? 0),
+    num2(row.targetStockBase ?? 0),
     num2(row.purchasePrice),
     num2(row.estimatedPurchaseValue),
   ]);
@@ -288,6 +293,10 @@ export async function exportReplenishmentReport(params: {
         "Min Stock (Base)",
         "Kekurangan (Base)",
         "Rekomendasi PO (Base)",
+        "Lead Time (Hari)",
+        "Buffer (Hari)",
+        "Avg Sales Harian (Base)",
+        "Target Stock (Base)",
         "Harga Beli",
         "Estimasi Nilai",
       ],
@@ -312,6 +321,44 @@ export async function exportReplenishmentReport(params: {
     buffer: makePdfBuffer({
       companyName: company.name,
       title: "Laporan Replenishment",
+      sections,
+    }),
+  };
+}
+
+export async function exportInventoryTransferReport(params: { format: ExportFormat }): Promise<ExportFile> {
+  const [company, transfers] = await Promise.all([getCompanySettings(), listInventoryTransfers({ page: 1, pageSize: 500 })]);
+  const rows = transfers.items.map((row: any) => [
+    row.transferNo,
+    row.transferDate,
+    row.sourceWarehouseCode,
+    row.targetWarehouseCode,
+    num2(row.totalQtyBase),
+    Number(row.itemCount ?? 0),
+  ]);
+
+  const sections = [
+    {
+      title: "Daftar Transfer Gudang",
+      headers: ["No Transfer", "Tanggal", "Gudang Asal", "Gudang Tujuan", "Total Qty Base", "Jumlah Item"],
+      rows,
+    },
+  ];
+
+  if (params.format === "xlsx") {
+    return {
+      fileName: `Laporan_Transfer_Gudang_${nowTag()}.xlsx`,
+      contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      buffer: makeWorkbookBuffer([{ name: "Transfer Gudang", headers: sections[0].headers, rows }]),
+    };
+  }
+
+  return {
+    fileName: `Laporan_Transfer_Gudang_${nowTag()}.pdf`,
+    contentType: "application/pdf",
+    buffer: makePdfBuffer({
+      companyName: company.name,
+      title: "Laporan Transfer Gudang",
       sections,
     }),
   };

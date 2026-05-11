@@ -39,9 +39,24 @@ type ReplenishmentItem = {
   currentQtyBase: string;
   minStockBase: string;
   reorderQtyBase: string;
+  leadTimeDays: number;
+  bufferDays: number;
+  avgDailySalesBase: string;
+  targetStockBase: string;
   shortageQtyBase: string;
   recommendedQtyBase: string;
   estimatedPurchaseValue: string;
+};
+
+type TransferRow = {
+  id: string;
+  transferNo: string;
+  transferDate: string;
+  sourceWarehouseCode: string;
+  targetWarehouseCode: string;
+  totalQtyBase: string;
+  itemCount: number;
+  createdAt: string;
 };
 
 export default function Inventory() {
@@ -61,15 +76,19 @@ export default function Inventory() {
   const [replenishmentRows, setReplenishmentRows] = useState<ReplenishmentItem[]>([]);
   const [replenishmentQ, setReplenishmentQ] = useState("");
   const [replenishmentWarehouseId, setReplenishmentWarehouseId] = useState("");
+  const [replenishmentLookbackDays, setReplenishmentLookbackDays] = useState("30");
   const [selectedReplenishmentProductIds, setSelectedReplenishmentProductIds] = useState<string[]>([]);
   const [selectedSupplierId, setSelectedSupplierId] = useState("");
   const [poOrderDate, setPoOrderDate] = useState(new Date().toISOString().slice(0, 10));
 
   const [transferSourceWarehouseId, setTransferSourceWarehouseId] = useState("");
   const [transferTargetWarehouseId, setTransferTargetWarehouseId] = useState("");
+  const [transferDate, setTransferDate] = useState(new Date().toISOString().slice(0, 10));
+  const [transferClientRef, setTransferClientRef] = useState("");
   const [transferItems, setTransferItems] = useState<Array<{ productId: string; qtyBase: string }>>([
     { productId: "", qtyBase: "0" },
   ]);
+  const [transferRows, setTransferRows] = useState<TransferRow[]>([]);
 
   async function load() {
     setError(null);
@@ -101,6 +120,7 @@ export default function Inventory() {
       const qs = new URLSearchParams();
       if (replenishmentWarehouseId) qs.set("warehouseId", replenishmentWarehouseId);
       if (replenishmentQ.trim()) qs.set("q", replenishmentQ.trim());
+      qs.set("lookbackDays", String(Math.max(1, Number(replenishmentLookbackDays || 30))));
       const path = `/api/v1/inventory/replenishment/suggestions${qs.toString() ? `?${qs.toString()}` : ""}`;
       const res = await apiFetch<{ data: { items: ReplenishmentItem[] } }>(path);
       const items = res.data.items || [];
@@ -119,6 +139,9 @@ export default function Inventory() {
     if (activeTab === "replenishment") {
       void loadReplenishment();
     }
+    if (activeTab === "transfer") {
+      void loadTransfers();
+    }
   }, [activeTab]);
 
   async function handleCreateDraftPo() {
@@ -131,6 +154,7 @@ export default function Inventory() {
           orderDate: poOrderDate,
           warehouseId: replenishmentWarehouseId || undefined,
           q: replenishmentQ || undefined,
+          lookbackDays: Math.max(1, Number(replenishmentLookbackDays || 30)),
           productIds: selectedReplenishmentProductIds.length ? selectedReplenishmentProductIds : undefined,
         }),
       });
@@ -147,6 +171,7 @@ export default function Inventory() {
       url.searchParams.set("format", format);
       if (replenishmentWarehouseId) url.searchParams.set("warehouseId", replenishmentWarehouseId);
       if (replenishmentQ.trim()) url.searchParams.set("q", replenishmentQ.trim());
+      url.searchParams.set("lookbackDays", String(Math.max(1, Number(replenishmentLookbackDays || 30))));
       const file = await apiDownload(url.pathname + url.search);
       const blobUrl = URL.createObjectURL(file.blob);
       const a = document.createElement("a");
@@ -158,6 +183,34 @@ export default function Inventory() {
       URL.revokeObjectURL(blobUrl);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Gagal export replenishment");
+    }
+  }
+
+  async function loadTransfers() {
+    try {
+      const res = await apiFetch<{ data: TransferRow[] }>("/api/v1/inventory/transfers?page=1&pageSize=100");
+      setTransferRows(res.data || []);
+    } catch {
+      setTransferRows([]);
+    }
+  }
+
+  async function handleExportTransfers(format: "xlsx" | "pdf") {
+    try {
+      setError(null);
+      const url = new URL("/api/v1/exports/inventory-transfers", window.location.origin);
+      url.searchParams.set("format", format);
+      const file = await apiDownload(url.pathname + url.search);
+      const blobUrl = URL.createObjectURL(file.blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = file.filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Gagal export transfer gudang");
     }
   }
 
@@ -176,10 +229,14 @@ export default function Inventory() {
         body: JSON.stringify({
           sourceWarehouseId: transferSourceWarehouseId,
           targetWarehouseId: transferTargetWarehouseId,
+          transferDate,
+          clientRef: transferClientRef.trim() || undefined,
           items,
         }),
       });
+      setTransferClientRef("");
       setTransferItems([{ productId: "", qtyBase: "0" }]);
+      await loadTransfers();
       await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Gagal menyimpan transfer gudang");
@@ -442,6 +499,13 @@ export default function Inventory() {
                   searchPlaceholder="Cari gudang..."
                 />
               </div>
+              <div>
+                <NumericInput
+                  label="Lookback (hari)"
+                  value={replenishmentLookbackDays}
+                  onValueChange={(v) => setReplenishmentLookbackDays(v || "30")}
+                />
+              </div>
               <div className="flex gap-2">
                 <Button variant="secondary" onClick={() => void loadReplenishment()}>
                   Muat
@@ -486,6 +550,10 @@ export default function Inventory() {
                     <th className="px-4 py-2">Nama Produk</th>
                     <th className="px-4 py-2 text-right">Stok Saat Ini (Base)</th>
                     <th className="px-4 py-2 text-right">Min Stock</th>
+                    <th className="px-4 py-2 text-right">Lead Time</th>
+                    <th className="px-4 py-2 text-right">Buffer</th>
+                    <th className="px-4 py-2 text-right">Avg Sales</th>
+                    <th className="px-4 py-2 text-right">Target Stock</th>
                     <th className="px-4 py-2 text-right">Kekurangan</th>
                     <th className="px-4 py-2 text-right">Rekomendasi PO</th>
                     <th className="px-4 py-2 text-right">Estimasi Nilai</th>
@@ -509,6 +577,10 @@ export default function Inventory() {
                       <td className="px-4 py-2">{r.productName}</td>
                       <td className="px-4 py-2 text-right">{Number(r.currentQtyBase).toFixed(2)}</td>
                       <td className="px-4 py-2 text-right">{Number(r.minStockBase).toFixed(2)}</td>
+                      <td className="px-4 py-2 text-right">{Number(r.leadTimeDays || 0)}</td>
+                      <td className="px-4 py-2 text-right">{Number(r.bufferDays || 0)}</td>
+                      <td className="px-4 py-2 text-right">{Number(r.avgDailySalesBase || 0).toFixed(2)}</td>
+                      <td className="px-4 py-2 text-right">{Number(r.targetStockBase || 0).toFixed(2)}</td>
                       <td className="px-4 py-2 text-right text-red-600">{Number(r.shortageQtyBase).toFixed(2)}</td>
                       <td className="px-4 py-2 text-right font-medium">{Number(r.recommendedQtyBase).toFixed(2)}</td>
                       <td className="px-4 py-2 text-right">{Number(r.estimatedPurchaseValue).toFixed(2)}</td>
@@ -516,7 +588,7 @@ export default function Inventory() {
                   ))}
                   {replenishmentRows.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-zinc-500">
+                      <td colSpan={12} className="px-4 py-8 text-center text-zinc-500">
                         Tidak ada alert min stock.
                       </td>
                     </tr>
@@ -529,7 +601,7 @@ export default function Inventory() {
       ) : (
         <div className="space-y-3">
           <Card className="p-3">
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-4">
               <label className="block">
                 <div className="mb-1 text-xs font-medium text-zinc-600">Gudang Asal</div>
                 <SearchableSelect
@@ -548,6 +620,18 @@ export default function Inventory() {
                   includePlaceholder={false}
                   options={warehouses.map((w) => ({ value: w.id, label: `${w.code} - ${w.name}` }))}
                   searchPlaceholder="Cari gudang tujuan..."
+                />
+              </label>
+              <label className="block">
+                <div className="mb-1 text-xs font-medium text-zinc-600">Tanggal Transfer</div>
+                <Input type="date" value={transferDate} onChange={(e) => setTransferDate(e.target.value)} />
+              </label>
+              <label className="block">
+                <div className="mb-1 text-xs font-medium text-zinc-600">Client Ref (opsional)</div>
+                <Input
+                  value={transferClientRef}
+                  onChange={(e) => setTransferClientRef(e.target.value)}
+                  placeholder="Mis. mobile-sync-001"
                 />
               </label>
             </div>
@@ -592,6 +676,43 @@ export default function Inventory() {
                 Tambah Item
               </Button>
               <Button onClick={() => void handleSaveTransfer()}>Simpan Transfer</Button>
+              <Button variant="secondary" onClick={() => void handleExportTransfers("xlsx")}>Excel Transfer</Button>
+              <Button variant="secondary" onClick={() => void handleExportTransfers("pdf")}>PDF Transfer</Button>
+            </div>
+          </Card>
+          <Card className="overflow-hidden">
+            <div className="overflow-auto">
+              <table className="min-w-full text-sm">
+                <thead className="sticky top-0 bg-white">
+                  <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
+                    <th className="px-4 py-2">No Transfer</th>
+                    <th className="px-4 py-2">Tanggal</th>
+                    <th className="px-4 py-2">Gudang Asal</th>
+                    <th className="px-4 py-2">Gudang Tujuan</th>
+                    <th className="px-4 py-2 text-right">Item</th>
+                    <th className="px-4 py-2 text-right">Total Qty Base</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transferRows.map((row) => (
+                    <tr key={row.id} className="border-b border-zinc-100 hover:bg-zinc-50">
+                      <td className="px-4 py-2 font-medium">{row.transferNo}</td>
+                      <td className="px-4 py-2">{row.transferDate}</td>
+                      <td className="px-4 py-2">{row.sourceWarehouseCode}</td>
+                      <td className="px-4 py-2">{row.targetWarehouseCode}</td>
+                      <td className="px-4 py-2 text-right">{Number(row.itemCount || 0)}</td>
+                      <td className="px-4 py-2 text-right">{Number(row.totalQtyBase || 0).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                  {transferRows.length === 0 ? (
+                    <tr>
+                      <td className="px-4 py-6 text-sm text-zinc-500" colSpan={6}>
+                        Belum ada dokumen transfer gudang.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
             </div>
           </Card>
         </div>
