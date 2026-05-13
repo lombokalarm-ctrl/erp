@@ -352,6 +352,176 @@ export async function createPurchaseInvoice(input: {
   })
 }
 
+export async function updatePurchaseInvoice(
+  purchaseInvoiceId: string,
+  input: {
+    invoiceDate?: string
+    warehouseId?: string
+    supplierId?: string
+    termDays?: number
+    dueDate?: string
+    notes?: string
+    items: Array<{
+      productId: string
+      uomCode: string
+      qty: number
+      basePrice: number
+      disc1Type?: 'PERCENT' | 'AMOUNT'
+      disc1Value?: number
+      disc2Type?: 'PERCENT' | 'AMOUNT'
+      disc2Value?: number
+    }>
+  },
+) {
+  if (!input.items.length) {
+    throw new ApiError({ code: 'VALIDATION_ERROR', status: 400, message: 'Minimal satu item harus diisi' })
+  }
+
+  return withTransaction(async (client) => {
+    const currentRes = await client.query(
+      `
+        select
+          invoice_no as "invoiceNo",
+          invoice_date::text as "invoiceDate",
+          term_days::int as "termDays",
+          due_date::text as "dueDate",
+          status
+        from purchase_invoices
+        where id = $1
+        for update
+      `,
+      [purchaseInvoiceId],
+    )
+    const current = currentRes.rows[0] as
+      | { invoiceNo: string; invoiceDate: string; termDays: number; dueDate: string; status: string }
+      | undefined
+    if (!current) {
+      throw new ApiError({ code: 'NOT_FOUND', status: 404, message: 'Faktur pembelian tidak ditemukan' })
+    }
+    if (current.status !== 'DRAFT') {
+      throw new ApiError({
+        code: 'VALIDATION_ERROR',
+        status: 400,
+        message: 'Faktur hanya bisa diedit saat status masih DRAFT',
+      })
+    }
+
+    const nextInvoiceDate = input.invoiceDate ?? current.invoiceDate
+    const nextTermDays = Math.trunc(Number(input.termDays ?? current.termDays ?? 0))
+    const computedDueDate = addDays(nextInvoiceDate, nextTermDays)
+    const nextDueDate = input.dueDate ?? computedDueDate
+
+    await client.query(
+      `
+        update purchase_invoices
+        set
+          invoice_date = $2::date,
+          warehouse_id = coalesce($3::uuid, warehouse_id),
+          supplier_id = coalesce($4::uuid, supplier_id),
+          term_days = $5::int,
+          due_date = $6::date,
+          notes = $7,
+          updated_at = now()
+        where id = $1
+      `,
+      [
+        purchaseInvoiceId,
+        nextInvoiceDate,
+        input.warehouseId ?? null,
+        input.supplierId ?? null,
+        nextTermDays,
+        nextDueDate,
+        input.notes ?? null,
+      ],
+    )
+
+    await client.query(`delete from purchase_invoice_items where purchase_invoice_id = $1`, [
+      purchaseInvoiceId,
+    ])
+
+    for (const it of input.items) {
+      const uomCode = normalizeCode(it.uomCode)
+      const qty = Number(it.qty)
+      const basePrice = Number(it.basePrice)
+      const disc1Type = it.disc1Type ?? 'PERCENT'
+      const disc2Type = it.disc2Type ?? 'PERCENT'
+      const disc1Value = Number(it.disc1Value ?? 0)
+      const disc2Value = Number(it.disc2Value ?? 0)
+
+      const factor = await getToBaseFactor(client, it.productId, uomCode)
+      const qtyBase = qty * factor
+      if (!Number.isFinite(qtyBase) || qtyBase <= 0) {
+        throw new ApiError({
+          code: 'VALIDATION_ERROR',
+          status: 400,
+          message: `Qty base tidak valid untuk ${uomCode}`,
+        })
+      }
+
+      const line = calcLine({
+        qty,
+        basePrice,
+        disc1Type,
+        disc1Value,
+        disc2Type,
+        disc2Value,
+      })
+
+      await client.query(
+        `
+          insert into purchase_invoice_items(
+            purchase_invoice_id, product_id, uom_code, qty, qty_base,
+            base_price, disc1_type, disc1_value, disc2_type, disc2_value,
+            net_unit_price, line_gross, line_discount, line_net
+          )
+          values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+        `,
+        [
+          purchaseInvoiceId,
+          it.productId,
+          uomCode,
+          qty,
+          qtyBase,
+          basePrice,
+          disc1Type,
+          disc1Value,
+          disc2Type,
+          disc2Value,
+          line.netUnitPrice,
+          line.lineGross,
+          line.lineDiscount,
+          line.lineNet,
+        ],
+      )
+    }
+
+    return { id: purchaseInvoiceId, invoiceNo: current.invoiceNo }
+  })
+}
+
+export async function deletePurchaseInvoice(purchaseInvoiceId: string) {
+  return withTransaction(async (client) => {
+    const currentRes = await client.query(
+      `select status from purchase_invoices where id = $1 for update`,
+      [purchaseInvoiceId],
+    )
+    const current = currentRes.rows[0] as { status: string } | undefined
+    if (!current) {
+      throw new ApiError({ code: 'NOT_FOUND', status: 404, message: 'Faktur pembelian tidak ditemukan' })
+    }
+    if (current.status !== 'DRAFT') {
+      throw new ApiError({
+        code: 'VALIDATION_ERROR',
+        status: 400,
+        message: 'Faktur hanya bisa dihapus saat status masih DRAFT',
+      })
+    }
+
+    await client.query(`delete from purchase_invoices where id = $1`, [purchaseInvoiceId])
+    return { deleted: true }
+  })
+}
+
 export async function postPurchaseInvoice(purchaseInvoiceId: string) {
   return withTransaction(async (client) => {
     const res = await client.query(
@@ -374,4 +544,3 @@ export async function postPurchaseInvoice(purchaseInvoiceId: string) {
     return row
   })
 }
-

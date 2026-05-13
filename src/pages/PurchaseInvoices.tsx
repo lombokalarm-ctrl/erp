@@ -59,6 +59,8 @@ export default function PurchaseInvoices() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [detail, setDetail] = useState<any | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editInvoiceNo, setEditInvoiceNo] = useState<string | null>(null);
 
   const [invoiceDate, setInvoiceDate] = useState(today());
   const [warehouseId, setWarehouseId] = useState("");
@@ -188,6 +190,8 @@ export default function PurchaseInvoices() {
             size="sm"
             onClick={() => {
               setError(null);
+              setEditId(null);
+              setEditInvoiceNo(null);
               setInvoiceDate(today());
               setTermDays("0");
               setNotes("");
@@ -241,21 +245,81 @@ export default function PurchaseInvoices() {
                         Detail
                       </Button>
                       {r.status === "DRAFT" ? (
-                        <Button
-                          size="sm"
-                          onClick={async () => {
-                            try {
-                              setError(null);
-                              await apiFetch(`/api/v1/purchase-invoices/${r.id}/post`, { method: "POST" });
-                              const inv = await apiFetch<{ data: PurchaseInvoiceRow[] }>("/api/v1/purchase-invoices?page=1&pageSize=50");
-                              setRows(inv.data);
-                            } catch (e) {
-                              setError(e instanceof ApiError ? e.message : "Gagal posting faktur");
-                            }
-                          }}
-                        >
-                          Posting
-                        </Button>
+                        <>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={async () => {
+                              try {
+                                setError(null);
+                                const res = await apiFetch<{ data: any }>(`/api/v1/purchase-invoices/${r.id}`);
+                                const d = res.data;
+                                setEditId(r.id);
+                                setEditInvoiceNo(d?.header?.invoiceNo ?? null);
+                                setInvoiceDate(d?.header?.invoiceDate ?? today());
+                                setWarehouseId(d?.header?.warehouseId ?? "");
+                                setSupplierId(d?.header?.supplierId ?? "");
+                                setTermDays(String(d?.header?.termDays ?? 0));
+                                setDueDate(d?.header?.dueDate ?? today());
+                                setNotes(d?.header?.notes ?? "");
+                                setItems(
+                                  (d?.items ?? []).map((it: any) => ({
+                                    productId: it.productId,
+                                    uomCode: it.uomCode,
+                                    qty: String(it.qty ?? "0"),
+                                    basePrice: String(it.basePrice ?? "0"),
+                                    disc1Type: (it.disc1Type ?? "PERCENT") as DiscType,
+                                    disc1Value: String(it.disc1Value ?? "0"),
+                                    disc2Type: (it.disc2Type ?? "PERCENT") as DiscType,
+                                    disc2Value: String(it.disc2Value ?? "0"),
+                                  })),
+                                );
+                                setIsFormOpen(true);
+                                const productIds = (d?.items ?? []).map((x: any) => x.productId).filter(Boolean);
+                                for (const pid of productIds) {
+                                  await ensureProductUomsLoaded(pid);
+                                }
+                              } catch (e) {
+                                setError(e instanceof ApiError ? e.message : "Gagal memuat faktur untuk edit");
+                              }
+                            }}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            onClick={async () => {
+                              const okDel = window.confirm(`Hapus faktur ${r.invoiceNo}?`);
+                              if (!okDel) return;
+                              try {
+                                setError(null);
+                                await apiFetch(`/api/v1/purchase-invoices/${r.id}`, { method: "DELETE" });
+                                const inv = await apiFetch<{ data: PurchaseInvoiceRow[] }>("/api/v1/purchase-invoices?page=1&pageSize=50");
+                                setRows(inv.data);
+                              } catch (e) {
+                                setError(e instanceof ApiError ? e.message : "Gagal menghapus faktur");
+                              }
+                            }}
+                          >
+                            Hapus
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={async () => {
+                              try {
+                                setError(null);
+                                await apiFetch(`/api/v1/purchase-invoices/${r.id}/post`, { method: "POST" });
+                                const inv = await apiFetch<{ data: PurchaseInvoiceRow[] }>("/api/v1/purchase-invoices?page=1&pageSize=50");
+                                setRows(inv.data);
+                              } catch (e) {
+                                setError(e instanceof ApiError ? e.message : "Gagal posting faktur");
+                              }
+                            }}
+                          >
+                            Posting
+                          </Button>
+                        </>
                       ) : null}
                     </div>
                   </td>
@@ -278,8 +342,12 @@ export default function PurchaseInvoices() {
           <Card className="w-full max-w-4xl p-5 max-h-[92vh] overflow-y-auto shadow-2xl">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-base font-semibold">Buat Faktur Pembelian</div>
-                <p className="text-xs text-zinc-500">Nomor faktur otomatis saat disimpan.</p>
+                <div className="text-base font-semibold">
+                  {editId ? "Edit Faktur Pembelian" : "Buat Faktur Pembelian"}
+                </div>
+                <p className="text-xs text-zinc-500">
+                  {editId ? (editInvoiceNo ? `No: ${editInvoiceNo}` : "Faktur DRAFT") : "Nomor faktur otomatis saat disimpan."}
+                </p>
               </div>
               <button
                 className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
@@ -496,8 +564,10 @@ export default function PurchaseInvoices() {
                   onClick={async () => {
                     setError(null);
                     try {
-                      await apiFetch("/api/v1/purchase-invoices", {
-                        method: "POST",
+                      const url = editId ? `/api/v1/purchase-invoices/${editId}` : "/api/v1/purchase-invoices";
+                      const method = editId ? "PATCH" : "POST";
+                      await apiFetch(url, {
+                        method,
                         body: JSON.stringify({
                           invoiceDate,
                           warehouseId,
@@ -519,9 +589,11 @@ export default function PurchaseInvoices() {
                       });
                       const inv = await apiFetch<{ data: PurchaseInvoiceRow[] }>("/api/v1/purchase-invoices?page=1&pageSize=50");
                       setRows(inv.data);
+                      setEditId(null);
+                      setEditInvoiceNo(null);
                       setIsFormOpen(false);
                     } catch (e) {
-                      setError(e instanceof ApiError ? e.message : "Gagal membuat faktur pembelian");
+                      setError(e instanceof ApiError ? e.message : editId ? "Gagal mengupdate faktur pembelian" : "Gagal membuat faktur pembelian");
                     }
                   }}
                 >
@@ -607,4 +679,3 @@ export default function PurchaseInvoices() {
     </div>
   );
 }
-
