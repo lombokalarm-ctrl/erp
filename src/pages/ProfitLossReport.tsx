@@ -43,6 +43,34 @@ type ProfitLossData = {
     cogs: string;
     grossProfit: string;
   }[];
+  purchaseInvoice?: {
+    summary: {
+      invoiceCount: number;
+      itemCount: number;
+      qtyBaseTotal: string;
+      grossAmount: string;
+      discountAmount: string;
+      netAmount: string;
+    };
+    bySupplier: {
+      supplierId: string;
+      supplierName: string;
+      invoiceCount: number;
+      qtyBaseTotal: string;
+      grossAmount: string;
+      discountAmount: string;
+      netAmount: string;
+    }[];
+    byProduct: {
+      productId: string;
+      sku: string;
+      productName: string;
+      qtyBaseTotal: string;
+      grossAmount: string;
+      discountAmount: string;
+      netAmount: string;
+    }[];
+  };
 };
 
 export default function ProfitLossReport() {
@@ -50,6 +78,7 @@ export default function ProfitLossReport() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"sales" | "purchase">("sales");
 
   async function load() {
     setError(null);
@@ -137,10 +166,20 @@ export default function ProfitLossReport() {
         <div>
           <h1 className="text-lg font-semibold">Laporan Rugi Laba (Laba Kotor)</h1>
           <p className="mt-1 text-sm text-zinc-600">
-            Analisa Pendapatan, HPP, dan Laba Kotor berdasarkan transaksi penjualan.
+            {mode === "sales"
+              ? "Analisa Pendapatan, HPP, dan Laba Kotor berdasarkan transaksi penjualan."
+              : "Analisa pembelian berdasarkan faktur pabrik (harga dasar, diskon, dan nilai bersih pembelian)."}
           </p>
         </div>
         <div className="flex items-end gap-2">
+          <div className="flex items-center gap-1">
+            <Button variant={mode === "sales" ? "primary" : "secondary"} onClick={() => setMode("sales")}>
+              Penjualan
+            </Button>
+            <Button variant={mode === "purchase" ? "primary" : "secondary"} onClick={() => setMode("purchase")}>
+              Pembelian (Faktur)
+            </Button>
+          </div>
           <div>
             <div className="mb-1 text-xs font-medium text-zinc-500">Mulai Tanggal</div>
             <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
@@ -152,12 +191,16 @@ export default function ProfitLossReport() {
           <Button variant="secondary" onClick={load}>
             Filter
           </Button>
-          <Button variant="secondary" onClick={() => void handleExport("pdf")} title="Export PDF">
-            <Printer className="h-4 w-4" />
-          </Button>
-          <Button variant="secondary" onClick={() => void handleExport("xlsx")} title="Export Excel Analitik">
-            <Download className="h-4 w-4" />
-          </Button>
+          {mode === "sales" ? (
+            <>
+              <Button variant="secondary" onClick={() => void handleExport("pdf")} title="Export PDF">
+                <Printer className="h-4 w-4" />
+              </Button>
+              <Button variant="secondary" onClick={() => void handleExport("xlsx")} title="Export Excel Analitik">
+                <Download className="h-4 w-4" />
+              </Button>
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -166,6 +209,7 @@ export default function ProfitLossReport() {
       ) : null}
 
       {data && (
+        mode === "sales" ? (
         <>
           {(() => {
             const interpretation = buildInterpretation(data);
@@ -381,6 +425,112 @@ export default function ProfitLossReport() {
             </div>
           </Card>
         </>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Card className="p-4 bg-zinc-50">
+                <div className="text-xs font-medium text-zinc-500">Pembelian Bruto</div>
+                <div className="mt-2 text-xl font-semibold">
+                  {formatCurrency(data.purchaseInvoice?.summary.grossAmount ?? "0")}
+                </div>
+              </Card>
+              <Card className="p-4 bg-red-50/50">
+                <div className="text-xs font-medium text-red-600">Diskon Pabrik</div>
+                <div className="mt-2 text-xl font-semibold text-red-700">
+                  - {formatCurrency(data.purchaseInvoice?.summary.discountAmount ?? "0")}
+                </div>
+              </Card>
+              <Card className="p-4 bg-emerald-50/50">
+                <div className="text-xs font-medium text-emerald-600">Pembelian Bersih</div>
+                <div className="mt-2 text-xl font-semibold text-emerald-700">
+                  {formatCurrency(data.purchaseInvoice?.summary.netAmount ?? "0")}
+                </div>
+              </Card>
+              <Card className="p-4 bg-sky-50/50">
+                <div className="text-xs font-medium text-sky-700">Jumlah Faktur</div>
+                <div className="mt-2 text-xl font-semibold text-sky-700">{data.purchaseInvoice?.summary.invoiceCount ?? 0}</div>
+                <div className="mt-1 text-xs text-sky-700/80">Item: {data.purchaseInvoice?.summary.itemCount ?? 0}</div>
+              </Card>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <Card className="overflow-hidden">
+                <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold">
+                  Pembelian Bersih per Supplier
+                </div>
+                <div className="max-h-[420px] overflow-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="sticky top-0 bg-white">
+                      <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
+                        <th className="px-4 py-3">Supplier</th>
+                        <th className="px-4 py-3 text-right">Faktur</th>
+                        <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Bruto</th>
+                        <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Diskon</th>
+                        <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Bersih</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(data.purchaseInvoice?.bySupplier ?? []).map((s) => (
+                        <tr key={s.supplierId} className="border-b border-zinc-100 hover:bg-zinc-50">
+                          <td className="px-4 py-3 font-medium">{s.supplierName}</td>
+                          <td className="px-4 py-3 text-right">{s.invoiceCount}</td>
+                          <td className="whitespace-nowrap px-4 py-3 text-right">{formatCurrency(s.grossAmount)}</td>
+                          <td className="whitespace-nowrap px-4 py-3 text-right text-red-600">- {formatCurrency(s.discountAmount)}</td>
+                          <td className="whitespace-nowrap px-4 py-3 text-right font-medium text-emerald-600">{formatCurrency(s.netAmount)}</td>
+                        </tr>
+                      ))}
+                      {(data.purchaseInvoice?.bySupplier ?? []).length === 0 ? (
+                        <tr>
+                          <td className="px-4 py-6 text-center text-sm text-zinc-500" colSpan={5}>
+                            Belum ada faktur pembelian (POSTED) pada periode ini.
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+
+              <Card className="overflow-hidden">
+                <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold">
+                  Pembelian Bersih per Produk (Top 50)
+                </div>
+                <div className="max-h-[420px] overflow-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="sticky top-0 bg-white">
+                      <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
+                        <th className="px-4 py-3">Produk</th>
+                        <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Bruto</th>
+                        <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Diskon</th>
+                        <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Bersih</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(data.purchaseInvoice?.byProduct ?? []).map((p) => (
+                        <tr key={p.productId} className="border-b border-zinc-100 hover:bg-zinc-50">
+                          <td className="px-4 py-3">
+                            <div className="font-medium">{p.productName}</div>
+                            <div className="text-xs text-zinc-500">{p.sku}</div>
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 text-right">{formatCurrency(p.grossAmount)}</td>
+                          <td className="whitespace-nowrap px-4 py-3 text-right text-red-600">- {formatCurrency(p.discountAmount)}</td>
+                          <td className="whitespace-nowrap px-4 py-3 text-right font-medium text-emerald-600">{formatCurrency(p.netAmount)}</td>
+                        </tr>
+                      ))}
+                      {(data.purchaseInvoice?.byProduct ?? []).length === 0 ? (
+                        <tr>
+                          <td className="px-4 py-6 text-center text-sm text-zinc-500" colSpan={4}>
+                            Belum ada data.
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            </div>
+          </>
+        )
       )}
     </div>
   );

@@ -29,6 +29,7 @@ import Suppliers from "@/pages/Suppliers";
 import Inventory from "@/pages/Inventory";
 import PurchaseOrders from "@/pages/PurchaseOrders";
 import GoodsReceipts from "@/pages/GoodsReceipts";
+import PurchaseInvoices from "@/pages/PurchaseInvoices";
 import Returns from "@/pages/Returns";
 import DeliveryOrders from "@/pages/DeliveryOrders";
 import SalesPerformance from "@/pages/SalesPerformance";
@@ -73,6 +74,7 @@ export default function App() {
           <Route path="inventory" element={<Inventory />} />
           <Route path="purchase-orders" element={<PurchaseOrders />} />
           <Route path="goods-receipts" element={<GoodsReceipts />} />
+          <Route path="purchase-invoices" element={<PurchaseInvoices />} />
           <Route path="returns" element={<Returns />} />
           <Route path="sales-orders" element={<SalesOrders />} />
           <Route path="sales-orders/approvals" element={<ApprovalOrders />} />

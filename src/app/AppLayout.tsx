@@ -230,6 +230,7 @@ export default function AppLayout() {
           { to: "/inventory", label: "Inventory", icon: <Boxes className="h-4 w-4" />, anyPerm: ["inventory:read"] },
           { to: "/purchase-orders", label: "Purchase Order", icon: <ClipboardList className="h-4 w-4" />, anyPerm: ["purchasing:read"] },
           { to: "/goods-receipts", label: "Penerimaan (GRN)", icon: <ClipboardList className="h-4 w-4" />, anyPerm: ["purchasing:read"] },
+          { to: "/purchase-invoices", label: "Faktur Pembelian", icon: <FileText className="h-4 w-4" />, anyPerm: ["purchasing:read"] },
           { to: "/returns", label: "Retur Barang", icon: <RotateCcw className="h-4 w-4" />, anyPerm: ["inventory:write"] },
         ]
       },

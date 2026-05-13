@@ -388,17 +388,20 @@ export async function getProfitLossReport(params: { startDate?: string; endDate?
   
   let dateConditionI = "1=1"
   let dateConditionR = "1=1"
+  let dateConditionPI = "1=1"
 
   if (params.startDate) {
     values.push(params.startDate)
     dateConditionI += ` AND i.invoice_date >= $${values.length}`
     dateConditionR += ` AND r.return_date >= $${values.length}`
+    dateConditionPI += ` AND pi.invoice_date >= $${values.length}`
   }
   
   if (params.endDate) {
     values.push(params.endDate)
     dateConditionI += ` AND i.invoice_date <= $${values.length}`
     dateConditionR += ` AND r.return_date <= $${values.length}`
+    dateConditionPI += ` AND pi.invoice_date <= $${values.length}`
   }
 
   // 1. Summary of Sales, Returns, Discounts, COGS, and Gross Profit.
@@ -647,6 +650,99 @@ export async function getProfitLossReport(params: { startDate?: string; endDate?
     values,
   )
 
+  const purchaseInvoiceRes = await pool.query(
+    `
+      with inv as (
+        select
+          pi.id,
+          pi.supplier_id,
+          s.name as supplier_name,
+          sum(i.qty_base)::numeric as qty_base_total,
+          sum(i.line_gross)::numeric as gross_amount,
+          sum(i.line_discount)::numeric as discount_amount,
+          sum(i.line_net)::numeric as net_amount,
+          count(i.id)::int as item_count
+        from purchase_invoices pi
+        join suppliers s on s.id = pi.supplier_id
+        join purchase_invoice_items i on i.purchase_invoice_id = pi.id
+        where pi.status = 'POSTED'
+          and ${dateConditionPI}
+        group by pi.id, pi.supplier_id, s.name
+      ),
+      by_supplier as (
+        select
+          supplier_id as "supplierId",
+          supplier_name as "supplierName",
+          count(*)::int as "invoiceCount",
+          coalesce(sum(qty_base_total), 0)::text as "qtyBaseTotal",
+          coalesce(sum(gross_amount), 0)::text as "grossAmount",
+          coalesce(sum(discount_amount), 0)::text as "discountAmount",
+          coalesce(sum(net_amount), 0)::text as "netAmount"
+        from inv
+        group by supplier_id, supplier_name
+        order by coalesce(sum(net_amount), 0) desc
+        limit 50
+      ),
+      by_product as (
+        select
+          p.id as "productId",
+          p.sku,
+          p.name as "productName",
+          coalesce(sum(i.qty_base), 0)::text as "qtyBaseTotal",
+          coalesce(sum(i.line_gross), 0)::text as "grossAmount",
+          coalesce(sum(i.line_discount), 0)::text as "discountAmount",
+          coalesce(sum(i.line_net), 0)::text as "netAmount"
+        from purchase_invoices pi
+        join purchase_invoice_items i on i.purchase_invoice_id = pi.id
+        join products p on p.id = i.product_id
+        where pi.status = 'POSTED'
+          and ${dateConditionPI}
+        group by p.id, p.sku, p.name
+        order by coalesce(sum(i.line_net), 0) desc
+        limit 50
+      )
+      select
+        (select count(*)::int from inv) as "invoiceCount",
+        (select coalesce(sum(item_count), 0)::int from inv) as "itemCount",
+        (select coalesce(sum(qty_base_total), 0)::text from inv) as "qtyBaseTotal",
+        (select coalesce(sum(gross_amount), 0)::text from inv) as "grossAmount",
+        (select coalesce(sum(discount_amount), 0)::text from inv) as "discountAmount",
+        (select coalesce(sum(net_amount), 0)::text from inv) as "netAmount",
+        (select coalesce(json_agg(by_supplier), '[]'::json) from by_supplier) as "bySupplier",
+        (select coalesce(json_agg(by_product), '[]'::json) from by_product) as "byProduct"
+    `,
+    values,
+  )
+
+  const pi = purchaseInvoiceRes.rows[0] as
+    | {
+        invoiceCount: number
+        itemCount: number
+        qtyBaseTotal: string
+        grossAmount: string
+        discountAmount: string
+        netAmount: string
+        bySupplier: Array<{
+          supplierId: string
+          supplierName: string
+          invoiceCount: number
+          qtyBaseTotal: string
+          grossAmount: string
+          discountAmount: string
+          netAmount: string
+        }>
+        byProduct: Array<{
+          productId: string
+          sku: string
+          productName: string
+          qtyBaseTotal: string
+          grossAmount: string
+          discountAmount: string
+          netAmount: string
+        }>
+      }
+    | undefined
+
   return {
     summary: {
       grossSales: String(grossSales),
@@ -663,6 +759,31 @@ export async function getProfitLossReport(params: { startDate?: string; endDate?
     byCategory: byCategoryRes.rows,
     trend: trendRes.rows,
     topProducts: topProductsRes.rows,
+    purchaseInvoice: pi
+      ? {
+          summary: {
+            invoiceCount: pi.invoiceCount ?? 0,
+            itemCount: pi.itemCount ?? 0,
+            qtyBaseTotal: pi.qtyBaseTotal ?? '0',
+            grossAmount: pi.grossAmount ?? '0',
+            discountAmount: pi.discountAmount ?? '0',
+            netAmount: pi.netAmount ?? '0',
+          },
+          bySupplier: pi.bySupplier ?? [],
+          byProduct: pi.byProduct ?? [],
+        }
+      : {
+          summary: {
+            invoiceCount: 0,
+            itemCount: 0,
+            qtyBaseTotal: '0',
+            grossAmount: '0',
+            discountAmount: '0',
+            netAmount: '0',
+          },
+          bySupplier: [],
+          byProduct: [],
+        },
   }
 }
 

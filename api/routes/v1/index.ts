@@ -15,6 +15,7 @@ import supplierRoutes from './suppliers.js'
 import inventoryRoutes from './inventory.js'
 import purchaseOrderRoutes from './purchase-orders.js'
 import goodsReceiptRoutes from './goods-receipts.js'
+import purchaseInvoiceRoutes from './purchase-invoices.js'
 import warehouseRoutes from './warehouses.js'
 import reportRoutes from './reports.js'
 import exportRoutes from './exports.js'
@@ -46,6 +47,7 @@ router.use('/suppliers', supplierRoutes)
 router.use('/inventory', inventoryRoutes)
 router.use('/purchase-orders', purchaseOrderRoutes)
 router.use('/goods-receipts', goodsReceiptRoutes)
+router.use('/purchase-invoices', purchaseInvoiceRoutes)
 router.use('/warehouses', warehouseRoutes)
 router.use('/reports', reportRoutes)
 router.use('/exports', exportRoutes)
