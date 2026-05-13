@@ -52,6 +52,20 @@ function calcLine(qty: number, basePrice: number, disc1Type: DiscType, disc1Valu
   return { netUnit, lineGross, lineDisc1, lineDisc2, lineDiscount, lineNet };
 }
 
+function toNumberSafe(value: unknown) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function toIntegerString(value: unknown) {
+  return String(Math.round(toNumberSafe(value)));
+}
+
+function toDecimalString(value: unknown) {
+  const n = toNumberSafe(value);
+  return String(n);
+}
+
 export default function PurchaseInvoices() {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -268,12 +282,18 @@ export default function PurchaseInvoices() {
                                   (d?.items ?? []).map((it: any) => ({
                                     productId: it.productId,
                                     uomCode: it.uomCode,
-                                    qty: String(it.qty ?? "0"),
-                                    basePrice: String(it.basePrice ?? "0"),
+                                    qty: toIntegerString(it.qty),
+                                    basePrice: toIntegerString(it.basePrice),
                                     disc1Type: (it.disc1Type ?? "PERCENT") as DiscType,
-                                    disc1Value: String(it.disc1Value ?? "0"),
+                                    disc1Value:
+                                      (it.disc1Type ?? "PERCENT") === "AMOUNT"
+                                        ? toIntegerString(it.disc1Value)
+                                        : toDecimalString(it.disc1Value),
                                     disc2Type: (it.disc2Type ?? "PERCENT") as DiscType,
-                                    disc2Value: String(it.disc2Value ?? "0"),
+                                    disc2Value:
+                                      (it.disc2Type ?? "PERCENT") === "AMOUNT"
+                                        ? toIntegerString(it.disc2Value)
+                                        : toDecimalString(it.disc2Value),
                                   })),
                                 );
                                 setIsFormOpen(true);
