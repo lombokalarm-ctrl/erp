@@ -45,9 +45,11 @@ function calcLine(qty: number, basePrice: number, disc1Type: DiscType, disc1Valu
   const disc2Unit = disc2Type === "PERCENT" ? (after1Unit * disc2Value) / 100 : disc2Value;
   const netUnit = Math.max(0, after1Unit - disc2Unit);
   const lineGross = grossUnit * qty;
+  const lineDisc1 = disc1Unit * qty;
+  const lineDisc2 = disc2Unit * qty;
   const lineDiscount = (disc1Unit + disc2Unit) * qty;
   const lineNet = netUnit * qty;
-  return { netUnit, lineGross, lineDiscount, lineNet };
+  return { netUnit, lineGross, lineDisc1, lineDisc2, lineDiscount, lineNet };
 }
 
 export default function PurchaseInvoices() {
@@ -643,12 +645,23 @@ export default function PurchaseInvoices() {
                         <th className="px-4 py-2">Satuan</th>
                         <th className="px-4 py-2 text-right">Qty</th>
                         <th className="px-4 py-2 text-right">Harga</th>
-                        <th className="px-4 py-2 text-right">Diskon</th>
+                        <th className="px-4 py-2 text-right">Diskon 1</th>
+                        <th className="px-4 py-2 text-right">Diskon 2</th>
+                        <th className="px-4 py-2 text-right">Diskon Total</th>
                         <th className="px-4 py-2 text-right">Bersih</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(detail?.items ?? []).map((it: any) => (
+                        (() => {
+                          const qty = Number(it.qty) || 0;
+                          const basePrice = Number(it.basePrice) || 0;
+                          const disc1Type = (it.disc1Type ?? "PERCENT") as DiscType;
+                          const disc2Type = (it.disc2Type ?? "PERCENT") as DiscType;
+                          const disc1Value = Number(it.disc1Value) || 0;
+                          const disc2Value = Number(it.disc2Value) || 0;
+                          const r = qty > 0 ? calcLine(qty, basePrice, disc1Type, disc1Value, disc2Type, disc2Value) : null;
+                          return (
                         <tr key={it.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                           <td className="px-4 py-2">
                             <div className="font-medium">{it.productName}</div>
@@ -657,13 +670,17 @@ export default function PurchaseInvoices() {
                           <td className="px-4 py-2">{it.uomCode}</td>
                           <td className="px-4 py-2 text-right">{Number(it.qty).toFixed(2)}</td>
                           <td className="px-4 py-2 text-right">{formatCurrency(it.basePrice)}</td>
+                          <td className="px-4 py-2 text-right text-red-600">- {formatCurrency(r?.lineDisc1 ?? 0)}</td>
+                          <td className="px-4 py-2 text-right text-red-600">- {formatCurrency(r?.lineDisc2 ?? 0)}</td>
                           <td className="px-4 py-2 text-right text-red-600">- {formatCurrency(it.lineDiscount)}</td>
                           <td className="px-4 py-2 text-right font-medium text-emerald-600">{formatCurrency(it.lineNet)}</td>
                         </tr>
+                          );
+                        })()
                       ))}
                       {(detail?.items ?? []).length === 0 ? (
                         <tr>
-                          <td className="px-4 py-6 text-center text-sm text-zinc-500" colSpan={6}>
+                          <td className="px-4 py-6 text-center text-sm text-zinc-500" colSpan={8}>
                             Belum ada item.
                           </td>
                         </tr>
