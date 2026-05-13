@@ -66,6 +66,13 @@ function toDecimalString(value: unknown) {
   return String(n);
 }
 
+function formatPct(value: number) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "0%";
+  const rounded = Math.round(n * 100) / 100;
+  return `${rounded.toFixed(rounded % 1 === 0 ? 0 : 2)}%`;
+}
+
 export default function PurchaseInvoices() {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -681,6 +688,24 @@ export default function PurchaseInvoices() {
                           const disc1Value = Number(it.disc1Value) || 0;
                           const disc2Value = Number(it.disc2Value) || 0;
                           const r = qty > 0 ? calcLine(qty, basePrice, disc1Type, disc1Value, disc2Type, disc2Value) : null;
+                          const disc1Pct =
+                            disc1Type === "PERCENT"
+                              ? disc1Value
+                              : basePrice > 0 && qty > 0
+                                ? (r?.lineDisc1 ?? 0) / (basePrice * qty) * 100
+                                : 0;
+                          const disc2Pct =
+                            disc2Type === "PERCENT"
+                              ? disc2Value
+                              : basePrice > 0 && qty > 0
+                                ? (() => {
+                                    const after1Unit = Math.max(
+                                      0,
+                                      basePrice - (disc1Type === "PERCENT" ? (basePrice * disc1Value) / 100 : disc1Value),
+                                    );
+                                    return after1Unit > 0 ? ((r?.lineDisc2 ?? 0) / (after1Unit * qty)) * 100 : 0;
+                                  })()
+                                : 0;
                           return (
                         <tr key={it.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                           <td className="px-4 py-2">
@@ -690,8 +715,12 @@ export default function PurchaseInvoices() {
                           <td className="px-4 py-2">{it.uomCode}</td>
                           <td className="px-4 py-2 text-right">{Number(it.qty).toFixed(2)}</td>
                           <td className="px-4 py-2 text-right">{formatCurrency(it.basePrice)}</td>
-                          <td className="px-4 py-2 text-right text-red-600">- {formatCurrency(r?.lineDisc1 ?? 0)}</td>
-                          <td className="px-4 py-2 text-right text-red-600">- {formatCurrency(r?.lineDisc2 ?? 0)}</td>
+                          <td className="px-4 py-2 text-right text-red-600">
+                            <div className="text-xs text-zinc-500">{formatPct(disc1Pct)}</div>- {formatCurrency(r?.lineDisc1 ?? 0)}
+                          </td>
+                          <td className="px-4 py-2 text-right text-red-600">
+                            <div className="text-xs text-zinc-500">{formatPct(disc2Pct)}</div>- {formatCurrency(r?.lineDisc2 ?? 0)}
+                          </td>
                           <td className="px-4 py-2 text-right text-red-600">- {formatCurrency(it.lineDiscount)}</td>
                           <td className="px-4 py-2 text-right font-medium text-emerald-600">{formatCurrency(it.lineNet)}</td>
                         </tr>
