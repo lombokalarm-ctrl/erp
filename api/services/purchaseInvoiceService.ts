@@ -154,6 +154,7 @@ export async function listPurchaseInvoices(params: {
       select
         pi.id,
         pi.invoice_no as "invoiceNo",
+        pi.supplier_invoice_no as "supplierInvoiceNo",
         pi.invoice_date::text as "invoiceDate",
         pi.term_days::int as "termDays",
         pi.due_date::text as "dueDate",
@@ -189,6 +190,7 @@ export async function getPurchaseInvoiceDetail(id: string) {
       select
         pi.id,
         pi.invoice_no as "invoiceNo",
+        pi.supplier_invoice_no as "supplierInvoiceNo",
         pi.invoice_date::text as "invoiceDate",
         pi.warehouse_id as "warehouseId",
         w.code as "warehouseCode",
@@ -246,6 +248,7 @@ export async function createPurchaseInvoice(input: {
   invoiceDate?: string
   warehouseId: string
   supplierId: string
+  supplierInvoiceNo?: string
   termDays?: number
   dueDate?: string
   notes?: string
@@ -274,13 +277,14 @@ export async function createPurchaseInvoice(input: {
     const headerRes = await client.query(
       `
         insert into purchase_invoices(
-          invoice_no, invoice_date, warehouse_id, supplier_id, term_days, due_date, status, notes, created_by
+          invoice_no, supplier_invoice_no, invoice_date, warehouse_id, supplier_id, term_days, due_date, status, notes, created_by
         )
-        values ($1,$2,$3,$4,$5,$6,'DRAFT',$7,$8)
+        values ($1,$2,$3,$4,$5,$6,$7,'DRAFT',$8,$9)
         returning id, invoice_no as "invoiceNo"
       `,
       [
         invoiceNo,
+        input.supplierInvoiceNo ?? null,
         invoiceDate,
         input.warehouseId,
         input.supplierId,
@@ -358,6 +362,7 @@ export async function updatePurchaseInvoice(
     invoiceDate?: string
     warehouseId?: string
     supplierId?: string
+    supplierInvoiceNo?: string
     termDays?: number
     dueDate?: string
     notes?: string
@@ -415,17 +420,19 @@ export async function updatePurchaseInvoice(
       `
         update purchase_invoices
         set
-          invoice_date = $2::date,
-          warehouse_id = coalesce($3::uuid, warehouse_id),
-          supplier_id = coalesce($4::uuid, supplier_id),
-          term_days = $5::int,
-          due_date = $6::date,
-          notes = $7,
+          supplier_invoice_no = $2,
+          invoice_date = $3::date,
+          warehouse_id = coalesce($4::uuid, warehouse_id),
+          supplier_id = coalesce($5::uuid, supplier_id),
+          term_days = $6::int,
+          due_date = $7::date,
+          notes = $8,
           updated_at = now()
         where id = $1
       `,
       [
         purchaseInvoiceId,
+        input.supplierInvoiceNo ?? null,
         nextInvoiceDate,
         input.warehouseId ?? null,
         input.supplierId ?? null,

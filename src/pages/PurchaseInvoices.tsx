@@ -15,6 +15,7 @@ type Product = { id: string; sku: string; name: string; purchasePrice?: string }
 type PurchaseInvoiceRow = {
   id: string;
   invoiceNo: string;
+  supplierInvoiceNo?: string;
   invoiceDate: string;
   dueDate: string;
   status: string;
@@ -88,6 +89,7 @@ export default function PurchaseInvoices() {
   const [invoiceDate, setInvoiceDate] = useState(today());
   const [warehouseId, setWarehouseId] = useState("");
   const [supplierId, setSupplierId] = useState("");
+  const [supplierInvoiceNo, setSupplierInvoiceNo] = useState("");
   const [termDays, setTermDays] = useState("0");
   const [dueDate, setDueDate] = useState(today());
   const [notes, setNotes] = useState("");
@@ -218,6 +220,7 @@ export default function PurchaseInvoices() {
               setInvoiceDate(today());
               setTermDays("0");
               setNotes("");
+              setSupplierInvoiceNo("");
               setItems([{ productId: "", uomCode: "pcs", qty: "1", basePrice: "0", disc1Type: "PERCENT", disc1Value: "0", disc2Type: "PERCENT", disc2Value: "0" }]);
               setIsFormOpen(true);
             }}
@@ -230,6 +233,7 @@ export default function PurchaseInvoices() {
             <thead className="sticky top-0 bg-white">
               <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
                 <th className="px-4 py-2">No</th>
+                <th className="px-4 py-2">No Invoice Supplier</th>
                 <th className="px-4 py-2">Supplier</th>
                 <th className="px-4 py-2">Gudang</th>
                 <th className="px-4 py-2">Tanggal</th>
@@ -243,6 +247,7 @@ export default function PurchaseInvoices() {
               {rows.map((r) => (
                 <tr key={r.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                   <td className="px-4 py-2 font-medium">{r.invoiceNo}</td>
+                  <td className="px-4 py-2">{r.supplierInvoiceNo || "-"}</td>
                   <td className="px-4 py-2">{r.supplierName}</td>
                   <td className="px-4 py-2">{r.warehouseCode}</td>
                   <td className="px-4 py-2">{r.invoiceDate}</td>
@@ -282,6 +287,7 @@ export default function PurchaseInvoices() {
                                 setInvoiceDate(d?.header?.invoiceDate ?? today());
                                 setWarehouseId(d?.header?.warehouseId ?? "");
                                 setSupplierId(d?.header?.supplierId ?? "");
+                                setSupplierInvoiceNo(d?.header?.supplierInvoiceNo ?? "");
                                 setTermDays(String(d?.header?.termDays ?? 0));
                                 setDueDate(d?.header?.dueDate ?? today());
                                 setNotes(d?.header?.notes ?? "");
@@ -415,6 +421,13 @@ export default function PurchaseInvoices() {
                 <NumericInput label="Jatuh Tempo (hari)" value={termDays} onValueChange={(v) => setTermDays(v || "0")} />
                 <Input label="Tanggal Jatuh Tempo" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
               </div>
+
+              <Input
+                label="No Invoice Supplier"
+                value={supplierInvoiceNo}
+                onChange={(e) => setSupplierInvoiceNo(e.target.value)}
+                placeholder="Masukkan nomor invoice dari supplier"
+              />
 
               <Input label="Catatan" value={notes} onChange={(e) => setNotes(e.target.value)} />
 
@@ -601,6 +614,7 @@ export default function PurchaseInvoices() {
                           invoiceDate,
                           warehouseId,
                           supplierId,
+                          supplierInvoiceNo: supplierInvoiceNo || undefined,
                           termDays: Number(termDays),
                           dueDate,
                           notes: notes || undefined,
@@ -660,6 +674,11 @@ export default function PurchaseInvoices() {
                   <div className="text-xs text-zinc-500">Gudang</div>
                   <div className="mt-1 font-semibold">{detail?.header?.warehouseCode ?? "-"}</div>
                 </div>
+              </div>
+
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm">
+                <div className="text-xs text-zinc-500">No Invoice Supplier</div>
+                <div className="mt-1 font-semibold">{detail?.header?.supplierInvoiceNo || "-"}</div>
               </div>
 
               <Card className="overflow-hidden">
