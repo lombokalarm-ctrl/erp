@@ -13,6 +13,13 @@ export type Invoice = {
   status: string
 }
 
+function normalizeCurrencyAmount(value: number) {
+  if (!Number.isFinite(value)) return 0
+  const rounded = Math.round(value)
+  if (Math.abs(rounded) < 1) return 0
+  return rounded
+}
+
 export async function listInvoices(params: {
   page?: number
   pageSize?: number
@@ -153,13 +160,14 @@ export async function getInvoiceDetail(id: string) {
 
   const paid = await getInvoicePaidTotal(invoice.id)
   const credited = await getInvoiceCreditedTotal(invoice.id)
+  const remaining = normalizeCurrencyAmount(Number(invoice.totalAmount) - paid - credited)
   
   return {
     ...invoice,
     items: itemsRes.rows,
     paid: String(paid),
     credited: String(credited),
-    remaining: String(Math.max(0, Number(invoice.totalAmount) - paid - credited))
+    remaining: String(Math.max(0, remaining))
   }
 }
 
@@ -179,7 +187,7 @@ export async function recalcInvoiceStatus(invoiceId: string) {
   const credited = await getInvoiceCreditedTotal(invoiceId)
   const total = Number(invoice.totalAmount)
 
-  const remaining = Math.max(0, total - paid - credited)
+  const remaining = Math.max(0, normalizeCurrencyAmount(total - paid - credited))
   const today = new Date().toISOString().slice(0, 10)
   const overdue = remaining > 0 && invoice.dueDate < today
 

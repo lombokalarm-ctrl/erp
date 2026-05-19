@@ -10,6 +10,13 @@ import { formatCurrency } from "@/lib/numberFormat";
 type Invoice = { id: string; invoiceNo: string; customerName: string; totalAmount: string; status: string };
 type InvoiceDetail = Invoice & { paid: string; remaining: string; customerName: string; customerCode: string };
 
+function normalizePaymentAmount(value: unknown) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "0";
+  const rounded = Math.max(0, Math.round(numeric));
+  return String(rounded);
+}
+
 export default function Payments() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [invoiceDetail, setInvoiceDetail] = useState<InvoiceDetail | null>(null);
@@ -62,7 +69,7 @@ export default function Payments() {
       .then((r) => {
         if (cancelled) return;
         setInvoiceDetail(r.data);
-        setAmount(String(r.data.remaining));
+        setAmount(normalizePaymentAmount(r.data.remaining));
       })
       .catch((e) => {
         if (cancelled) return;
