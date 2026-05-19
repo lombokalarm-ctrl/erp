@@ -5,6 +5,32 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 // https://vite.dev/config/
 export default defineConfig({
+  build: {
+    chunkSizeWarningLimit: 1024,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+
+          if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
+            return 'vendor-react';
+          }
+
+          if (id.includes('recharts')) {
+            return 'vendor-recharts';
+          }
+
+          if (id.includes('xlsx')) {
+            return 'vendor-xlsx';
+          }
+
+          if (id.includes('html5-qrcode')) {
+            return 'vendor-qr';
+          }
+        },
+      },
+    },
+  },
   plugins: [
     react({
       babel: {
@@ -20,6 +46,7 @@ export default defineConfig({
         enabled: true
       },
       workbox: {
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,woff,ttf}'],
         runtimeCaching: [
           {
