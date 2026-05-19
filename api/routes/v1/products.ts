@@ -1,10 +1,13 @@
 import { Router, type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod'
+import multer from 'multer'
+import * as XLSX from 'xlsx'
 import { ApiError, ok } from '../../lib/http.js'
 import { authenticate, authorizeAny } from '../../middlewares/auth.js'
 import {
   createProduct,
   getProductById,
+  importProducts,
   listProducts,
   updateProduct,
   deleteProduct,
@@ -16,6 +19,46 @@ import {
 import { writeAuditLog } from '../../services/auditService.js'
 
 const router = Router()
+const importUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+})
+
+function normalizeHeader(input: unknown) {
+  return String(input ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+function sheetToObjects(sheet: XLSX.WorkSheet) {
+  const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '' })
+  const headerRow = (rows[0] ?? []) as unknown[]
+  const seen = new Map<string, number>()
+  const headers = headerRow.map((h) => {
+    const base = normalizeHeader(h)
+    if (!base) return ''
+    const next = (seen.get(base) ?? 0) + 1
+    seen.set(base, next)
+    return next === 1 ? base : `${base}_${next}`
+  })
+
+  return rows.slice(1).map((row, idx) => {
+    const source = row as unknown[]
+    const out: Record<string, unknown> = { __row: idx + 2 }
+    for (let i = 0; i < headers.length; i++) {
+      const key = headers[i]
+      if (!key) continue
+      out[key] = source[i]
+    }
+    return out
+  })
+}
+
+function toStringCell(value: unknown) {
+  return String(value ?? '').trim()
+}
 
 router.get(
   '/',
@@ -88,6 +131,87 @@ router.post(
         payload: { sku: created.sku, name: created.name },
       })
       ok(res, created)
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+router.post(
+  '/import',
+  authenticate,
+  authorizeAny(['products:write']),
+  importUpload.single('file'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.file) {
+        throw new ApiError({
+          code: 'VALIDATION_ERROR',
+          status: 400,
+          message: 'File wajib diunggah',
+        })
+      }
+
+      const filename = req.file.originalname.toLowerCase()
+      if (!filename.endsWith('.csv') && !filename.endsWith('.xlsx') && !filename.endsWith('.xls')) {
+        throw new ApiError({
+          code: 'VALIDATION_ERROR',
+          status: 400,
+          message: 'Format file harus .csv, .xlsx, atau .xls',
+        })
+      }
+
+      const workbook = XLSX.read(req.file.buffer, { type: 'buffer' })
+      const sheetName = workbook.SheetNames[0]
+      if (!sheetName) {
+        throw new ApiError({
+          code: 'VALIDATION_ERROR',
+          status: 400,
+          message: 'File tidak memiliki sheet',
+        })
+      }
+
+      const rows = sheetToObjects(workbook.Sheets[sheetName]).map((raw) => ({
+        row: Number(raw.__row ?? 0) || undefined,
+        sku: toStringCell(raw.kode_barcode ?? raw.sku ?? raw.kode),
+        supplierName: toStringCell(raw.supplier),
+        name: toStringCell(raw.nama_barang ?? raw.name ?? raw.nama),
+        bigUnit: toStringCell(raw.unit ?? raw.unit_besar),
+        purchasePrice: (raw.harga_beli ?? raw.purchase_price ?? raw.harga_beli_dasar ?? 0) as
+          | string
+          | number,
+        salePrice: (raw.harga_jual ?? raw.sale_price ?? raw.harga_jual_dasar ?? 0) as string | number,
+        conversion: (raw.konversi ?? raw.conversion ?? raw.faktor ?? 0) as string | number,
+        baseUnit: toStringCell(raw.unit_2 ?? raw.unit_kecil ?? raw.base_unit),
+      }))
+
+      const result = await importProducts(rows)
+      await writeAuditLog({
+        actorUserId: req.user!.userId,
+        action: 'PRODUCT_IMPORT',
+        entity: 'products',
+        payload: {
+          filename: req.file.originalname,
+          total: result.total,
+          created: result.created,
+          updated: result.updated,
+          failed: result.failed,
+        },
+      })
+
+      ok(res, {
+        ...result,
+        expectedColumns: [
+          'Kode / Barcode',
+          'Supplier',
+          'Nama Barang',
+          'Unit',
+          'Harga beli',
+          'Harga Jual',
+          'Konversi',
+          'Unit',
+        ],
+      })
     } catch (err) {
       next(err)
     }

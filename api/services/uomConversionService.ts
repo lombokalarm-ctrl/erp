@@ -169,127 +169,139 @@ export async function listProductUomMappings(productId: string, tx?: Queryable) 
   return mappingRes.rows as ProductUomMapping[]
 }
 
-export async function replaceProductUomMappings(params: {
-  productId: string
-  mappings: ProductUomMappingInput[]
-}) {
-  return withTransaction(async (client) => {
-    await seedDefaultUoms(client)
-    await getProductByIdOrThrow(params.productId, client)
+async function replaceProductUomMappingsInternal(
+  params: {
+    productId: string
+    mappings: ProductUomMappingInput[]
+  },
+  client: Queryable,
+) {
+  await seedDefaultUoms(client)
+  await getProductByIdOrThrow(params.productId, client)
 
-    const source = params.mappings.map((it) => ({
-      uomCode: normalizeCode(it.uomCode),
-      toBaseFactor: toPositiveNumber(it.toBaseFactor),
-      isSale: it.isSale ?? true,
-      isPurchase: it.isPurchase ?? true,
-      isDefaultSale: it.isDefaultSale ?? false,
-      isDefaultPurchase: it.isDefaultPurchase ?? false,
-    }))
+  const source = params.mappings.map((it) => ({
+    uomCode: normalizeCode(it.uomCode),
+    toBaseFactor: toPositiveNumber(it.toBaseFactor),
+    isSale: it.isSale ?? true,
+    isPurchase: it.isPurchase ?? true,
+    isDefaultSale: it.isDefaultSale ?? false,
+    isDefaultPurchase: it.isDefaultPurchase ?? false,
+  }))
 
-    if (!source.length) {
-      throw new ApiError({
-        code: 'VALIDATION_ERROR',
-        status: 400,
-        message: 'Minimal satu mapping satuan harus dikirim',
-      })
-    }
+  if (!source.length) {
+    throw new ApiError({
+      code: 'VALIDATION_ERROR',
+      status: 400,
+      message: 'Minimal satu mapping satuan harus dikirim',
+    })
+  }
 
-    const duplicateCode = source.find(
-      (it, idx) => source.findIndex((x) => x.uomCode === it.uomCode) !== idx,
-    )
-    if (duplicateCode) {
-      throw new ApiError({
-        code: 'VALIDATION_ERROR',
-        status: 400,
-        message: `Duplikasi satuan pada payload: ${duplicateCode.uomCode}`,
-      })
-    }
+  const duplicateCode = source.find(
+    (it, idx) => source.findIndex((x) => x.uomCode === it.uomCode) !== idx,
+  )
+  if (duplicateCode) {
+    throw new ApiError({
+      code: 'VALIDATION_ERROR',
+      status: 400,
+      message: `Duplikasi satuan pada payload: ${duplicateCode.uomCode}`,
+    })
+  }
 
-    const baseUomCode = ensureSingleBase(source)
-    const requestedCodes = source.map((it) => it.uomCode)
-    const uomRes = await client.query(
-      `
-        select id, code, name
-        from uoms
-        where code = any($1::text[])
-          and is_active = true
-      `,
-      [requestedCodes],
-    )
-    if (uomRes.rows.length !== requestedCodes.length) {
-      const foundCodes = new Set((uomRes.rows as Array<{ code: string }>).map((it) => it.code))
-      const missing = requestedCodes.filter((code) => !foundCodes.has(code))
-      throw new ApiError({
-        code: 'VALIDATION_ERROR',
-        status: 400,
-        message: `Satuan tidak ditemukan/aktif: ${missing.join(', ')}`,
-      })
-    }
+  const baseUomCode = ensureSingleBase(source)
+  const requestedCodes = source.map((it) => it.uomCode)
+  const uomRes = await client.query(
+    `
+      select id, code, name
+      from uoms
+      where code = any($1::text[])
+        and is_active = true
+    `,
+    [requestedCodes],
+  )
+  if (uomRes.rows.length !== requestedCodes.length) {
+    const foundCodes = new Set((uomRes.rows as Array<{ code: string }>).map((it) => it.code))
+    const missing = requestedCodes.filter((code) => !foundCodes.has(code))
+    throw new ApiError({
+      code: 'VALIDATION_ERROR',
+      status: 400,
+      message: `Satuan tidak ditemukan/aktif: ${missing.join(', ')}`,
+    })
+  }
 
-    const uomMap = new Map(
-      (uomRes.rows as Array<{ id: string; code: string; name: string }>).map((it) => [it.code, it]),
-    )
+  const uomMap = new Map(
+    (uomRes.rows as Array<{ id: string; code: string; name: string }>).map((it) => [it.code, it]),
+  )
 
-    const baseUom = uomMap.get(baseUomCode)!
-    const defaultSaleCount = source.filter((it) => it.isDefaultSale).length
-    const defaultPurchaseCount = source.filter((it) => it.isDefaultPurchase).length
-    if (defaultSaleCount > 1 || defaultPurchaseCount > 1) {
-      throw new ApiError({
-        code: 'VALIDATION_ERROR',
-        status: 400,
-        message: 'Default sale/purchase maksimal satu untuk setiap produk',
-      })
-    }
+  const baseUom = uomMap.get(baseUomCode)!
+  const defaultSaleCount = source.filter((it) => it.isDefaultSale).length
+  const defaultPurchaseCount = source.filter((it) => it.isDefaultPurchase).length
+  if (defaultSaleCount > 1 || defaultPurchaseCount > 1) {
+    throw new ApiError({
+      code: 'VALIDATION_ERROR',
+      status: 400,
+      message: 'Default sale/purchase maksimal satu untuk setiap produk',
+    })
+  }
+
+  await client.query(
+    `
+      update products
+      set base_uom_id = $2, updated_at = now()
+      where id = $1
+    `,
+    [params.productId, baseUom.id],
+  )
+
+  await client.query('delete from product_uoms where product_id = $1', [params.productId])
+
+  for (const item of source) {
+    const row = uomMap.get(item.uomCode)!
+    const shouldDefaultSale =
+      defaultSaleCount === 0 ? item.uomCode === baseUomCode && item.isSale : item.isDefaultSale
+    const shouldDefaultPurchase =
+      defaultPurchaseCount === 0
+        ? item.uomCode === baseUomCode && item.isPurchase
+        : item.isDefaultPurchase
 
     await client.query(
       `
-        update products
-        set base_uom_id = $2, updated_at = now()
-        where id = $1
+        insert into product_uoms (
+          product_id,
+          uom_id,
+          to_base_factor,
+          is_sale,
+          is_purchase,
+          is_default_sale,
+          is_default_purchase
+        )
+        values ($1, $2, $3, $4, $5, $6, $7)
       `,
-      [params.productId, baseUom.id],
+      [
+        params.productId,
+        row.id,
+        item.toBaseFactor,
+        item.isSale,
+        item.isPurchase,
+        shouldDefaultSale,
+        shouldDefaultPurchase,
+      ],
     )
+  }
 
-    await client.query('delete from product_uoms where product_id = $1', [params.productId])
+  const saved = await listProductUomMappings(params.productId, client)
+  await syncLegacyColumnsWhenPossible(params.productId, saved, client)
+  return saved
+}
 
-    for (const item of source) {
-      const row = uomMap.get(item.uomCode)!
-      const shouldDefaultSale =
-        defaultSaleCount === 0 ? item.uomCode === baseUomCode && item.isSale : item.isDefaultSale
-      const shouldDefaultPurchase =
-        defaultPurchaseCount === 0
-          ? item.uomCode === baseUomCode && item.isPurchase
-          : item.isDefaultPurchase
-
-      await client.query(
-        `
-          insert into product_uoms (
-            product_id,
-            uom_id,
-            to_base_factor,
-            is_sale,
-            is_purchase,
-            is_default_sale,
-            is_default_purchase
-          )
-          values ($1, $2, $3, $4, $5, $6, $7)
-        `,
-        [
-          params.productId,
-          row.id,
-          item.toBaseFactor,
-          item.isSale,
-          item.isPurchase,
-          shouldDefaultSale,
-          shouldDefaultPurchase,
-        ],
-      )
-    }
-
-    const saved = await listProductUomMappings(params.productId, client)
-    await syncLegacyColumnsWhenPossible(params.productId, saved, client)
-    return saved
-  })
+export async function replaceProductUomMappings(
+  params: {
+  productId: string
+  mappings: ProductUomMappingInput[]
+  },
+  tx?: Queryable,
+) {
+  if (tx) return replaceProductUomMappingsInternal(params, tx)
+  return withTransaction(async (client) => replaceProductUomMappingsInternal(params, client))
 }
 
 export async function syncLegacyProductToUomMappings(params: {

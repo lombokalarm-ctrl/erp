@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { fetchActiveUoms } from "@/lib/uom";
+import { exportToExcel } from "@/lib/exportUtils";
 
 type Product = {
   id: string;
@@ -36,6 +37,14 @@ type ProductUomMapping = {
   isDefaultPurchase: boolean;
 };
 
+type ProductImportSummary = {
+  total: number;
+  created: number;
+  updated: number;
+  failed: number;
+  errors?: { row: number; message: string; sku?: string }[];
+};
+
 const CUSTOMER_CATEGORIES = [
   "RETAIL",
   "GROSIR",
@@ -48,6 +57,8 @@ export default function Products() {
   const [q, setQ] = useState("");
   const [items, setItems] = useState<Product[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importSummary, setImportSummary] = useState<ProductImportSummary | null>(null);
 
   const [sku, setSku] = useState("");
   const [name, setName] = useState("");
@@ -71,6 +82,7 @@ export default function Products() {
   const [uomMappings, setUomMappings] = useState<ProductUomMapping[]>([]);
   const [editingMappings, setEditingMappings] = useState<ProductUomMapping[]>([]);
   const [isMappingInlineOpen, setIsMappingInlineOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const canCreate = useMemo(() => sku.trim() && name.trim(), [sku, name]);
   const activePriceUoms = useMemo(() => {
@@ -181,6 +193,37 @@ export default function Products() {
     setIsMappingInlineOpen(false);
     setError(null);
     setIsFormOpen(false);
+  }
+
+  function handleDownloadTemplate() {
+    exportToExcel(
+      "template-import-produk.xlsx",
+      ["Kode / Barcode", "Supplier", "Nama Barang", "Unit", "Harga beli", "Harga Jual", "Konversi", "Unit"],
+      [["SKU001", "SUP001", "Nama Produk", "DUS", 12000, 15000, 12, "PCS"]],
+    );
+  }
+
+  async function handleImportFile(file: File) {
+    setImporting(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await apiFetch<{ data: ProductImportSummary }>("/api/v1/products/import", {
+        method: "POST",
+        body: form,
+      });
+      setImportSummary(res.data);
+      await load();
+      await loadUomMaster();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Import produk gagal");
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
   }
 
   async function handleDelete(id: string) {
@@ -358,12 +401,34 @@ export default function Products() {
           <h1 className="text-lg font-semibold">Produk</h1>
           <p className="mt-1 text-sm text-zinc-600">Kelola SKU, satuan, harga beli, dan harga jual.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <div className="w-full md:w-72">
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari SKU / nama..." />
           </div>
           <Button variant="secondary" onClick={load}>
             Cari
+          </Button>
+          <Button variant="secondary" onClick={handleDownloadTemplate}>
+            Unduh Template XLSX
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                void handleImportFile(file);
+              }
+            }}
+          />
+          <Button
+            variant="secondary"
+            disabled={importing}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {importing ? "Mengimpor..." : "Import Excel"}
           </Button>
           <Button onClick={handleOpenCreate}>Tambah Produk Baru</Button>
         </div>
@@ -372,6 +437,42 @@ export default function Products() {
       {error ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
       ) : null}
+
+      <Card className="p-4">
+        <div className="flex flex-col gap-2 text-sm text-zinc-600">
+          <div className="font-semibold text-zinc-900">Import Produk dari Excel</div>
+          <p>
+            File mendukung kolom <span className="font-medium">Kode / Barcode</span>,{" "}
+            <span className="font-medium">Supplier</span>, <span className="font-medium">Nama Barang</span>,{" "}
+            <span className="font-medium">Unit</span> besar, <span className="font-medium">Harga beli</span>,{" "}
+            <span className="font-medium">Harga Jual</span>, <span className="font-medium">Konversi</span>, dan{" "}
+            <span className="font-medium">Unit</span> kecil.
+          </p>
+          <p>
+            Import berjalan dengan mode upsert berdasarkan SKU. Harga beli dan harga jual dibaca sebagai harga unit kecil/base unit.
+          </p>
+        </div>
+        {importSummary ? (
+          <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs">
+            <div>
+              Total: <span className="font-semibold">{importSummary.total}</span> | Dibuat:{" "}
+              <span className="font-semibold text-emerald-700">{importSummary.created}</span> | Diperbarui:{" "}
+              <span className="font-semibold text-blue-700">{importSummary.updated}</span> | Gagal:{" "}
+              <span className="font-semibold text-red-700">{importSummary.failed}</span>
+            </div>
+            {importSummary.errors?.length ? (
+              <div className="mt-2 max-h-36 overflow-auto rounded border border-red-100 bg-white p-2 text-red-700">
+                {importSummary.errors.slice(0, 20).map((err, idx) => (
+                  <div key={idx}>
+                    Baris {err.row}: {err.sku ? `${err.sku} - ` : ""}
+                    {err.message}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </Card>
 
       <div>
         <Card className="overflow-hidden">
