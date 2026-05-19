@@ -9,6 +9,8 @@ const DEFAULT_UOMS = [
   { code: 'lusin', name: 'Lusin' },
   { code: 'bal', name: 'Bal' },
   { code: 'karung', name: 'Karung' },
+  { code: 'kaleng', name: 'Kaleng' },
+  { code: 'renteng', name: 'Renteng' },
 ]
 
 type Queryable = {
