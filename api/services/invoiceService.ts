@@ -10,6 +10,9 @@ export type Invoice = {
   invoiceDate: string
   dueDate: string
   totalAmount: string
+  paidAmount?: string
+  creditedAmount?: string
+  remaining?: string
   status: string
 }
 
@@ -18,6 +21,12 @@ function normalizeCurrencyAmount(value: number) {
   const rounded = Math.round(value)
   if (Math.abs(rounded) < 1) return 0
   return rounded
+}
+
+function getEffectiveInvoiceStatus(invoice: Pick<Invoice, 'dueDate'>, remaining: number) {
+  const today = new Date().toISOString().slice(0, 10)
+  const overdue = remaining > 0 && invoice.dueDate < today
+  return remaining <= 0 ? 'PAID' : overdue ? 'OVERDUE' : 'UNPAID'
 }
 
 export async function listInvoices(params: {
@@ -85,7 +94,22 @@ export async function listInvoices(params: {
     [...values, pageSize, offset],
   )
 
-  return { items: listRes.rows as Invoice[], total }
+  const items = (listRes.rows as Invoice[]).map((row) => {
+    const paid = Number(row.paidAmount ?? 0)
+    const credited = Number(row.creditedAmount ?? 0)
+    const totalAmount = Number(row.totalAmount ?? 0)
+    const remaining = Math.max(0, normalizeCurrencyAmount(totalAmount - paid - credited))
+
+    return {
+      ...row,
+      paidAmount: String(paid),
+      creditedAmount: String(credited),
+      remaining: String(remaining),
+      status: getEffectiveInvoiceStatus(row, remaining),
+    }
+  })
+
+  return { items, total }
 }
 
 export async function getInvoiceById(id: string) {
@@ -188,11 +212,7 @@ export async function recalcInvoiceStatus(invoiceId: string) {
   const total = Number(invoice.totalAmount)
 
   const remaining = Math.max(0, normalizeCurrencyAmount(total - paid - credited))
-  const today = new Date().toISOString().slice(0, 10)
-  const overdue = remaining > 0 && invoice.dueDate < today
-
-  const nextStatus =
-    remaining <= 0 ? 'PAID' : overdue ? 'OVERDUE' : 'UNPAID'
+  const nextStatus = getEffectiveInvoiceStatus(invoice, remaining)
 
   await pool.query('update invoices set status = $2, updated_at = now() where id = $1', [
     invoiceId,

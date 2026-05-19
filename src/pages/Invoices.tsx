@@ -16,6 +16,7 @@ type InvoiceRow = {
   totalAmount: string;
   paidAmount?: string;
   creditedAmount?: string;
+  remaining?: string;
   status: string;
 };
 
@@ -83,7 +84,7 @@ export default function Invoices() {
                 const total = Number(i.totalAmount || 0);
                 const paid = Number(i.paidAmount || 0);
                 const credited = Number(i.creditedAmount || 0);
-                const remaining = Math.max(0, total - paid - credited);
+                const remaining = Number(i.remaining || 0);
                 return (
                   <tr key={i.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                   <td className="px-4 py-3 font-medium">
