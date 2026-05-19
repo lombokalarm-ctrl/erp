@@ -314,7 +314,7 @@ export default function InvoiceDetail() {
           <Button variant="secondary" onClick={load}>
             Refresh
           </Button>
-          <Link to="/payments">
+          <Link to="/payments" state={{ invoiceId: invoice.id }}>
             <Button>Tambah Pembayaran</Button>
           </Link>
         </div>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import NumericInput from "@/components/ui/NumericInput";
@@ -9,6 +10,7 @@ import { formatCurrency } from "@/lib/numberFormat";
 
 type Invoice = { id: string; invoiceNo: string; customerName: string; totalAmount: string; status: string };
 type InvoiceDetail = Invoice & { paid: string; remaining: string; customerName: string; customerCode: string };
+type PaymentLocationState = { invoiceId?: string };
 
 function normalizePaymentAmount(value: unknown) {
   const numeric = Number(value);
@@ -18,6 +20,8 @@ function normalizePaymentAmount(value: unknown) {
 }
 
 export default function Payments() {
+  const location = useLocation();
+  const prefilledInvoiceId = (location.state as PaymentLocationState | null)?.invoiceId ?? "";
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [invoiceDetail, setInvoiceDetail] = useState<InvoiceDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +60,17 @@ export default function Payments() {
       .then((r) => setInvoices(r.data))
       .catch(() => setInvoices([]));
   }, []);
+
+  useEffect(() => {
+    if (!prefilledInvoiceId) return;
+    setError(null);
+    setMethod("CASH");
+    setPaidAt(new Date().toISOString());
+    setNote("");
+    setFile(null);
+    setInvoiceId(prefilledInvoiceId);
+    setIsFormOpen(true);
+  }, [prefilledInvoiceId]);
 
   useEffect(() => {
     if (!invoiceId) {
