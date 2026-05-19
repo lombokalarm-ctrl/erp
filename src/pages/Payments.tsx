@@ -7,7 +7,7 @@ import SearchableSelect from "@/components/ui/SearchableSelect";
 import { apiFetch, ApiError } from "@/api/client";
 import { formatCurrency } from "@/lib/numberFormat";
 
-type Invoice = { id: string; invoiceNo: string; totalAmount: string; status: string };
+type Invoice = { id: string; invoiceNo: string; customerName: string; totalAmount: string; status: string };
 type InvoiceDetail = Invoice & { paid: string; remaining: string; customerName: string; customerCode: string };
 
 export default function Payments() {
@@ -39,7 +39,7 @@ export default function Payments() {
     () =>
       invoices.map((invoice) => ({
         value: invoice.id,
-        label: `${invoice.invoiceNo} | ${invoice.status} | ${formatCurrency(invoice.totalAmount)}`,
+        label: `${invoice.invoiceNo} | ${invoice.customerName} | ${invoice.status} | ${formatCurrency(invoice.totalAmount)}`,
       })),
     [invoices],
   );
@@ -157,7 +157,7 @@ export default function Payments() {
                   value={invoiceId}
                   onChange={setInvoiceId}
                   placeholder="Pilih invoice"
-                  searchPlaceholder="Cari nomor invoice..."
+                  searchPlaceholder="Cari nomor invoice / pelanggan..."
                   options={invoiceOptions}
                 />
               </label>

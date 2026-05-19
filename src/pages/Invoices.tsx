@@ -10,6 +10,7 @@ type InvoiceRow = {
   id: string;
   invoiceNo: string;
   customerId: string;
+  customerName: string;
   invoiceDate: string;
   dueDate: string;
   totalAmount: string;
@@ -48,7 +49,7 @@ export default function Invoices() {
         </div>
         <div className="flex gap-2">
           <div className="w-full md:w-72">
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nomor invoice..." />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nomor invoice / pelanggan..." />
           </div>
           <Button variant="secondary" onClick={load}>
             Cari
@@ -67,6 +68,7 @@ export default function Invoices() {
             <thead className="sticky top-0 bg-white">
               <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
                 <th className="px-4 py-3">No</th>
+                <th className="px-4 py-3">Pelanggan</th>
                 <th className="px-4 py-3">Tanggal</th>
                 <th className="px-4 py-3">Jatuh Tempo</th>
                 <th className="px-4 py-3">Status</th>
@@ -89,6 +91,7 @@ export default function Invoices() {
                       {i.invoiceNo}
                     </Link>
                   </td>
+                  <td className="px-4 py-3">{i.customerName}</td>
                   <td className="px-4 py-3">{i.invoiceDate}</td>
                   <td className="px-4 py-3">{i.dueDate}</td>
                   <td className="px-4 py-3">
@@ -111,7 +114,7 @@ export default function Invoices() {
               })}
               {items.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-sm text-zinc-500" colSpan={8}>
+                  <td className="px-4 py-6 text-sm text-zinc-500" colSpan={9}>
                     Belum ada data.
                   </td>
                 </tr>

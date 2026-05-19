@@ -6,6 +6,7 @@ export type Invoice = {
   id: string
   invoiceNo: string
   customerId: string
+  customerName: string
   invoiceDate: string
   dueDate: string
   totalAmount: string
@@ -29,7 +30,7 @@ export async function listInvoices(params: {
 
   if (params.q?.trim()) {
     values.push(`%${params.q.trim().toLowerCase()}%`)
-    where.push('(lower(i.invoice_no) like $1)')
+    where.push(`(lower(i.invoice_no) like $${values.length} or lower(c.name) like $${values.length})`)
   }
 
   if (params.customerId) {
@@ -61,6 +62,7 @@ export async function listInvoices(params: {
         i.id,
         i.invoice_no as "invoiceNo",
         i.customer_id as "customerId",
+        c.name as "customerName",
         i.invoice_date::text as "invoiceDate",
         i.due_date::text as "dueDate",
         i.total_amount::text as "totalAmount",
