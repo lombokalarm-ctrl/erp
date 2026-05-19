@@ -10,35 +10,46 @@ export type CompanySettings = {
   website: string
 }
 
-export async function getCompanySettings() {
-  const pool = getPool()
-  const res = await pool.query(
-    `
-      select 
-        name, 
-        address, 
-        phone, 
-        email, 
-        tax_number as "taxNumber", 
-        website 
-      from company_settings 
-      where id = 1
-    `
-  )
-  
-  if (!res.rows[0]) {
-    // Fallback if not initialized
-    return {
-      name: 'Nama Perusahaan',
-      address: '',
-      phone: '',
-      email: '',
-      taxNumber: '',
-      website: ''
-    }
+function getDefaultCompanySettings(): CompanySettings {
+  return {
+    name: 'Nama Perusahaan',
+    address: '',
+    phone: '',
+    email: '',
+    taxNumber: '',
+    website: '',
   }
+}
 
-  return res.rows[0] as CompanySettings
+export async function getCompanySettings() {
+  try {
+    const pool = getPool()
+    const res = await pool.query(
+      `
+        select 
+          name, 
+          address, 
+          phone, 
+          email, 
+          tax_number as "taxNumber", 
+          website 
+        from company_settings 
+        where id = 1
+      `
+    )
+
+    if (!res.rows[0]) {
+      return getDefaultCompanySettings()
+    }
+
+    return res.rows[0] as CompanySettings
+  } catch (err: any) {
+    // Allow the app to boot even when local DB/env setup is incomplete.
+    if (err?.code === '42P01' || String(err?.message ?? '').includes('Missing env: DATABASE_URL')) {
+      return getDefaultCompanySettings()
+    }
+    throw err
+  }
 }
 
 export async function updateCompanySettings(input: CompanySettings) {

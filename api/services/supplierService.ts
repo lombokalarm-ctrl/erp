@@ -9,6 +9,11 @@ export type Supplier = {
   address: string | null
 }
 
+export type SupplierImportRow = {
+  code?: string
+  name?: string
+}
+
 export async function listSuppliers(params: { page?: number; pageSize?: number; q?: string }) {
   const pool = getPool()
   const page = params.page ?? 1
@@ -118,5 +123,53 @@ export async function getSupplierById(id: string) {
   const row = res.rows[0] as Supplier | undefined
   if (!row) throw new ApiError({ code: 'NOT_FOUND', status: 404, message: 'Supplier tidak ditemukan' })
   return row
+}
+
+export async function importSuppliers(rows: SupplierImportRow[]) {
+  const pool = getPool()
+  const prepared = rows.filter((row) => row.code?.trim() || row.name?.trim())
+  let created = 0
+  let updated = 0
+  const errors: Array<{ row: number; message: string; code?: string }> = []
+
+  for (let i = 0; i < prepared.length; i++) {
+    const row = prepared[i]
+    const rowNo = i + 2
+    try {
+      const code = row.code?.trim()
+      const name = row.name?.trim()
+      if (!code || !name) {
+        throw new Error('Kolom code dan name wajib diisi')
+      }
+
+      const existingRes = await pool.query(
+        `select id from suppliers where lower(code) = lower($1) limit 1`,
+        [code],
+      )
+      const existingId = existingRes.rows[0]?.id as string | undefined
+
+      if (existingId) {
+        await updateSupplier(existingId, { code, name })
+        updated += 1
+      } else {
+        await createSupplier({ code, name })
+        created += 1
+      }
+    } catch (err: any) {
+      errors.push({
+        row: rowNo,
+        code: row.code,
+        message: err instanceof ApiError ? err.message : String(err?.message ?? err),
+      })
+    }
+  }
+
+  return {
+    total: prepared.length,
+    created,
+    updated,
+    failed: errors.length,
+    errors,
+  }
 }
 

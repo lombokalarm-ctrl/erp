@@ -3,6 +3,7 @@ import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import { apiFetch, ApiError } from "@/api/client";
 import { formatCurrency } from "@/lib/numberFormat";
 
@@ -33,6 +34,14 @@ export default function Payments() {
   const canSubmit = useMemo(
     () => invoiceId && Number(amount) > 0 && paidAt && !amountError,
     [invoiceId, amount, paidAt, amountError],
+  );
+  const invoiceOptions = useMemo(
+    () =>
+      invoices.map((invoice) => ({
+        value: invoice.id,
+        label: `${invoice.invoiceNo} | ${invoice.status} | ${formatCurrency(invoice.totalAmount)}`,
+      })),
+    [invoices],
   );
 
   useEffect(() => {
@@ -142,80 +151,75 @@ export default function Payments() {
               </button>
             </div>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
-          <label className="block md:col-span-2">
-            <div className="mb-1 text-xs font-medium text-zinc-600">Invoice</div>
-            <select
-              className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
-              value={invoiceId}
-              onChange={(e) => setInvoiceId(e.target.value)}
-            >
-              <option value="">Pilih invoice</option>
-              {invoices.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.invoiceNo} ({i.status}) - {i.totalAmount}
-                </option>
-              ))}
-            </select>
-          </label>
+              <label className="block md:col-span-2">
+                <div className="mb-1 text-xs font-medium text-zinc-600">Invoice</div>
+                <SearchableSelect
+                  value={invoiceId}
+                  onChange={setInvoiceId}
+                  placeholder="Pilih invoice"
+                  searchPlaceholder="Cari nomor invoice..."
+                  options={invoiceOptions}
+                />
+              </label>
 
-          {invoiceDetail ? (
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm md:col-span-2">
-              <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-                <div className="font-medium">
-                  {invoiceDetail.customerCode} - {invoiceDetail.customerName}
+              {invoiceDetail ? (
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm md:col-span-2">
+                  <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                    <div className="font-medium">
+                      {invoiceDetail.customerCode} - {invoiceDetail.customerName}
+                    </div>
+                    <div className="text-xs text-zinc-500">{invoiceDetail.invoiceNo}</div>
+                  </div>
+                  <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-zinc-700 sm:grid-cols-3">
+                    <div>
+                      <div className="text-zinc-500">Total Invoice</div>
+                      <div className="font-semibold whitespace-nowrap">{formatCurrency(invoiceDetail.totalAmount)}</div>
+                    </div>
+                    <div>
+                      <div className="text-zinc-500">Sudah Dibayar</div>
+                      <div className="font-semibold whitespace-nowrap">{formatCurrency(invoiceDetail.paid)}</div>
+                    </div>
+                    <div>
+                      <div className="text-zinc-500">Sisa Tagihan</div>
+                      <div className="font-semibold whitespace-nowrap text-emerald-700">{formatCurrency(invoiceDetail.remaining)}</div>
+                    </div>
+                  </div>
                 </div>
-                <div className="text-xs text-zinc-500">{invoiceDetail.invoiceNo}</div>
-              </div>
-              <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-zinc-700 sm:grid-cols-3">
-                <div>
-                  <div className="text-zinc-500">Total Invoice</div>
-                  <div className="font-semibold whitespace-nowrap">{formatCurrency(invoiceDetail.totalAmount)}</div>
-                </div>
-                <div>
-                  <div className="text-zinc-500">Sudah Dibayar</div>
-                  <div className="font-semibold whitespace-nowrap">{formatCurrency(invoiceDetail.paid)}</div>
-                </div>
-                <div>
-                  <div className="text-zinc-500">Sisa Tagihan</div>
-                  <div className="font-semibold whitespace-nowrap text-emerald-700">{formatCurrency(invoiceDetail.remaining)}</div>
-                </div>
-              </div>
-            </div>
-          ) : null}
+              ) : null}
 
-          <label className="block">
-            <div className="mb-1 text-xs font-medium text-zinc-600">Metode</div>
-            <select
-              className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
-              value={method}
-              onChange={(e) => setMethod(e.target.value as "CASH" | "TRANSFER" | "TERM")}
-            >
-              <option value="CASH">Cash</option>
-              <option value="TRANSFER">Transfer</option>
-              <option value="TERM">Tempo</option>
-            </select>
-          </label>
+              <label className="block">
+                <div className="mb-1 text-xs font-medium text-zinc-600">Metode</div>
+                <select
+                  className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                  value={method}
+                  onChange={(e) => setMethod(e.target.value as "CASH" | "TRANSFER" | "TERM")}
+                >
+                  <option value="CASH">Cash</option>
+                  <option value="TRANSFER">Transfer</option>
+                  <option value="TERM">Tempo</option>
+                </select>
+              </label>
 
-          <NumericInput
-            label="Nominal"
-            mode="currency"
-            value={amount}
-            onValueChange={(v) => setAmount(v || "0")}
-            error={amountError}
-          />
+              <NumericInput
+                label="Nominal"
+                mode="currency"
+                value={amount}
+                onValueChange={(v) => setAmount(v || "0")}
+                error={amountError}
+              />
 
-          <Input label="Tanggal Bayar (ISO)" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
-          <Input label="Catatan" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional" />
+              <Input label="Tanggal Bayar (ISO)" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
+              <Input label="Catatan" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional" />
 
-          <label className="block md:col-span-2">
-            <div className="mb-1 text-xs font-medium text-zinc-600">Bukti Transfer (opsional)</div>
-            <input
-              className="block w-full text-sm"
-              type="file"
-              accept="image/*,application/pdf"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            />
-          </label>
+              <label className="block md:col-span-2">
+                <div className="mb-1 text-xs font-medium text-zinc-600">Bukti Transfer (opsional)</div>
+                <input
+                  className="block w-full text-sm"
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                />
+              </label>
 
               <div className="md:col-span-2 flex items-center justify-end gap-2 pt-2">
                 <Button variant="secondary" onClick={() => setIsFormOpen(false)} disabled={saving}>
