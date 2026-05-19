@@ -5,6 +5,19 @@ function daysBetween(a: Date, b: Date) {
   return Math.floor(ms / (1000 * 60 * 60 * 24))
 }
 
+function normalizeCurrencyAmount(value: number) {
+  if (!Number.isFinite(value)) return 0
+  const rounded = Math.round(value)
+  if (Math.abs(rounded) < 1) return 0
+  return rounded
+}
+
+function getEffectiveInvoiceStatus(dueDate: string, remaining: number) {
+  const today = new Date().toISOString().slice(0, 10)
+  const overdue = remaining > 0 && dueDate < today
+  return remaining <= 0 ? 'PAID' : overdue ? 'OVERDUE' : 'UNPAID'
+}
+
 export async function listReceivables(params: {
   page?: number
   pageSize?: number
@@ -65,8 +78,12 @@ export async function listReceivables(params: {
     const totalAmount = Number(r.totalAmount)
     const paidAmount = Number(r.paidAmount)
     const creditedAmount = Number(r.creditedAmount ?? 0)
-    const remainingAmount = Math.max(0, totalAmount - paidAmount - creditedAmount)
-    return { ...r, remainingAmount: remainingAmount.toFixed(2) }
+    const remainingAmount = Math.max(0, normalizeCurrencyAmount(totalAmount - paidAmount - creditedAmount))
+    return {
+      ...r,
+      status: getEffectiveInvoiceStatus(String(r.dueDate), remainingAmount),
+      remainingAmount: String(remainingAmount),
+    }
   })
 
   return { items, total }
@@ -113,7 +130,9 @@ export async function agingSummary(params: { customerId?: string }) {
   for (const row of res.rows) {
     const remaining = Math.max(
       0,
-      Number(row.total_amount) - Number(row.paid_amount) - Number(row.credited_amount),
+      normalizeCurrencyAmount(
+        Number(row.total_amount) - Number(row.paid_amount) - Number(row.credited_amount),
+      ),
     )
     if (remaining <= 0) continue
     const due = new Date(row.due_date)
@@ -125,5 +144,10 @@ export async function agingSummary(params: { customerId?: string }) {
     else buckets['90_plus'] += remaining
   }
 
-  return buckets
+  return {
+    '0_30': normalizeCurrencyAmount(buckets['0_30']),
+    '31_60': normalizeCurrencyAmount(buckets['31_60']),
+    '61_90': normalizeCurrencyAmount(buckets['61_90']),
+    '90_plus': normalizeCurrencyAmount(buckets['90_plus']),
+  }
 }

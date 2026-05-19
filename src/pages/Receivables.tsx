@@ -56,7 +56,7 @@ export default function Receivables() {
             <div className="text-xs font-medium text-zinc-500">Aging</div>
             <div className="mt-1 text-sm font-semibold">{label} hari</div>
             <div className="mt-2 text-xl font-semibold tracking-tight">
-              {aging ? String(aging[key as keyof Aging]) : "—"}
+              {aging ? formatCurrency(aging[key as keyof Aging]) : "—"}
             </div>
           </Card>
         ))}
