@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
-import { ShieldAlert, Check, X } from "lucide-react";
+import { ShieldAlert, Check, X, ChevronDown, ChevronUp } from "lucide-react";
 import { formatCurrency } from "@/lib/numberFormat";
 
 type ReasonType = "CREDIT_LIMIT" | "DOCUMENT_LIMIT";
@@ -105,6 +105,7 @@ export default function ApprovalOrders() {
   const [error, setError] = useState<string | null>(null);
   const [approverNotes, setApproverNotes] = useState<Record<string, string>>({});
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [detailOrder, setDetailOrder] = useState<SalesOrderDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
@@ -184,109 +185,167 @@ export default function ApprovalOrders() {
                 <th className="px-4 py-3">Sales Order</th>
                 <th className="px-4 py-3">Pelanggan</th>
                 <th className="min-w-[140px] whitespace-nowrap px-4 py-3 text-right">Nilai Order</th>
-                <th className="px-4 py-3">Alasan Saat Request</th>
-                <th className="px-4 py-3">Kondisi Terbaru</th>
-                <th className="px-4 py-3">Catatan Approver</th>
+                <th className="px-4 py-3">Ringkasan</th>
                 <th className="px-4 py-3 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
-                <tr key={r.approvalId} className="border-b border-zinc-100 hover:bg-zinc-50">
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-zinc-800">{new Date(r.requestedAt).toLocaleDateString('id-ID')}</div>
-                    <div className="text-xs text-zinc-500">Oleh: {r.requestedByName}</div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="font-medium text-blue-600">
-                      {r.orderNo}
-                    </span>
-                    <div className="mt-1">
-                      <span className="bg-orange-100 text-orange-700 text-[10px] px-2 py-0.5 rounded font-bold">
-                        MENUNGGU PERSETUJUAN
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 font-medium text-zinc-700">{r.customerName}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-zinc-800">{formatCurrency(r.totalAmount)}</td>
-                  <td className="max-w-md px-4 py-3 align-top">
-                    <div className="mb-2 flex flex-wrap gap-1">
-                      {r.requestReasonTypes.length ? r.requestReasonTypes.map((reason) => (
-                        <span key={reason}>{renderReasonBadge(reason)}</span>
-                      )) : <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-bold text-zinc-600">Snapshot Lama</span>}
-                    </div>
-                    <div className="whitespace-pre-wrap text-xs leading-5 text-red-600">{r.requestSummary || "-"}</div>
-                  </td>
-                  <td className="max-w-md px-4 py-3 align-top">
-                    <div className={`mb-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                      r.liveCheck.reasonTypes.length
-                        ? "bg-amber-100 text-amber-700"
-                        : "bg-emerald-100 text-emerald-700"
-                    }`}>
-                      {r.liveCheck.liveStatusLabel}
-                    </div>
-                    <div className="space-y-1 text-xs leading-5 text-zinc-700">
-                      {r.liveCheck.liveLines.map((line, index) => (
-                        <div key={`${r.approvalId}-live-${index}`}>{line}</div>
-                      ))}
-                    </div>
-                    {r.liveCheck.openDocuments.length ? (
-                      <div className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 p-2 text-xs text-zinc-600">
-                        {r.liveCheck.openDocuments.map((doc) => (
-                          <div key={doc.id}>
-                            {doc.number} • {doc.type === "INVOICE" ? "Sisa" : "Nilai SO"} {formatCurrency(doc.remainingAmount)} • {doc.status}
+              {rows.map((r) => {
+                const isExpanded = expandedId === r.approvalId;
+                return (
+                  <Fragment key={r.approvalId}>
+                    <tr key={r.approvalId} className="border-b border-zinc-100 hover:bg-zinc-50">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-zinc-800">{new Date(r.requestedAt).toLocaleDateString('id-ID')}</div>
+                        <div className="text-xs text-zinc-500">Oleh: {r.requestedByName}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="font-medium text-blue-600">{r.orderNo}</span>
+                        <div className="mt-1">
+                          <span className="rounded bg-orange-100 px-2 py-0.5 text-[10px] font-bold text-orange-700">
+                            MENUNGGU PERSETUJUAN
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 font-medium text-zinc-700">{r.customerName}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-zinc-800">{formatCurrency(r.totalAmount)}</td>
+                      <td className="px-4 py-3">
+                        <div className="mb-2 flex flex-wrap gap-1">
+                          {r.requestReasonTypes.length ? (
+                            r.requestReasonTypes.map((reason) => <span key={reason}>{renderReasonBadge(reason)}</span>)
+                          ) : (
+                            <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-bold text-zinc-600">Snapshot Lama</span>
+                          )}
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                              r.liveCheck.reasonTypes.length
+                                ? "bg-amber-100 text-amber-700"
+                                : "bg-emerald-100 text-emerald-700"
+                            }`}
+                          >
+                            {r.liveCheck.liveStatusLabel}
+                          </span>
+                        </div>
+                        <div className="text-xs text-zinc-600">
+                          {r.liveCheck.reasonTypes.length ? "Butuh perhatian approver" : "Kondisi saat ini sudah normal"}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => setExpandedId((prev) => (prev === r.approvalId ? null : r.approvalId))}
+                            className="flex items-center gap-1"
+                          >
+                            {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                            {isExpanded ? "Tutup" : "Expand"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleViewDetail(r.salesOrderId)}
+                          >
+                            Detail
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                    {isExpanded ? (
+                      <tr className="border-b border-zinc-200 bg-zinc-50/60">
+                        <td colSpan={6} className="px-4 py-4">
+                          <div className="grid gap-4 xl:grid-cols-[1.2fr_1.2fr_1fr]">
+                            <div className="rounded-lg border border-zinc-200 bg-white p-4">
+                              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                                Alasan Saat Request
+                              </div>
+                              <div className="mb-3 flex flex-wrap gap-1">
+                                {r.requestReasonTypes.length ? (
+                                  r.requestReasonTypes.map((reason) => <span key={reason}>{renderReasonBadge(reason)}</span>)
+                                ) : (
+                                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-bold text-zinc-600">Snapshot Lama</span>
+                                )}
+                              </div>
+                              <div className="whitespace-pre-wrap text-sm leading-6 text-red-600">
+                                {r.requestSummary || "-"}
+                              </div>
+                            </div>
+                            <div className="rounded-lg border border-zinc-200 bg-white p-4">
+                              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                                Kondisi Terbaru
+                              </div>
+                              <div
+                                className={`mb-3 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                  r.liveCheck.reasonTypes.length
+                                    ? "bg-amber-100 text-amber-700"
+                                    : "bg-emerald-100 text-emerald-700"
+                                }`}
+                              >
+                                {r.liveCheck.liveStatusLabel}
+                              </div>
+                              <div className="space-y-1 text-sm leading-6 text-zinc-700">
+                                {r.liveCheck.liveLines.map((line, index) => (
+                                  <div key={`${r.approvalId}-live-expanded-${index}`}>{line}</div>
+                                ))}
+                              </div>
+                              {r.liveCheck.openDocuments.length ? (
+                                <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-600">
+                                  {r.liveCheck.openDocuments.map((doc) => (
+                                    <div key={doc.id}>
+                                      {doc.number} • {doc.type === "INVOICE" ? "Sisa" : "Nilai SO"} {formatCurrency(doc.remainingAmount)} • {doc.status}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
+                            <div className="rounded-lg border border-zinc-200 bg-white p-4">
+                              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                                Catatan Approver
+                              </div>
+                              <textarea
+                                className="min-h-[120px] w-full rounded-lg border border-zinc-200 bg-white p-3 text-sm"
+                                placeholder={r.liveCheck.reasonTypes.length ? "Tulis alasan approve/reject..." : "Contoh: kondisi customer sudah normal, approval dilanjutkan"}
+                                value={approverNotes[r.approvalId] ?? ""}
+                                onChange={(e) =>
+                                  setApproverNotes((prev) => ({
+                                    ...prev,
+                                    [r.approvalId]: e.target.value,
+                                  }))
+                                }
+                              />
+                              <div className="mt-1 text-[11px] text-zinc-500">
+                                Wajib diisi minimal 5 karakter untuk approve maupun reject.
+                              </div>
+                              <div className="mt-4 flex flex-wrap gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleProcess(r.approvalId, 'APPROVED')}
+                                  disabled={loadingId === r.approvalId || (approverNotes[r.approvalId]?.trim().length ?? 0) < 5}
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1"
+                                >
+                                  <Check className="h-3 w-3" /> Approve
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => handleProcess(r.approvalId, 'REJECTED')}
+                                  disabled={loadingId === r.approvalId || (approverNotes[r.approvalId]?.trim().length ?? 0) < 5}
+                                  className="bg-red-50 text-red-600 hover:bg-red-100 flex items-center gap-1"
+                                >
+                                  <X className="h-3 w-3" /> Reject
+                                </Button>
+                              </div>
+                            </div>
                           </div>
-                        ))}
-                      </div>
+                        </td>
+                      </tr>
                     ) : null}
-                  </td>
-                  <td className="min-w-[220px] px-4 py-3 align-top">
-                    <textarea
-                      className="min-h-[92px] w-full rounded-lg border border-zinc-200 bg-white p-3 text-sm"
-                      placeholder={r.liveCheck.reasonTypes.length ? "Tulis alasan approve/reject..." : "Contoh: kondisi customer sudah normal, approval dilanjutkan"}
-                      value={approverNotes[r.approvalId] ?? ""}
-                      onChange={(e) =>
-                        setApproverNotes((prev) => ({
-                          ...prev,
-                          [r.approvalId]: e.target.value,
-                        }))
-                      }
-                    />
-                    <div className="mt-1 text-[11px] text-zinc-500">Wajib diisi minimal 5 karakter untuk approve maupun reject.</div>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex flex-col items-end gap-2">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => handleViewDetail(r.salesOrderId)}
-                      >
-                        Detail
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        onClick={() => handleProcess(r.approvalId, 'APPROVED')}
-                        disabled={loadingId === r.approvalId || (approverNotes[r.approvalId]?.trim().length ?? 0) < 5}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1"
-                      >
-                        <Check className="h-3 w-3" /> Approve
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="secondary"
-                        onClick={() => handleProcess(r.approvalId, 'REJECTED')}
-                        disabled={loadingId === r.approvalId || (approverNotes[r.approvalId]?.trim().length ?? 0) < 5}
-                        className="bg-red-50 text-red-600 hover:bg-red-100 flex items-center gap-1"
-                      >
-                        <X className="h-3 w-3" /> Reject
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                  </Fragment>
+                );
+              })}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-zinc-500">
+                  <td colSpan={6} className="px-4 py-8 text-center text-zinc-500">
                     <ShieldAlert className="h-8 w-8 mx-auto text-zinc-300 mb-2" />
                     Tidak ada antrean approval saat ini.
                   </td>
