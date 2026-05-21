@@ -278,7 +278,7 @@ router.post(
       const body = z
         .object({
           action: z.enum(['APPROVED', 'REJECTED']),
-          notes: z.string().optional(),
+          notes: z.string().min(5),
         })
         .parse(req.body)
 

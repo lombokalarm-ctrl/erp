@@ -46,6 +46,17 @@ type SalesOrderDetail = {
   discountAmount: string;
   totalAmount: string;
   notes?: string | null;
+  approvals: Array<{
+    id: string;
+    status: "PENDING" | "APPROVED" | "REJECTED";
+    requestedAt: string;
+    requestedByName: string;
+    approverName?: string | null;
+    processedAt?: string | null;
+    requestSummary: string;
+    approverNotes?: string | null;
+    processSnapshot?: string | null;
+  }>;
   items: Array<{
     id: string;
     productId: string;
@@ -57,6 +68,24 @@ type SalesOrderDetail = {
     discountAmount: string;
     lineTotal: string;
   }>;
+};
+
+type SalesOrderApprovalContext = {
+  requestSummary: string;
+  liveSummary: string;
+  reasonTypes: Array<"CREDIT_LIMIT" | "DOCUMENT_LIMIT">;
+};
+
+type SalesOrderSaveResult = {
+  salesOrder?: {
+    id: string;
+    order_no?: string;
+    orderNo?: string;
+    status?: string;
+  };
+  status?: string;
+  orderNo?: string;
+  approvalContext?: SalesOrderApprovalContext;
 };
 
 function today() {
@@ -78,6 +107,7 @@ export default function SalesOrders() {
   const [orders, setOrders] = useState<SalesOrderRow[]>([]);
   const [offlineOrders, setOfflineOrders] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [approvalNotice, setApprovalNotice] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [syncing, setSyncing] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -203,6 +233,13 @@ export default function SalesOrders() {
     setEditingOrderId(null);
   }
 
+  function buildApprovalNotice(result: SalesOrderSaveResult | SalesOrderDetail) {
+    const approvalContext = "approvalContext" in result ? result.approvalContext : undefined;
+    if (!approvalContext) return null;
+    const orderNo = result.salesOrder?.order_no || result.salesOrder?.orderNo || result.orderNo || "SO ini";
+    return `${orderNo} masuk antrean approval.\n${approvalContext.requestSummary}`;
+  }
+
   async function getOrderDetail(soId: string) {
     const res = await apiFetch<{ data: SalesOrderDetail }>(`/api/v1/sales-orders/${soId}`);
     return res.data;
@@ -241,13 +278,17 @@ export default function SalesOrders() {
     }
 
     try {
-      await apiFetch(editingOrderId ? `/api/v1/sales-orders/${editingOrderId}` : "/api/v1/sales-orders", {
+      const response = await apiFetch<{ data: SalesOrderSaveResult }>(
+        editingOrderId ? `/api/v1/sales-orders/${editingOrderId}` : "/api/v1/sales-orders",
+        {
         method: editingOrderId ? "PATCH" : "POST",
         body: JSON.stringify(payload),
       });
 
+      const notice = buildApprovalNotice(response.data);
       resetForm();
       setIsFormOpen(false);
+      setApprovalNotice(notice);
       loadInitial();
     } catch (err: any) {
       setError(err.message || "Gagal menyimpan order");
@@ -440,6 +481,7 @@ export default function SalesOrders() {
             <Button
               onClick={() => {
                 setError(null);
+                setApprovalNotice(null);
                 setIsFormOpen(true);
               }}
             >
@@ -455,6 +497,7 @@ export default function SalesOrders() {
           <Button
             onClick={() => {
               setError(null);
+              setApprovalNotice(null);
               setIsFormOpen(true);
             }}
           >
@@ -472,6 +515,12 @@ export default function SalesOrders() {
 
       {error ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+      ) : null}
+
+      {approvalNotice ? (
+        <div className="whitespace-pre-wrap rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-800">
+          {approvalNotice}
+        </div>
       ) : null}
 
       <Card className="overflow-hidden">
@@ -753,6 +802,73 @@ export default function SalesOrders() {
               <div><span className="text-zinc-500">Status Kirim:</span> {viewOrder.deliveryStatus}</div>
               <div><span className="text-zinc-500">Total:</span> {formatCurrency(viewOrder.totalAmount)}</div>
               <div className="col-span-2"><span className="text-zinc-500">Catatan:</span> {viewOrder.notes || "-"}</div>
+            </div>
+            <div className="mt-4 rounded-lg border border-zinc-200">
+              <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold">
+                Histori Approval
+              </div>
+              <div className="divide-y divide-zinc-200">
+                {viewOrder.approvals.length ? (
+                  viewOrder.approvals.map((approval) => (
+                    <div key={approval.id} className="space-y-3 px-4 py-4 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="font-medium text-zinc-800">
+                          Request oleh {approval.requestedByName} pada {new Date(approval.requestedAt).toLocaleString("id-ID")}
+                        </div>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                            approval.status === "APPROVED"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : approval.status === "REJECTED"
+                              ? "bg-red-100 text-red-700"
+                              : "bg-orange-100 text-orange-700"
+                          }`}
+                        >
+                          {approval.status === "PENDING"
+                            ? "MENUNGGU PERSETUJUAN"
+                            : approval.status === "APPROVED"
+                            ? "DISETUJUI"
+                            : "DITOLAK"}
+                        </span>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="rounded-lg border border-zinc-200 bg-white p-3">
+                          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                            Alasan Saat Request
+                          </div>
+                          <div className="whitespace-pre-wrap text-sm text-zinc-700">
+                            {approval.requestSummary || "-"}
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-zinc-200 bg-white p-3">
+                          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                            Catatan Approver
+                          </div>
+                          <div className="text-sm text-zinc-700">
+                            {approval.approverNotes || "-"}
+                          </div>
+                          <div className="mt-3 text-xs text-zinc-500">
+                            Approver: {approval.approverName || "-"}
+                          </div>
+                          <div className="text-xs text-zinc-500">
+                            Diproses: {approval.processedAt ? new Date(approval.processedAt).toLocaleString("id-ID") : "-"}
+                          </div>
+                        </div>
+                      </div>
+                      {approval.processSnapshot ? (
+                        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                            Snapshot Saat Diproses
+                          </div>
+                          <div className="whitespace-pre-wrap text-sm text-zinc-700">{approval.processSnapshot}</div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-4 py-4 text-sm text-zinc-500">Belum ada histori approval untuk Sales Order ini.</div>
+                )}
+              </div>
             </div>
             <div className="mt-4 overflow-auto rounded-lg border border-zinc-200">
               <table className="min-w-full text-sm">

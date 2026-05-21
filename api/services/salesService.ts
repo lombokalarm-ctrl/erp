@@ -2,7 +2,13 @@ import type { PoolClient } from 'pg'
 import { getPool } from '../db/pool.js'
 import { withTransaction } from '../db/tx.js'
 import { ApiError } from '../lib/http.js'
-import { getCustomerCreditProfile, validateCreditOrThrow } from './creditService.js'
+import {
+  getCustomerCreditProfile,
+  validateCreditOrThrow,
+  type CreditOpenDocument,
+  type CreditReasonType,
+  type CreditValidationResult,
+} from './creditService.js'
 import { applyInventoryTransaction, getDefaultWarehouseId } from './inventoryService.js'
 import { calculateBestPromo } from './promoService.js'
 import { getToBaseFactorByCode } from './uomConversionService.js'
@@ -43,6 +49,141 @@ function toLegacyFactor(params: { uom: string; packSize: number; packPerDus: num
 
 function pad4(n: number) {
   return String(n).padStart(4, '0')
+}
+
+function formatRupiah(value: number) {
+  return `Rp${new Intl.NumberFormat('id-ID').format(Math.round(value))}`
+}
+
+function formatOpenDocument(doc: CreditOpenDocument) {
+  const amountText =
+    doc.type === 'INVOICE'
+      ? `sisa ${formatRupiah(doc.remainingAmount)}`
+      : `nilai SO ${formatRupiah(doc.remainingAmount)}`
+  return `${doc.number} (${amountText})`
+}
+
+function inferReasonTypesFromText(text?: string | null): CreditReasonType[] {
+  const source = String(text ?? '').toLowerCase()
+  const reasonTypes: CreditReasonType[] = []
+  if (source.includes('limit kredit')) reasonTypes.push('CREDIT_LIMIT')
+  if (source.includes('limit nota') || source.includes('limit jumlah nota')) reasonTypes.push('DOCUMENT_LIMIT')
+  return reasonTypes
+}
+
+function parseApprovalStoredNotes(notes?: string | null) {
+  const raw = String(notes ?? '').trim()
+  if (!raw) {
+    return {
+      requestSummary: '',
+      approverNotes: null as string | null,
+      processSnapshot: null as string | null,
+    }
+  }
+
+  const marker = '\n\nCatatan Approver:'
+  const markerIndex = raw.indexOf(marker)
+  if (markerIndex === -1) {
+    return {
+      requestSummary: raw,
+      approverNotes: null,
+      processSnapshot: null,
+    }
+  }
+
+  const requestSummary = raw.slice(0, markerIndex).trim()
+  const approverBlock = raw.slice(markerIndex + 2).trim()
+  const snapshotMarker = '\nKondisi Saat Diproses:\n'
+  const snapshotIndex = approverBlock.indexOf(snapshotMarker)
+
+  if (snapshotIndex === -1) {
+    return {
+      requestSummary,
+      approverNotes: approverBlock.replace(/^Catatan Approver:\s*/i, '').trim() || null,
+      processSnapshot: null,
+    }
+  }
+
+  return {
+    requestSummary,
+    approverNotes:
+      approverBlock
+        .slice(0, snapshotIndex)
+        .replace(/^Catatan Approver:\s*/i, '')
+        .trim() || null,
+    processSnapshot: approverBlock.slice(snapshotIndex + snapshotMarker.length).trim() || null,
+  }
+}
+
+function buildApprovalReasonContext(check: CreditValidationResult, salesNotes?: string | null) {
+  const requestLines: string[] = []
+  const currentLines: string[] = []
+  const openDocumentList = check.openDocuments.length
+    ? check.openDocuments.map((doc) => formatOpenDocument(doc)).join(', ')
+    : 'Tidak ada dokumen aktif'
+
+  if (check.exceedsLimit) {
+    requestLines.push(
+      `Limit kredit terlampaui. Limit ${formatRupiah(check.creditLimit)}, outstanding aktif ${formatRupiah(check.currentOutstanding)}, nilai order baru ${formatRupiah(check.newOrderAmount)}, proyeksi ${formatRupiah(check.projectedOutstanding)}.`,
+    )
+  }
+  if (check.exceedsSalesOrderLimit) {
+    requestLines.push(
+      `Limit nota terlampaui. Limit ${check.salesOrderLimit}, dokumen aktif saat ini ${check.currentOpenDocumentCount}, proyeksi menjadi ${check.projectedOpenDocumentCount}.`,
+    )
+    requestLines.push(`Dokumen aktif yang dihitung: ${openDocumentList}.`)
+  }
+  if (!requestLines.length) {
+    requestLines.push('Kondisi limit saat ini normal.')
+  }
+  if (salesNotes?.trim()) {
+    requestLines.push(`Catatan sales: ${salesNotes.trim()}`)
+  }
+
+  currentLines.push(
+    `Outstanding aktif saat ini ${formatRupiah(check.currentOutstanding)} dari limit ${formatRupiah(check.creditLimit)}.`,
+  )
+  currentLines.push(
+    `Dokumen aktif saat ini ${check.currentOpenDocumentCount} dari limit ${check.salesOrderLimit}.`,
+  )
+  if (check.openDocuments.length) {
+    currentLines.push(`Dokumen aktif saat ini: ${openDocumentList}.`)
+  } else {
+    currentLines.push('Tidak ada dokumen aktif yang masih dihitung.')
+  }
+
+  const liveStatusLabel = check.reasonTypes.length
+    ? check.reasonTypes.length === 2
+      ? 'Masih melebihi limit kredit dan limit nota'
+      : check.reasonTypes[0] === 'CREDIT_LIMIT'
+      ? 'Masih melebihi limit kredit'
+      : 'Masih melebihi limit nota'
+    : 'Kondisi terbaru sudah normal'
+
+  return {
+    reasonTypes: check.reasonTypes,
+    requestSummary: requestLines.join('\n'),
+    requestLines,
+    liveSummary: currentLines.join('\n'),
+    liveLines: currentLines,
+    liveStatusLabel,
+    creditSnapshot: {
+      creditLimit: check.creditLimit,
+      currentOutstanding: check.currentOutstanding,
+      newOrderAmount: check.newOrderAmount,
+      projectedOutstanding: check.projectedOutstanding,
+      exceedsLimit: check.exceedsLimit,
+    },
+    documentSnapshot: {
+      salesOrderLimit: check.salesOrderLimit,
+      currentOpenDocumentCount: check.currentOpenDocumentCount,
+      projectedOpenDocumentCount: check.projectedOpenDocumentCount,
+      openInvoiceCount: check.openInvoiceCount,
+      openSoWithoutInvoiceCount: check.openSoWithoutInvoiceCount,
+      exceedsLimit: check.exceedsSalesOrderLimit,
+    },
+    openDocuments: check.openDocuments,
+  }
 }
 
 async function generateNumber(
@@ -224,17 +365,13 @@ export async function createSalesOrder(params: {
     )
     const salesOrder = soRes.rows[0]
 
-    if (status === 'PENDING_APPROVAL') {
-      const reasons: string[] = []
-      if (creditCheck.exceedsLimit) reasons.push(`Limit Kredit: ${creditCheck.creditLimit}, Proyeksi Tagihan: ${creditCheck.projected}`)
-      if (creditCheck.exceedsSalesOrderLimit) {
-        reasons.push(
-          `Limit Jumlah Nota: ${creditCheck.salesOrderLimit}, Dokumen Aktif Proyeksi: ${creditCheck.projectedOpenDocumentCount} (Invoice Belum Lunas: ${creditCheck.openInvoiceCount}, SO Aktif Belum Invoice: ${creditCheck.openSoWithoutInvoiceCount})`,
-        )
-      }
+    const approvalContext =
+      status === 'PENDING_APPROVAL' ? buildApprovalReasonContext(creditCheck, params.notes) : null
+
+    if (approvalContext) {
       await client.query(
         `insert into sales_order_approvals(sales_order_id, requested_by, status, notes) values ($1, $2, 'PENDING', $3)`,
-        [salesOrder.id, params.createdBy, `Overlimit (${reasons.join(' | ')})`]
+        [salesOrder.id, params.createdBy, approvalContext.requestSummary]
       )
     }
 
@@ -280,7 +417,7 @@ export async function createSalesOrder(params: {
       return { salesOrder }
     }
 
-    return { salesOrder }
+    return { salesOrder, approvalContext: approvalContext ?? undefined }
   })
 }
 
@@ -419,7 +556,49 @@ export async function getSalesOrderDetail(soId: string) {
     [soId],
   )
 
-  return { ...order, items: itemRes.rows }
+  const approvalRes = await pool.query(
+    `
+      select
+        a.id,
+        a.status,
+        a.notes,
+        a.created_at::text as "requestedAt",
+        a.updated_at::text as "updatedAt",
+        req.full_name as "requestedByName",
+        app.full_name as "approverName"
+      from sales_order_approvals a
+      join users req on req.id = a.requested_by
+      left join users app on app.id = a.approver_id
+      where a.sales_order_id = $1
+      order by a.created_at desc
+    `,
+    [soId],
+  )
+
+  const approvals = (approvalRes.rows as Array<{
+    id: string
+    status: 'PENDING' | 'APPROVED' | 'REJECTED'
+    notes?: string | null
+    requestedAt: string
+    updatedAt: string
+    requestedByName: string
+    approverName?: string | null
+  }>).map((row) => {
+    const parsedNotes = parseApprovalStoredNotes(row.notes)
+    return {
+      id: row.id,
+      status: row.status,
+      requestedAt: row.requestedAt,
+      requestedByName: row.requestedByName,
+      approverName: row.approverName ?? null,
+      processedAt: row.status === 'PENDING' ? null : row.updatedAt,
+      requestSummary: parsedNotes.requestSummary,
+      approverNotes: parsedNotes.approverNotes,
+      processSnapshot: parsedNotes.processSnapshot,
+    }
+  })
+
+  return { ...order, items: itemRes.rows, approvals }
 }
 
 export async function updateSalesOrder(params: {
@@ -525,14 +704,7 @@ export async function updateSalesOrder(params: {
     }
 
     if (status === 'PENDING_APPROVAL') {
-      const reasons: string[] = []
-      if (creditCheck.exceedsLimit) reasons.push(`Limit Kredit: ${creditCheck.creditLimit}, Proyeksi Tagihan: ${creditCheck.projected}`)
-      if (creditCheck.exceedsSalesOrderLimit) {
-        reasons.push(
-          `Limit Jumlah Nota: ${creditCheck.salesOrderLimit}, Dokumen Aktif Proyeksi: ${creditCheck.projectedOpenDocumentCount} (Invoice Belum Lunas: ${creditCheck.openInvoiceCount}, SO Aktif Belum Invoice: ${creditCheck.openSoWithoutInvoiceCount})`,
-        )
-      }
-      const notes = `Overlimit (${reasons.join(' | ')})`
+      const approvalContext = buildApprovalReasonContext(creditCheck, params.notes)
 
       const pendingRes = await client.query(
         `select id from sales_order_approvals where sales_order_id = $1 and status = 'PENDING' limit 1`,
@@ -545,14 +717,15 @@ export async function updateSalesOrder(params: {
             set requested_by = $2, notes = $3, updated_at = now()
             where id = $1
           `,
-          [pendingRes.rows[0].id, params.updatedBy, notes],
+          [pendingRes.rows[0].id, params.updatedBy, approvalContext.requestSummary],
         )
       } else {
         await client.query(
           `insert into sales_order_approvals(sales_order_id, requested_by, status, notes) values ($1, $2, 'PENDING', $3)`,
-          [params.salesOrderId, params.updatedBy, notes],
+          [params.salesOrderId, params.updatedBy, approvalContext.requestSummary],
         )
       }
+      return { ...(await getSalesOrderDetail(params.salesOrderId)), approvalContext }
     } else {
       await client.query(
         `delete from sales_order_approvals where sales_order_id = $1 and status = 'PENDING'`,
@@ -668,6 +841,8 @@ export async function getApprovalList(params: { page?: number; pageSize?: number
         so.id as "salesOrderId",
         so.order_no as "orderNo",
         so.total_amount::text as "totalAmount",
+        so.notes as "salesOrderNotes",
+        so.customer_id as "customerId",
         c.name as "customerName",
         u.full_name as "requestedByName"
       from sales_order_approvals a
@@ -682,11 +857,50 @@ export async function getApprovalList(params: { page?: number; pageSize?: number
     [pageSize, offset]
   )
 
-  return { items: listRes.rows, total: Number(countRes.rows[0]?.c ?? 0) }
+  const items = await Promise.all(
+    (listRes.rows as Array<{
+      approvalId: string
+      approvalStatus: string
+      approvalNotes: string
+      requestedAt: string
+      salesOrderId: string
+      orderNo: string
+      totalAmount: string
+      salesOrderNotes?: string | null
+      customerId: string
+      customerName: string
+      requestedByName: string
+    }>).map(async (row) => {
+      const currentCheck = await validateCreditOrThrow({
+        customerId: row.customerId,
+        newInvoiceAmount: Number(row.totalAmount),
+        allowOverLimit: false,
+        isDraft: true,
+      })
+      const liveContext = buildApprovalReasonContext(currentCheck, row.salesOrderNotes)
+      return {
+        ...row,
+        requestSummary: row.approvalNotes,
+        requestReasonTypes: inferReasonTypesFromText(row.approvalNotes),
+        liveCheck: liveContext,
+      }
+    }),
+  )
+
+  return { items, total: Number(countRes.rows[0]?.c ?? 0) }
 }
 
 export async function processApproval(approvalId: string, action: 'APPROVED' | 'REJECTED', approverId: string, notes?: string) {
   return withTransaction(async (client) => {
+    const approverNotes = notes?.trim()
+    if (!approverNotes || approverNotes.length < 5) {
+      throw new ApiError({
+        code: 'VALIDATION_ERROR',
+        status: 400,
+        message: 'Catatan approver wajib diisi minimal 5 karakter',
+      })
+    }
+
     const approvalRes = await client.query(
       `
         select
@@ -743,12 +957,8 @@ export async function processApproval(approvalId: string, action: 'APPROVED' | '
       isDraft: true,
     })
 
-    const enrichedNotes = [
-      notes?.trim() ? `Catatan Approver: ${notes.trim()}` : null,
-      `Snapshot Saat Proses -> Kredit: ${currentCheck.projected}/${currentCheck.creditLimit}, Dokumen Aktif: ${currentCheck.projectedOpenDocumentCount}/${currentCheck.salesOrderLimit}`,
-    ]
-      .filter(Boolean)
-      .join(' | ')
+    const liveContext = buildApprovalReasonContext(currentCheck)
+    const enrichedNotes = `Catatan Approver: ${approverNotes}\nKondisi Saat Diproses:\n${liveContext.liveSummary}`
 
     const apprRes = await client.query(
       `
@@ -757,7 +967,7 @@ export async function processApproval(approvalId: string, action: 'APPROVED' | '
             approver_id = $3,
             notes = case
               when coalesce(notes, '') = '' then $4
-              else notes || ' | ' || $4
+              else notes || E'\n\n' || $4
             end,
             updated_at = now()
         where id = $1 and status = 'PENDING'
@@ -791,12 +1001,7 @@ export async function processApproval(approvalId: string, action: 'APPROVED' | '
     return {
       success: true,
       newSoStatus,
-      creditSnapshot: {
-        projected: currentCheck.projected,
-        creditLimit: currentCheck.creditLimit,
-        projectedOpenDocumentCount: currentCheck.projectedOpenDocumentCount,
-        salesOrderLimit: currentCheck.salesOrderLimit,
-      },
+      creditSnapshot: liveContext,
     }
   })
 }
