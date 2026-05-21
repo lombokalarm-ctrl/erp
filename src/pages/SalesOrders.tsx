@@ -233,8 +233,8 @@ export default function SalesOrders() {
     setEditingOrderId(null);
   }
 
-  function buildApprovalNotice(result: SalesOrderSaveResult | SalesOrderDetail) {
-    const approvalContext = "approvalContext" in result ? result.approvalContext : undefined;
+  function buildApprovalNotice(result: SalesOrderSaveResult) {
+    const approvalContext = result.approvalContext;
     if (!approvalContext) return null;
     const orderNo = result.salesOrder?.order_no || result.salesOrder?.orderNo || result.orderNo || "SO ini";
     return `${orderNo} masuk antrean approval.\n${approvalContext.requestSummary}`;
