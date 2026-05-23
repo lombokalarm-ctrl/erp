@@ -182,7 +182,7 @@ export default function SalesOrders() {
   async function loadInitial() {
     try {
       const [cRes, pRes, soRes] = await Promise.all([
-        apiFetch<{ data: Customer[] }>("/api/v1/customers?page=1&pageSize=100"),
+        apiFetch<{ data: Customer[] }>("/api/v1/customers?page=1&pageSize=100&includeUnassigned=true"),
         apiFetch<{ data: Product[] }>("/api/v1/products?page=1&pageSize=200"),
         apiFetch<{ data: SalesOrderRow[] }>("/api/v1/sales-orders?page=1&pageSize=50"),
       ]);

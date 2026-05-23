@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg'
 import { getPool } from '../db/pool.js'
 import { withTransaction } from '../db/tx.js'
+import { ApiError } from '../lib/http.js'
 
 function pad4(n: number) {
   return String(n).padStart(4, '0')
@@ -38,7 +39,7 @@ export async function getDefaultWarehouseId(client?: PoolClient) {
   return res.rows[0]?.id as string | undefined
 }
 
-export async function applyInventoryTransaction(input: {
+type InventoryTransactionInput = {
   warehouseId: string
   productId: string
   type: string
@@ -48,8 +49,97 @@ export async function applyInventoryTransaction(input: {
   refId?: string
   note?: string
   client?: PoolClient
-}) {
-  const q = input.client ?? getPool()
+}
+
+function assertValidInventoryQuantity(qtyDelta: number, type: string) {
+  if (!Number.isFinite(qtyDelta) || qtyDelta === 0) {
+    throw new ApiError({
+      code: 'VALIDATION_ERROR',
+      status: 400,
+      message: `Kuantitas transaksi ${type} tidak valid`,
+      details: {
+        issue: 'INVALID_QUANTITY',
+        qtyDelta,
+      },
+    })
+  }
+}
+
+async function resolveWarehouseOrThrow(q: PoolClient | ReturnType<typeof getPool>, warehouseId: string) {
+  const warehouseRes = await q.query(
+    `
+      select id, code, name
+      from warehouses
+      where id = $1
+      limit 1
+    `,
+    [warehouseId],
+  )
+
+  const warehouse = warehouseRes.rows[0] as
+    | { id: string; code: string; name: string }
+    | undefined
+
+  if (!warehouse) {
+    throw new ApiError({
+      code: 'VALIDATION_ERROR',
+      status: 400,
+      message: 'Gudang transaksi tidak ditemukan',
+      details: {
+        issue: 'WAREHOUSE_NOT_FOUND',
+        warehouseId,
+      },
+    })
+  }
+
+  return warehouse
+}
+
+async function getInventoryBalanceForUpdate(
+  q: PoolClient | ReturnType<typeof getPool>,
+  warehouseId: string,
+  productId: string,
+) {
+  const suffix = 'release' in q ? ' for update' : ''
+  const balanceRes = await q.query(
+    `
+      select coalesce(qty, 0)::numeric as qty
+      from inventory_balances
+      where warehouse_id = $1 and product_id = $2
+      limit 1${suffix}
+    `,
+    [warehouseId, productId],
+  )
+
+  return Number(balanceRes.rows[0]?.qty ?? 0)
+}
+
+async function applyInventoryTransactionWithClient(input: InventoryTransactionInput & { client: PoolClient }) {
+  const q = input.client
+  assertValidInventoryQuantity(input.qtyDelta, input.type)
+  const warehouse = await resolveWarehouseOrThrow(q, input.warehouseId)
+
+  if (input.qtyDelta < 0) {
+    const availableQty = await getInventoryBalanceForUpdate(q, warehouse.id, input.productId)
+    const requestedQty = Math.abs(input.qtyDelta)
+    if (availableQty < requestedQty) {
+      throw new ApiError({
+        code: 'CONFLICT',
+        status: 409,
+        message: `Stok gudang ${warehouse.code} tidak cukup`,
+        details: {
+          issue: 'INSUFFICIENT_STOCK',
+          warehouseId: warehouse.id,
+          warehouseCode: warehouse.code,
+          productId: input.productId,
+          availableQty,
+          requestedQty,
+          transactionType: input.type,
+        },
+      })
+    }
+  }
+
   await q.query(
     `
       insert into inventory_transactions(
@@ -86,6 +176,19 @@ export async function applyInventoryTransaction(input: {
     `,
     [input.warehouseId, input.productId, input.qtyDelta],
   )
+}
+
+export async function applyInventoryTransaction(input: InventoryTransactionInput) {
+  if (input.client) {
+    return applyInventoryTransactionWithClient(input as InventoryTransactionInput & { client: PoolClient })
+  }
+
+  return withTransaction(async (client: PoolClient) => {
+    return applyInventoryTransactionWithClient({
+      ...input,
+      client,
+    })
+  })
 }
 
 export async function listInventorySummary(params: { q?: string }) {
@@ -396,20 +499,6 @@ async function postInventoryTransfer(
   for (const [productId, qtyBaseRaw] of mergedItems.entries()) {
     const qtyBase = Number(qtyBaseRaw)
     if (!Number.isFinite(qtyBase) || qtyBase <= 0) continue
-
-    const stockRes = await client.query(
-      `
-        select coalesce(qty, 0)::numeric as qty
-        from inventory_balances
-        where warehouse_id = $1 and product_id = $2
-        limit 1
-      `,
-      [input.sourceWarehouseId, productId],
-    )
-    const available = Number(stockRes.rows[0]?.qty ?? 0)
-    if (available < qtyBase) {
-      throw new Error('Stok gudang asal tidak cukup untuk transfer')
-    }
 
     await applyInventoryTransaction({
       warehouseId: input.sourceWarehouseId,

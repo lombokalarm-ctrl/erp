@@ -55,6 +55,10 @@ router.get(
           pageSize: z.coerce.number().int().min(1).max(200).default(20),
           q: z.string().optional(),
           salesId: z.string().uuid().optional(),
+          includeUnassigned: z
+            .enum(['true', 'false'])
+            .optional()
+            .transform((value) => value === 'true'),
         })
         .parse(req.query)
 

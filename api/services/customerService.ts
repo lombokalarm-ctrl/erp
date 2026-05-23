@@ -24,6 +24,7 @@ export async function listCustomers(params: {
   pageSize?: number
   q?: string
   salesId?: string
+  includeUnassigned?: boolean
 }) {
   const pool = getPool()
   const page = params.page ?? 1
@@ -41,7 +42,12 @@ export async function listCustomers(params: {
 
   if (params.salesId) {
     values.push(params.salesId)
-    where.push(`c.sales_id = $${values.length}`)
+    const salesIdParamIndex = values.length
+    if (params.includeUnassigned) {
+      where.push(`(c.sales_id = $${salesIdParamIndex} or c.sales_id is null)`)
+    } else {
+      where.push(`c.sales_id = $${salesIdParamIndex}`)
+    }
   }
 
   const whereSql = where.length ? `where ${where.join(' and ')}` : ''

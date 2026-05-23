@@ -1046,7 +1046,20 @@ export async function createDeliveryOrder(params: {
     const items = itemsRes.rows
 
     const dateKey = params.deliveryDate.replace(/-/g, '')
-    const doNo = await generateNumber(client as any, 'DO', dateKey, 'delivery_orders', 'do_no')
+    const doNo = await generateNumber(client, 'DO', dateKey, 'delivery_orders', 'do_no')
+
+    const warehouseId = await getDefaultWarehouseId(client)
+    if (!warehouseId) {
+      throw new ApiError({
+        code: 'VALIDATION_ERROR',
+        status: 400,
+        message: 'Gudang default WH-01 belum tersedia untuk delivery order',
+        details: {
+          issue: 'WAREHOUSE_REQUIRED',
+          warehouseCode: 'WH-01',
+        },
+      })
+    }
 
     // 3. Insert Delivery Order
     const doRes = await client.query(
@@ -1060,7 +1073,6 @@ export async function createDeliveryOrder(params: {
     const deliveryOrder = doRes.rows[0]
 
     // 4. Insert DO Items & Deduct Stock
-    const warehouseId = await getDefaultWarehouseId(client as any)
     for (const it of items) {
       const qtyPcs = Number(it.qty_pcs ?? 0)
       const qtyBase = Number(it.qty_base ?? qtyPcs)
@@ -1093,23 +1105,21 @@ export async function createDeliveryOrder(params: {
         ],
       )
 
-      if (warehouseId) {
-        await applyInventoryTransaction({
-          warehouseId,
-          productId: it.product_id,
-          type: 'SALE_OUT',
-          qtyDelta: -1 * qtyBase,
-          createdBy: params.createdBy,
-          refType: 'delivery_orders',
-          refId: deliveryOrder.id,
-          client: client as any,
-        })
-      }
+      await applyInventoryTransaction({
+        warehouseId,
+        productId: it.product_id,
+        type: 'SALE_OUT',
+        qtyDelta: -1 * qtyBase,
+        createdBy: params.createdBy,
+        refType: 'delivery_orders',
+        refId: deliveryOrder.id,
+        client,
+      })
     }
 
     // 5. Update SO status
     await client.query("update sales_orders set delivery_status = 'DELIVERED' where id = $1", [params.salesOrderId])
-    const invoice = await ensureInvoiceForSalesOrder(client as any, params.salesOrderId, params.deliveryDate)
+    const invoice = await ensureInvoiceForSalesOrder(client, params.salesOrderId, params.deliveryDate)
 
     return { deliveryOrder, invoice }
   })

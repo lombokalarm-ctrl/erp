@@ -1,6 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod'
-import { ok } from '../../lib/http.js'
+import { ApiError, ok } from '../../lib/http.js'
 import { authenticate, authorizeAny } from '../../middlewares/auth.js'
 import {
   applyInventoryTransaction,
@@ -70,8 +70,15 @@ router.post(
 
       const warehouseId = await getDefaultWarehouseId()
       if (!warehouseId) {
-        ok(res, null)
-        return
+        throw new ApiError({
+          code: 'VALIDATION_ERROR',
+          status: 400,
+          message: 'Gudang default WH-01 belum tersedia untuk adjustment stok',
+          details: {
+            issue: 'WAREHOUSE_REQUIRED',
+            warehouseCode: 'WH-01',
+          },
+        })
       }
 
       await applyInventoryTransaction({
@@ -380,4 +387,3 @@ router.get(
 )
 
 export default router
-
