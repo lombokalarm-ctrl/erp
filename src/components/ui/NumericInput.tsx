@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import { InputHTMLAttributes } from "react";
+import { formatNumber } from "@/lib/numberFormat";
 
 type NumericMode = "integer" | "decimal" | "currency";
 
@@ -20,22 +21,63 @@ function sanitizeInteger(raw: string, allowNegative: boolean) {
 }
 
 function sanitizeDecimal(raw: string, allowNegative: boolean) {
-  const normalized = raw.replace(/,/g, ".");
-  const input = normalized.replace(/[^\d.-]/g, "");
-  const negative = allowNegative && input.startsWith("-") ? "-" : "";
-  const unsigned = input.replace(/-/g, "");
-  const [head, ...tail] = unsigned.split(".");
-  const decimal = tail.length ? `.${tail.join("")}` : "";
-  return `${negative}${head}${decimal}`;
+  return sanitizeLocalizedNumber(raw, allowNegative);
 }
 
 function sanitizeCurrency(raw: string) {
-  return raw.replace(/\D/g, "");
+  return sanitizeLocalizedNumber(raw, false, 2);
 }
 
-function formatCurrency(digits: string) {
-  if (!digits) return "";
-  return new Intl.NumberFormat("id-ID").format(Number(digits));
+function sanitizeLocalizedNumber(raw: string, allowNegative: boolean, maxFractionDigits?: number) {
+  const cleaned = raw.replace(/\s/g, "").replace(/[^\d,.-]/g, "");
+  if (!cleaned) return "";
+
+  const negative = allowNegative && cleaned.startsWith("-") ? "-" : "";
+  const unsigned = cleaned.replace(/-/g, "");
+  const lastComma = unsigned.lastIndexOf(",");
+  const lastDot = unsigned.lastIndexOf(".");
+
+  let decimalSeparator = "";
+  if (lastComma >= 0 && lastDot >= 0) {
+    decimalSeparator = lastComma > lastDot ? "," : ".";
+  } else if (lastComma >= 0) {
+    decimalSeparator = ",";
+  } else if (lastDot >= 0) {
+    const dotCount = unsigned.split(".").length - 1;
+    const digitsAfter = unsigned.length - lastDot - 1;
+    decimalSeparator = dotCount === 1 && digitsAfter > 0 && digitsAfter <= 2 ? "." : "";
+  }
+
+  if (!decimalSeparator) {
+    return `${negative}${unsigned.replace(/[.,]/g, "")}`;
+  }
+
+  const separatorIndex = unsigned.lastIndexOf(decimalSeparator);
+  const integerPart = unsigned.slice(0, separatorIndex).replace(/[.,]/g, "");
+  let fractionPart = unsigned.slice(separatorIndex + 1).replace(/[.,]/g, "");
+  if (maxFractionDigits !== undefined) {
+    fractionPart = fractionPart.slice(0, maxFractionDigits);
+  }
+
+  const normalizedInteger = integerPart || "0";
+  const hasTrailingSeparator = separatorIndex === unsigned.length - 1;
+  const decimalPart = fractionPart || hasTrailingSeparator ? `.${fractionPart}` : "";
+  return `${negative}${normalizedInteger}${decimalPart}`;
+}
+
+function formatCurrencyInput(value: string) {
+  if (!value) return "";
+  if (value === "-") return value;
+
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return value;
+  return formatNumber(numeric, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+function formatDecimalInput(value: string) {
+  if (!value) return "";
+  if (value === "-") return value;
+  return value.replace(".", ",");
 }
 
 export default function NumericInput({
@@ -55,7 +97,12 @@ export default function NumericInput({
         ? sanitizeDecimal(value, allowNegative)
         : sanitizeInteger(value, allowNegative);
 
-  const display = mode === "currency" ? formatCurrency(normalized) : normalized;
+  const display =
+    mode === "currency"
+      ? formatCurrencyInput(normalized)
+      : mode === "decimal"
+        ? formatDecimalInput(normalized)
+        : normalized;
 
   return (
     <label className="block">
@@ -63,7 +110,7 @@ export default function NumericInput({
       <input
         {...props}
         type="text"
-        inputMode={mode === "decimal" ? "decimal" : "numeric"}
+        inputMode={mode === "integer" ? "numeric" : "decimal"}
         value={display}
         onChange={(e) => {
           const nextRaw = e.target.value;

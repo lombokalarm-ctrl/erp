@@ -152,8 +152,8 @@ export default function InvoiceDetail() {
                     <td class="text-center">${i + 1}</td>
                     <td>${it.productName}</td>
                     <td class="text-right">${it.qty} ${it.unit}</td>
-                    <td class="text-right">${it.unitPrice}</td>
-                    <td class="text-right">${it.lineTotal}</td>
+                    <td class="text-right">${formatCurrency(it.unitPrice)}</td>
+                    <td class="text-right">${formatCurrency(it.lineTotal)}</td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -163,19 +163,19 @@ export default function InvoiceDetail() {
               <table>
                 <tr>
                   <td>Total Tagihan</td>
-                  <td class="text-right">${inv.totalAmount}</td>
+                  <td class="text-right">${formatCurrency(inv.totalAmount)}</td>
                 </tr>
                 <tr>
                   <td>Sudah Dibayar</td>
-                  <td class="text-right">${inv.paid}</td>
+                  <td class="text-right">${formatCurrency(inv.paid)}</td>
                 </tr>
                 <tr>
                   <td>Note Kredit</td>
-                  <td class="text-right">${inv.credited ?? 0}</td>
+                  <td class="text-right">${formatCurrency(inv.credited ?? 0)}</td>
                 </tr>
                 <tr class="total">
                   <td>Sisa Tagihan</td>
-                  <td class="text-right">${inv.remaining}</td>
+                  <td class="text-right">${formatCurrency(inv.remaining)}</td>
                 </tr>
               </table>
             </div>
@@ -259,7 +259,7 @@ export default function InvoiceDetail() {
             </div>
 
             <div class="amount-box">
-              UANG SEJUMLAH: Rp ${p.amount}
+              UANG SEJUMLAH: ${formatCurrency(p.amount)}
             </div>
 
             <div style="margin-bottom: 20px;">

@@ -39,7 +39,7 @@ export default function Payments() {
   const amountNumber = Number(amount);
   const amountError =
     invoiceDetail && Number.isFinite(amountNumber) && amountNumber > Number(invoiceDetail.remaining)
-      ? `Nominal melebihi sisa tagihan (sisa: ${invoiceDetail.remaining})`
+      ? `Nominal melebihi sisa tagihan (sisa: ${formatCurrency(invoiceDetail.remaining)})`
       : null;
 
   const canSubmit = useMemo(

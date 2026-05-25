@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { fetchActiveUoms } from "@/lib/uom";
 import { exportToExcel } from "@/lib/exportUtils";
+import { formatCurrency } from "@/lib/numberFormat";
 
 type Product = {
   id: string;
@@ -45,6 +46,13 @@ type ProductImportSummary = {
   errors?: { row: number; message: string; sku?: string }[];
 };
 
+type ProductListResponse = {
+  data: Product[];
+  meta?: {
+    total?: number;
+  };
+};
+
 const CUSTOMER_CATEGORIES = [
   "RETAIL",
   "GROSIR",
@@ -55,8 +63,13 @@ const CUSTOMER_CATEGORIES = [
 
 export default function Products() {
   const [q, setQ] = useState("");
+  const [appliedQ, setAppliedQ] = useState("");
   const [items, setItems] = useState<Product[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importSummary, setImportSummary] = useState<ProductImportSummary | null>(null);
 
@@ -214,7 +227,7 @@ export default function Products() {
         body: form,
       });
       setImportSummary(res.data);
-      await load();
+      await load(page, pageSize, appliedQ);
       await loadUomMaster();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Import produk gagal");
@@ -230,21 +243,34 @@ export default function Products() {
     if (!confirm("Apakah Anda yakin ingin menghapus produk ini?")) return;
     try {
       await apiFetch(`/api/v1/products/${id}`, { method: "DELETE" });
-      await load();
+      const nextPage = items.length === 1 && page > 1 ? page - 1 : page;
+      await load(nextPage, pageSize, appliedQ);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Gagal menghapus produk");
     }
   }
 
-  async function load() {
+  async function load(nextPage = page, nextPageSize = pageSize, nextQ = appliedQ) {
     setError(null);
+    setLoading(true);
     try {
-      const res = await apiFetch<{ data: Product[] }>(
-        "/api/v1/products?page=1&pageSize=50&q=" + encodeURIComponent(q),
+      const params = new URLSearchParams({
+        page: String(nextPage),
+        pageSize: String(nextPageSize),
+        q: nextQ,
+      });
+      const res = await apiFetch<ProductListResponse>(
+        `/api/v1/products?${params.toString()}`,
       );
       setItems(res.data);
+      setTotal(Number(res.meta?.total ?? 0));
+      setPage(nextPage);
+      setPageSize(nextPageSize);
+      setAppliedQ(nextQ);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Gagal memuat data");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -258,8 +284,8 @@ export default function Products() {
   }
 
   useEffect(() => {
-    load();
-    loadUomMaster();
+    void load();
+    void loadUomMaster();
   }, []);
 
   useEffect(() => {
@@ -388,11 +414,17 @@ export default function Products() {
         });
       }
       handleCancelEdit();
-      await load();
+      await load(page, pageSize, appliedQ);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Gagal menyimpan produk");
     }
   }
+
+  const startItem = items.length === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endItem = items.length === 0 ? 0 : startItem + items.length - 1;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const canGoPrev = page > 1 && !loading;
+  const canGoNext = page < totalPages && !loading;
 
   return (
     <div className="space-y-4">
@@ -405,8 +437,13 @@ export default function Products() {
           <div className="w-full md:w-72">
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari SKU / nama..." />
           </div>
-          <Button variant="secondary" onClick={load}>
-            Cari
+          <Button
+            variant="secondary"
+            onClick={() => {
+              void load(1, pageSize, q);
+            }}
+          >
+            {loading ? "Memuat..." : "Cari"}
           </Button>
           <Button variant="secondary" onClick={handleDownloadTemplate}>
             Unduh Template XLSX
@@ -496,12 +533,12 @@ export default function Products() {
                     <td className="px-4 py-2 font-medium">{p.sku}</td>
                     <td className="px-4 py-2">{p.name}</td>
                     <td className="px-4 py-2">{p.unit}</td>
-                    <td className="px-4 py-2">{p.purchasePrice}</td>
+                    <td className="whitespace-nowrap px-4 py-2">{formatCurrency(p.purchasePrice)}</td>
                     <td className="px-4 py-2">{`${Number(p.minStockBase ?? 0).toFixed(2)} / ${Number(p.reorderQtyBase ?? 0).toFixed(2)}`}</td>
                     <td className="px-4 py-2">
                       {p.categoryPrices?.["RETAIL"]
                         ? Object.entries(p.categoryPrices["RETAIL"])
-                            .map(([code, price]) => `${code}:${price}`)
+                            .map(([code, price]) => `${code}: ${formatCurrency(price)}`)
                             .join(" | ")
                         : "-"}
                     </td>
@@ -523,6 +560,52 @@ export default function Products() {
                 ) : null}
               </tbody>
             </table>
+          </div>
+          <div className="flex flex-col gap-3 border-t border-zinc-200 bg-zinc-50 px-4 py-3 text-sm md:flex-row md:items-center md:justify-between">
+            <div className="text-zinc-600">
+              Menampilkan {startItem}-{endItem} dari {total} produk
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <label className="flex items-center gap-2 text-zinc-600">
+                <span>Baris</span>
+                <select
+                  className="h-9 rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                  value={pageSize}
+                  onChange={(e) => {
+                    const nextPageSize = Number(e.target.value);
+                    void load(1, nextPageSize, appliedQ);
+                  }}
+                  disabled={loading}
+                >
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </label>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  disabled={!canGoPrev}
+                  onClick={() => {
+                    void load(page - 1, pageSize, appliedQ);
+                  }}
+                >
+                  Prev
+                </Button>
+                <span className="min-w-[88px] text-center text-zinc-600">
+                  Hal {page} / {totalPages}
+                </span>
+                <Button
+                  variant="secondary"
+                  disabled={!canGoNext}
+                  onClick={() => {
+                    void load(page + 1, pageSize, appliedQ);
+                  }}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           </div>
         </Card>
       </div>

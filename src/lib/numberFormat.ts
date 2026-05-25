@@ -4,6 +4,12 @@ function toFiniteNumber(value: number | string | null | undefined): number | nul
   return Number.isFinite(numeric) ? numeric : null;
 }
 
+type CurrencyFormatOptions = {
+  includeSymbol?: boolean;
+  minimumFractionDigits?: number;
+  maximumFractionDigits?: number;
+};
+
 export function formatNumber(
   value: number | string | null | undefined,
   options?: Intl.NumberFormatOptions,
@@ -13,10 +19,20 @@ export function formatNumber(
   return new Intl.NumberFormat("id-ID", options).format(numeric);
 }
 
-export function formatCurrency(value: number | string | null | undefined): string {
+export function formatCurrency(
+  value: number | string | null | undefined,
+  options?: CurrencyFormatOptions,
+): string {
   const numeric = toFiniteNumber(value);
-  if (numeric === null) return "Rp\u00A00";
-  return `Rp\u00A0${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(numeric)}`;
+  const includeSymbol = options?.includeSymbol ?? true;
+  const minimumFractionDigits = options?.minimumFractionDigits ?? 0;
+  const maximumFractionDigits = options?.maximumFractionDigits ?? 2;
+  const formatted = new Intl.NumberFormat("id-ID", {
+    minimumFractionDigits,
+    maximumFractionDigits,
+  }).format(numeric ?? 0);
+
+  return includeSymbol ? `Rp\u00A0${formatted}` : formatted;
 }
 
 export function formatCurrencyCompact(value: number | string | null | undefined): string {

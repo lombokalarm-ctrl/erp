@@ -444,8 +444,8 @@ export default function SalesOrders() {
                     <td>${it.productName}</td>
                     <td class="text-right">${it.qty}</td>
                     <td>${it.uom}</td>
-                    <td class="text-right">${it.unitPrice}</td>
-                    <td class="text-right">${it.lineTotal}</td>
+                    <td class="text-right">${formatCurrency(it.unitPrice)}</td>
+                    <td class="text-right">${formatCurrency(it.lineTotal)}</td>
                   </tr>`,
                   )
                   .join("")}
