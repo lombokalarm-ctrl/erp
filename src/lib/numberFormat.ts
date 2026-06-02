@@ -19,6 +19,20 @@ export function formatNumber(
   return new Intl.NumberFormat("id-ID", options).format(numeric);
 }
 
+export function formatQuantity(
+  value: number | string | null | undefined,
+  options?: Pick<CurrencyFormatOptions, "minimumFractionDigits" | "maximumFractionDigits">,
+): string {
+  const numeric = toFiniteNumber(value);
+  if (numeric === null) return "-";
+
+  const hasFraction = !Number.isInteger(numeric);
+  return new Intl.NumberFormat("id-ID", {
+    minimumFractionDigits: options?.minimumFractionDigits ?? 0,
+    maximumFractionDigits: options?.maximumFractionDigits ?? (hasFraction ? 2 : 0),
+  }).format(numeric);
+}
+
 export function formatCurrency(
   value: number | string | null | undefined,
   options?: CurrencyFormatOptions,

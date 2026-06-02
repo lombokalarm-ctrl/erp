@@ -30,11 +30,12 @@ router.get(
           q: z.string().optional(),
           customerId: z.string().uuid().optional(),
           salesId: z.string().uuid().optional(),
+          createdBy: z.string().uuid().optional(),
         })
         .parse(req.query)
 
       if (req.user?.role === 'Sales') {
-        query.salesId = req.user.userId
+        query.createdBy = req.user.userId
       }
 
       const result = await listSalesOrders(query)
@@ -112,7 +113,7 @@ router.get(
   authorizeAny(['sales_orders:read']),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const result = await getSalesOrderDetail(req.params.id)
+      const result = await getSalesOrderDetail(req.params.id, req.user)
       ok(res, result)
     } catch (err) {
       next(err)
@@ -165,6 +166,7 @@ router.patch(
           discountAmount: i.discountAmount,
         })),
         updatedBy: req.user!.userId,
+        actorRole: req.user!.role,
         allowOverLimit,
       })
       await writeAuditLog({
@@ -187,7 +189,7 @@ router.delete(
   authorizeAny(['sales_orders:write']),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const result = await deleteSalesOrder(req.params.id)
+      const result = await deleteSalesOrder(req.params.id, req.user!)
       await writeAuditLog({
         actorUserId: req.user!.userId,
         action: 'SALES_ORDER_DELETE',
@@ -205,7 +207,7 @@ router.delete(
 router.post(
   '/:id([0-9a-fA-F-]{36})/deliver',
   authenticate,
-  authorizeAny(['sales_orders:write']),
+  authorizeAny(['inventory:write']),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const body = z
@@ -217,6 +219,7 @@ router.post(
       const result = await createDeliveryOrder({
         salesOrderId: req.params.id,
         createdBy: req.user!.userId,
+        actorRole: req.user!.role,
         deliveryDate: body.deliveryDate,
       })
 
@@ -237,10 +240,10 @@ router.post(
 router.get(
   '/:id([0-9a-fA-F-]{36})/delivery-order',
   authenticate,
-  authorizeAny(['sales_orders:read']),
+  authorizeAny(['inventory:read']),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const result = await getDeliveryOrderBySoId(req.params.id)
+      const result = await getDeliveryOrderBySoId(req.params.id, req.user)
       ok(res, result)
     } catch (err) {
       next(err)

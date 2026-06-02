@@ -6,6 +6,7 @@ import Input from "@/components/ui/Input";
 import { apiFetch, ApiError } from "@/api/client";
 import { BarcodeScanner } from "@/components/ui/BarcodeScanner";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { useAuthStore } from "@/stores/authStore";
 import { formatCurrency } from "@/lib/numberFormat";
 
 type SalesOrderRow = {
@@ -40,6 +41,8 @@ export default function DeliveryOrders() {
   const [targetSoId, setTargetSoId] = useState<string | null>(null);
   const company = useSettingsStore((s) => s.company);
   const fetchCompany = useSettingsStore((s) => s.fetchCompany);
+  const canManageDO = useAuthStore((s) => s.hasAnyPermission(["inventory:write"]));
+  const canPrintDO = useAuthStore((s) => s.hasAnyPermission(["inventory:read"]));
 
   async function load() {
     try {
@@ -260,7 +263,7 @@ export default function DeliveryOrders() {
                   <td className="whitespace-nowrap px-4 py-2 text-right">{formatCurrency(o.totalAmount)}</td>
                   <td className="px-4 py-2 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      {o.deliveryStatus === 'PENDING' && o.status === 'CONFIRMED' && (
+                      {o.deliveryStatus === 'PENDING' && o.status === 'CONFIRMED' && canManageDO && (
                         <>
                           <Button
                             variant="ghost"
@@ -278,7 +281,7 @@ export default function DeliveryOrders() {
                           </Button>
                         </>
                       )}
-                      {o.deliveryStatus === 'PENDING' && o.status !== 'CONFIRMED' && (
+                      {o.deliveryStatus === 'PENDING' && o.status !== 'CONFIRMED' && canManageDO && (
                         <Button
                           size="sm"
                           variant="secondary"
@@ -288,7 +291,7 @@ export default function DeliveryOrders() {
                           Belum Siap
                         </Button>
                       )}
-                      {o.deliveryStatus === 'DELIVERED' && (
+                      {o.deliveryStatus === 'DELIVERED' && canPrintDO && (
                         <Button size="sm" variant="secondary" onClick={() => handlePrint(o.id)}>
                           Cetak DO
                         </Button>

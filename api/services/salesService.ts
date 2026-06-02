@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg'
+import type { JwtUser } from '../auth/jwt.js'
 import { getPool } from '../db/pool.js'
 import { withTransaction } from '../db/tx.js'
 import { ApiError } from '../lib/http.js'
@@ -35,8 +36,57 @@ type ResolvedOrderItem = {
   lineTotal: number
 }
 
+type Queryable = {
+  query: PoolClient['query']
+}
+
+type SalesOrderActor = Pick<JwtUser, 'userId' | 'role'>
+
+type SalesOrderAccessRecord = {
+  id: string
+  orderNo: string
+  createdBy: string | null
+  status: string
+  deliveryStatus: string
+}
+
 function normalizeUom(uom: string) {
   return uom.trim().toLowerCase()
+}
+
+async function getSalesOrderAccessRecord(executor: Queryable, salesOrderId: string) {
+  const soRes = await executor.query(
+    `
+      select
+        id,
+        order_no as "orderNo",
+        created_by as "createdBy",
+        status,
+        delivery_status as "deliveryStatus"
+      from sales_orders
+      where id = $1
+      limit 1
+    `,
+    [salesOrderId],
+  )
+
+  return (soRes.rows[0] as SalesOrderAccessRecord | undefined) ?? null
+}
+
+function assertSalesOrderAccess(record: SalesOrderAccessRecord | null, actor?: SalesOrderActor) {
+  if (!record) {
+    throw new ApiError({ code: 'NOT_FOUND', status: 404, message: 'Sales Order tidak ditemukan' })
+  }
+
+  if (actor?.role === 'Sales' && record.createdBy !== actor.userId) {
+    throw new ApiError({
+      code: 'FORBIDDEN',
+      status: 403,
+      message: 'Anda tidak berhak mengakses Sales Order milik sales lain',
+    })
+  }
+
+  return record
 }
 
 function toLegacyFactor(params: { uom: string; packSize: number; packPerDus: number; dusSize: number }) {
@@ -497,8 +547,9 @@ async function resolveOrderItems(items: SalesOrderItemInput[]): Promise<Resolved
   return resolvedItems
 }
 
-export async function getSalesOrderDetail(soId: string) {
+export async function getSalesOrderDetail(soId: string, actor?: SalesOrderActor) {
   const pool = getPool()
+  const accessRecord = assertSalesOrderAccess(await getSalesOrderAccessRecord(pool, soId), actor)
   const soRes = await pool.query(
     `
       select
@@ -527,12 +578,10 @@ export async function getSalesOrderDetail(soId: string) {
       where so.id = $1
       limit 1
     `,
-    [soId],
+    [accessRecord.id],
   )
   const order = soRes.rows[0]
-  if (!order) {
-    throw new ApiError({ code: 'NOT_FOUND', status: 404, message: 'Sales Order tidak ditemukan' })
-  }
+  if (!order) throw new ApiError({ code: 'NOT_FOUND', status: 404, message: 'Sales Order tidak ditemukan' })
 
   const itemRes = await pool.query(
     `
@@ -553,7 +602,7 @@ export async function getSalesOrderDetail(soId: string) {
       where soi.sales_order_id = $1
       order by p.name asc
     `,
-    [soId],
+    [accessRecord.id],
   )
 
   const approvalRes = await pool.query(
@@ -572,7 +621,7 @@ export async function getSalesOrderDetail(soId: string) {
       where a.sales_order_id = $1
       order by a.created_at desc
     `,
-    [soId],
+    [accessRecord.id],
   )
 
   const approvals = (approvalRes.rows as Array<{
@@ -609,15 +658,14 @@ export async function updateSalesOrder(params: {
   notes?: string
   items: SalesOrderItemInput[]
   updatedBy: string
+  actorRole: string
   allowOverLimit: boolean
 }) {
   return withTransaction(async (client) => {
-    const soRes = await client.query(
-      `select id, status, delivery_status as "deliveryStatus" from sales_orders where id = $1 limit 1`,
-      [params.salesOrderId],
-    )
-    const so = soRes.rows[0] as { id: string; status: string; deliveryStatus: string } | undefined
-    if (!so) throw new ApiError({ code: 'NOT_FOUND', status: 404, message: 'Sales Order tidak ditemukan' })
+    const so = assertSalesOrderAccess(await getSalesOrderAccessRecord(client, params.salesOrderId), {
+      userId: params.updatedBy,
+      role: params.actorRole,
+    })
     if (so.deliveryStatus !== 'PENDING') {
       throw new ApiError({
         code: 'CONFLICT',
@@ -725,7 +773,13 @@ export async function updateSalesOrder(params: {
           [params.salesOrderId, params.updatedBy, approvalContext.requestSummary],
         )
       }
-      return { ...(await getSalesOrderDetail(params.salesOrderId)), approvalContext }
+      return {
+        ...(await getSalesOrderDetail(params.salesOrderId, {
+          userId: params.updatedBy,
+          role: params.actorRole,
+        })),
+        approvalContext,
+      }
     } else {
       await client.query(
         `delete from sales_order_approvals where sales_order_id = $1 and status = 'PENDING'`,
@@ -733,18 +787,16 @@ export async function updateSalesOrder(params: {
       )
     }
 
-    return getSalesOrderDetail(params.salesOrderId)
+    return getSalesOrderDetail(params.salesOrderId, {
+      userId: params.updatedBy,
+      role: params.actorRole,
+    })
   })
 }
 
-export async function deleteSalesOrder(salesOrderId: string) {
+export async function deleteSalesOrder(salesOrderId: string, actor: SalesOrderActor) {
   return withTransaction(async (client) => {
-    const soRes = await client.query(
-      `select id, order_no as "orderNo", delivery_status as "deliveryStatus" from sales_orders where id = $1 limit 1`,
-      [salesOrderId],
-    )
-    const so = soRes.rows[0] as { id: string; orderNo: string; deliveryStatus: string } | undefined
-    if (!so) throw new ApiError({ code: 'NOT_FOUND', status: 404, message: 'Sales Order tidak ditemukan' })
+    const so = assertSalesOrderAccess(await getSalesOrderAccessRecord(client, salesOrderId), actor)
     if (so.deliveryStatus !== 'PENDING') {
       throw new ApiError({
         code: 'CONFLICT',
@@ -768,8 +820,9 @@ export async function deleteSalesOrder(salesOrderId: string) {
   })
 }
 
-export async function getDeliveryOrderBySoId(soId: string) {
+export async function getDeliveryOrderBySoId(soId: string, actor?: SalesOrderActor) {
   const pool = getPool()
+  const accessRecord = assertSalesOrderAccess(await getSalesOrderAccessRecord(pool, soId), actor)
   const doRes = await pool.query(
     `
       select
@@ -786,7 +839,7 @@ export async function getDeliveryOrderBySoId(soId: string) {
       where d.sales_order_id = $1
       limit 1
     `,
-    [soId],
+    [accessRecord.id],
   )
   const deliveryOrder = doRes.rows[0]
   if (!deliveryOrder) {
@@ -1009,6 +1062,7 @@ export async function processApproval(approvalId: string, action: 'APPROVED' | '
 export async function createDeliveryOrder(params: {
   salesOrderId: string
   createdBy: string
+  actorRole: string
   deliveryDate: string
 }) {
   return withTransaction(async (client) => {
@@ -1027,10 +1081,11 @@ export async function createDeliveryOrder(params: {
     }
 
     // 1. Get SO
-    const soRes = await client.query('select * from sales_orders where id = $1', [params.salesOrderId])
-    const so = soRes.rows[0]
-    if (!so) throw new Error('SO not found')
-    if (so.delivery_status !== 'PENDING') throw new Error('SO is already delivered or cancelled')
+    const so = assertSalesOrderAccess(await getSalesOrderAccessRecord(client, params.salesOrderId), {
+      userId: params.createdBy,
+      role: params.actorRole,
+    })
+    if (so.deliveryStatus !== 'PENDING') throw new Error('SO is already delivered or cancelled')
     if (!['CONFIRMED', 'DELIVERED'].includes(String(so.status))) {
       const approvedOverride = await hasApprovedOverride(params.salesOrderId)
       if (!approvedOverride) {
@@ -1131,6 +1186,7 @@ export async function listSalesOrders(params: {
   q?: string
   customerId?: string
   salesId?: string
+  createdBy?: string
 }) {
   const pool = getPool()
   const page = params.page ?? 1
@@ -1153,6 +1209,11 @@ export async function listSalesOrders(params: {
   if (params.salesId) {
     values.push(params.salesId)
     where.push(`c.sales_id = $${values.length}`)
+  }
+
+  if (params.createdBy) {
+    values.push(params.createdBy)
+    where.push(`so.created_by = $${values.length}`)
   }
 
   const whereSql = where.length ? `where ${where.join(' and ')}` : ''

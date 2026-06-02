@@ -7,7 +7,7 @@ import Button from "@/components/ui/Button";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import { apiFetch, ApiError } from "@/api/client";
 import { useSettingsStore } from "@/stores/settingsStore";
-import { formatCurrency } from "@/lib/numberFormat";
+import { formatCurrency, formatQuantity } from "@/lib/numberFormat";
 import { fetchProductUomMappings, pickDefaultUom, toUomOptions, type ProductUomMapping } from "@/lib/uom";
 
 type Customer = { id: string; name: string; code: string; category: string };
@@ -442,7 +442,7 @@ export default function SalesOrders() {
                     <td>${i + 1}</td>
                     <td>${it.sku}</td>
                     <td>${it.productName}</td>
-                    <td class="text-right">${it.qty}</td>
+                    <td class="text-right">${formatQuantity(it.qty)}</td>
                     <td>${it.uom}</td>
                     <td class="text-right">${formatCurrency(it.unitPrice)}</td>
                     <td class="text-right">${formatCurrency(it.lineTotal)}</td>
@@ -888,7 +888,7 @@ export default function SalesOrders() {
                     <tr key={it.id} className="border-b border-zinc-100">
                       <td className="px-3 py-2">{it.sku}</td>
                       <td className="px-3 py-2">{it.productName}</td>
-                      <td className="px-3 py-2 text-right">{it.qty}</td>
+                      <td className="px-3 py-2 text-right">{formatQuantity(it.qty)}</td>
                       <td className="px-3 py-2">{it.uom}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">{formatCurrency(it.unitPrice)}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">{formatCurrency(it.discountAmount)}</td>
