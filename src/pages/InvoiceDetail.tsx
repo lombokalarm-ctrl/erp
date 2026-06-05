@@ -36,6 +36,23 @@ function escapeHtml(value?: string | null) {
     .replace(/'/g, "&#39;");
 }
 
+function formatPaymentMethodLabel(method?: string | null) {
+  switch (method) {
+    case "CASH":
+      return "Tunai";
+    case "TRANSFER":
+      return "Transfer";
+    case "GIRO":
+      return "Bilyet Giro";
+    case "CARD":
+      return "Kartu";
+    case "CREDIT_NOTE":
+      return "Nota Kredit";
+    default:
+      return method || "-";
+  }
+}
+
 export default function InvoiceDetail() {
   const { id } = useParams<{ id: string }>();
   const [invoice, setInvoice] = useState<InvoiceState | null>(null);
@@ -88,7 +105,7 @@ export default function InvoiceDetail() {
       printWindow.document.write(`
         <html>
           <head>
-            <title>Cetak Invoice - ${inv.invoiceNo}</title>
+            <title>Cetak Faktur - ${inv.invoiceNo}</title>
             <style>
               @page { size: A4; margin: 0.5in; }
               body { font-family: "Courier New", Courier, monospace; font-size: 13px; line-height: 1.4; color: #000; margin: 0; padding: 0; }
@@ -119,13 +136,13 @@ export default function InvoiceDetail() {
                 Telp: ${companyPhone}
               </div>
               <div class="title">
-                INVOICE (TAGIHAN)
+                FAKTUR PENJUALAN
               </div>
             </div>
             
             <div class="meta">
               <div class="meta-box">
-                <div><strong>No. Invoice:</strong> ${inv.invoiceNo}</div>
+                <div><strong>No. Faktur :</strong> ${inv.invoiceNo}</div>
                 <div><strong>Tanggal    :</strong> ${inv.invoiceDate}</div>
                 <div><strong>Jatuh Tempo:</strong> ${inv.dueDate}</div>
                 <div><strong>No. SO     :</strong> ${inv.soNo || '-'}</div>
@@ -141,7 +158,7 @@ export default function InvoiceDetail() {
                 <tr>
                   <th style="width: 5%" class="text-center">No</th>
                   <th style="width: 45%">Nama Barang</th>
-                  <th style="width: 10%" class="text-right">Qty</th>
+                  <th style="width: 10%" class="text-right">Jumlah</th>
                   <th style="width: 20%" class="text-right">Harga</th>
                   <th style="width: 20%" class="text-right">Total</th>
                 </tr>
@@ -186,7 +203,7 @@ export default function InvoiceDetail() {
                 <div class="signature-line"></div>
               </div>
               <div class="signature">
-                <div>Hormat Kami (Finance)</div>
+                <div>Hormat Kami (Keuangan)</div>
                 <div class="signature-line"></div>
               </div>
             </div>
@@ -253,8 +270,8 @@ export default function InvoiceDetail() {
               </div>
               <div class="meta-box">
                 <div><strong>Tanggal Bayar:</strong> ${new Date(p.paidAt).toLocaleDateString("id-ID")}</div>
-                <div><strong>No. Invoice  :</strong> ${p.invoiceNo}</div>
-                <div><strong>Metode       :</strong> ${p.method}</div>
+                <div><strong>No. Faktur   :</strong> ${p.invoiceNo}</div>
+                <div><strong>Metode       :</strong> ${escapeHtml(formatPaymentMethodLabel(p.method))}</div>
               </div>
             </div>
 
@@ -273,7 +290,7 @@ export default function InvoiceDetail() {
                 <div class="signature-line"></div>
               </div>
               <div class="signature">
-                <div>Kasir / Finance</div>
+                <div>Kasir / Keuangan</div>
                 <div class="signature-line"></div>
               </div>
             </div>

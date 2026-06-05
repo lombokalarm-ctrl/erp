@@ -101,6 +101,23 @@ function escapeHtml(value?: string | null) {
     .replace(/'/g, "&#39;");
 }
 
+function formatSalesOrderPrintStatus(status?: string | null) {
+  switch (status) {
+    case "DRAFT":
+      return "Draft";
+    case "PENDING_APPROVAL":
+      return "Menunggu Persetujuan";
+    case "CONFIRMED":
+      return "Dikonfirmasi";
+    case "DELIVERED":
+      return "Terkirim";
+    case "CANCELLED":
+      return "Dibatalkan";
+    default:
+      return status || "-";
+  }
+}
+
 export default function SalesOrders() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -384,7 +401,7 @@ export default function SalesOrders() {
       printWindow.document.write(`
         <html>
           <head>
-            <title>Cetak Sales Order - ${detail.orderNo}</title>
+            <title>Cetak Surat Pesanan Penjualan - ${detail.orderNo}</title>
             <style>
               @page { size: A4; margin: 0.5in; }
               body { font-family: "Courier New", Courier, monospace; font-size: 13px; color: #000; margin: 0; }
@@ -409,13 +426,13 @@ export default function SalesOrders() {
                 ${companyAddress}<br/>
                 Telp: ${companyPhone}
               </div>
-              <div class="title">SALES ORDER</div>
+              <div class="title">SURAT PESANAN PENJUALAN</div>
             </div>
             <div class="meta">
               <div class="meta-box">
                 <div><strong>No. SO :</strong> ${detail.orderNo}</div>
                 <div><strong>Tanggal:</strong> ${detail.orderDate}</div>
-                <div><strong>Status :</strong> ${detail.status}</div>
+                <div><strong>Status :</strong> ${escapeHtml(formatSalesOrderPrintStatus(detail.status))}</div>
               </div>
               <div class="meta-box">
                 <div><strong>Pelanggan:</strong></div>
@@ -428,7 +445,7 @@ export default function SalesOrders() {
                   <th style="width:5%">No</th>
                   <th style="width:18%">SKU</th>
                   <th>Nama Barang</th>
-                  <th style="width:10%" class="text-right">Qty</th>
+                  <th style="width:10%" class="text-right">Jumlah</th>
                   <th style="width:10%">Satuan</th>
                   <th style="width:17%" class="text-right">Harga</th>
                   <th style="width:18%" class="text-right">Total</th>

@@ -125,7 +125,7 @@ export default function DeliveryOrders() {
             
             <div class="meta">
               <div class="meta-box">
-                <div><strong>No. DO :</strong> ${doData.doNo}</div>
+                <div><strong>No. Surat Jalan :</strong> ${doData.doNo}</div>
                 <div><strong>Tanggal:</strong> ${doData.deliveryDate}</div>
                 <div><strong>No. SO :</strong> ${doData.soNo}</div>
               </div>
@@ -141,7 +141,7 @@ export default function DeliveryOrders() {
                   <th style="width: 5%" class="text-center">No</th>
                   <th style="width: 15%">SKU</th>
                   <th style="width: 50%">Nama Barang</th>
-                  <th style="width: 15%" class="text-right">Qty</th>
+                  <th style="width: 15%" class="text-right">Jumlah</th>
                   <th style="width: 15%">Satuan</th>
                 </tr>
               </thead>
@@ -164,7 +164,7 @@ export default function DeliveryOrders() {
                 <div class="signature-line"></div>
               </div>
               <div class="signature">
-                <div>Pengemudi / Driver</div>
+                <div>Pengemudi</div>
                 <div class="signature-line"></div>
               </div>
               <div class="signature">
