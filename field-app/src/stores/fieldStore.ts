@@ -21,10 +21,23 @@ export type VisitDraft = {
   localId: string;
   customerId: string;
   customerName: string;
+  customerCode?: string;
   visitStatus: "OPEN" | "CLOSED" | "NOT_FOUND" | "FOLLOW_UP";
   note: string;
   visitedAt: string;
-  status: "LOCAL_ONLY" | "PENDING_SYNC";
+  location: {
+    latitude: number;
+    longitude: number;
+    accuracy: number | null;
+    capturedAt: string;
+  } | null;
+  photos: Array<{
+    id: string;
+    name: string;
+    previewUrl: string;
+    capturedAt: string;
+  }>;
+  status: "LOCAL_ONLY" | "PENDING_SYNC" | "SYNCED" | "FAILED";
 };
 
 type FieldState = {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, ClipboardPenLine, Phone, ReceiptText } from "lucide-react";
+import { ArrowLeft, ClipboardPenLine, MapPinned, Phone, ReceiptText } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { apiFetch } from "@/api/client";
 import EmptyState from "@/components/EmptyState";
@@ -101,12 +101,19 @@ export default function CustomerDetailPage() {
         </SurfaceCard>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <Link to={`/sales-order/new?customerId=${customer.id}&customerName=${encodeURIComponent(customer.name)}`}>
           <SurfaceCard className="h-full bg-emerald-950 text-white">
             <ClipboardPenLine className="h-5 w-5 text-emerald-200" />
             <div className="mt-4 text-base font-semibold">Buat Sales Order</div>
             <div className="mt-1 text-sm text-emerald-100">Lanjut input item dan cek limit.</div>
+          </SurfaceCard>
+        </Link>
+        <Link to={`/visits?customerId=${customer.id}`}>
+          <SurfaceCard className="h-full bg-white/85">
+            <MapPinned className="h-5 w-5 text-sky-700" />
+            <div className="mt-4 text-base font-semibold text-zinc-950">Catat Kunjungan</div>
+            <div className="mt-1 text-sm text-zinc-500">Buka form visit dengan pelanggan ini.</div>
           </SurfaceCard>
         </Link>
         <Link to={`/receivables/${customer.id}`}>

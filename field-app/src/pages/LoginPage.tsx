@@ -34,7 +34,7 @@ export default function LoginPage() {
         skipAuth: true,
       });
       setAuth(response.data.accessToken ?? response.data.token, response.data.refreshToken, response.data.user);
-      const target = (location.state as { from?: string } | undefined)?.from ?? "/home";
+      const target = (location.state as { from?: string } | undefined)?.from ?? "/visits";
       navigate(target, { replace: true });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Login gagal");
@@ -63,6 +63,9 @@ export default function LoginPage() {
               <div className="text-sm text-emerald-900">
                 Untuk Sales dan Driver saat kunjungan toko, antar barang, dan input order cepat.
               </div>
+            </div>
+            <div className="mt-4 rounded-[24px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              Saat testing, setelah login aplikasi akan langsung masuk ke halaman kunjungan.
             </div>
 
             <form className="mt-5 space-y-4" onSubmit={handleSubmit}>

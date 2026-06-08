@@ -69,7 +69,7 @@ export default function HomePage() {
           Operasional lapangan lebih cepat, lebih fokus, dan siap dipakai di toko.
         </div>
         <div className="mt-4 flex items-center justify-between rounded-[24px] bg-white/10 px-4 py-3 text-sm">
-          <span>Prioritas utama: buat SO dan follow up pengiriman</span>
+          <span>Prioritas utama: kunjungan dengan foto, lokasi, dan follow up toko</span>
           <ArrowRight className="h-4 w-4" />
         </div>
       </SurfaceCard>
@@ -113,7 +113,7 @@ export default function HomePage() {
             <ReceiptText className="h-5 w-5 text-amber-700" />
             <div>
               <div className="font-medium text-zinc-900">Catat Kunjungan</div>
-              <div className="text-sm text-zinc-500">Simpan hasil visit walau koneksi tidak stabil.</div>
+              <div className="text-sm text-zinc-500">Lengkapi foto toko dan tag lokasi walau koneksi tidak stabil.</div>
             </div>
           </Link>
         </div>

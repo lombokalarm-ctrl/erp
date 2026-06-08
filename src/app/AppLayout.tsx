@@ -27,6 +27,7 @@ import {
   Search,
   Ruler,
   Activity,
+  MapPinned,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -264,6 +265,7 @@ export default function AppLayout() {
           { to: "/profit-loss", label: "Laporan Rugi Laba", icon: <Calculator className="h-4 w-4" />, anyPerm: ["reports:read"] },
           { to: "/promo-report", label: "Laporan Promo & Diskon", icon: <Tag className="h-4 w-4" />, anyPerm: ["reports:read"] },
           { to: "/sales-performance", label: "Kinerja Sales", icon: <LineChart className="h-4 w-4" />, anyPerm: ["reports:read"] },
+          { to: "/sales-visit-report", label: "Laporan Kunjungan Sales", icon: <MapPinned className="h-4 w-4" />, anyPerm: ["reports:read"] },
         ]
       },
       {

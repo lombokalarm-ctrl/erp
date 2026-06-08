@@ -6,6 +6,7 @@ import express, {
   type Request,
   type Response,
 } from 'express'
+import path from 'node:path'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import rateLimit from 'express-rate-limit'
@@ -38,6 +39,7 @@ app.use(
 app.use(cookieParser())
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
+app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')))
 
 // Since Nginx is reverse proxying, tell express to trust proxy headers
 app.set('trust proxy', 1)

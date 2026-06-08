@@ -35,7 +35,7 @@ export default function App() {
             </RequireAuth>
           }
         >
-          <Route index element={<Navigate to="/home" replace />} />
+          <Route index element={<Navigate to="/visits" replace />} />
           <Route path="home" element={<HomePage />} />
           <Route path="customers" element={<CustomersPage />} />
           <Route path="customers/:customerId" element={<CustomerDetailPage />} />
@@ -45,7 +45,7 @@ export default function App() {
           <Route path="receivables/:customerId" element={<ReceivablesPage />} />
           <Route path="sync" element={<SyncPage />} />
         </Route>
-        <Route path="*" element={<Navigate to="/home" replace />} />
+        <Route path="*" element={<Navigate to="/visits" replace />} />
       </Routes>
     </BrowserRouter>
   );

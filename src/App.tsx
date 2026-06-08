@@ -33,6 +33,7 @@ import PurchaseInvoices from "@/pages/PurchaseInvoices";
 import Returns from "@/pages/Returns";
 import DeliveryOrders from "@/pages/DeliveryOrders";
 import SalesPerformance from "@/pages/SalesPerformance";
+import SalesVisitReport from "@/pages/SalesVisitReport";
 import SalesReport from "@/pages/SalesReport";
 import CollectionReport from "@/pages/CollectionReport";
 import PromoReport from "@/pages/PromoReport";
@@ -88,6 +89,7 @@ export default function App() {
           <Route path="users" element={<Users />} />
           <Route path="change-password" element={<ChangePassword />} />
           <Route path="sales-performance" element={<SalesPerformance />} />
+          <Route path="sales-visit-report" element={<SalesVisitReport />} />
           <Route path="sales-report" element={<SalesReport />} />
           <Route path="return-report" element={<ReturnReport />} />
           <Route path="profit-loss" element={<ProfitLossReport />} />

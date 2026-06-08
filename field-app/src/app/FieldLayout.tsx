@@ -51,7 +51,7 @@ export default function FieldLayout() {
               <span className="text-sm text-emerald-50">{isOnline ? "Online" : "Offline ringan"}</span>
             </div>
             <StatusPill tone={pendingCount ? "amber" : "green"}>
-              {pendingCount ? `${pendingCount} draft pending` : "Semua sinkron"}
+              {pendingCount ? `${orderDrafts.length} SO • ${visitDrafts.length} visit` : "Semua sinkron"}
             </StatusPill>
           </div>
         </SurfaceCard>

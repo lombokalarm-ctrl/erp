@@ -4,7 +4,7 @@ import { apiFetch } from "@/api/client";
 import EmptyState from "@/components/EmptyState";
 import SurfaceCard from "@/components/SurfaceCard";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
-import { formatDate } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { useFieldStore } from "@/stores/fieldStore";
 
 export default function SyncPage() {
@@ -14,6 +14,7 @@ export default function SyncPage() {
   const orderDrafts = useFieldStore((state) => state.orderDrafts);
   const visitDrafts = useFieldStore((state) => state.visitDrafts);
   const removeOrderDraft = useFieldStore((state) => state.removeOrderDraft);
+  const removeVisitDraft = useFieldStore((state) => state.removeVisitDraft);
 
   async function syncNow() {
     if (!isOnline) {
@@ -22,6 +23,9 @@ export default function SyncPage() {
     }
     setSyncing(true);
     setMessage(null);
+
+    let syncedOrders = 0;
+    let syncedVisits = 0;
 
     try {
       for (const draft of orderDrafts) {
@@ -41,15 +45,34 @@ export default function SyncPage() {
           }),
         });
         removeOrderDraft(draft.localId);
+        syncedOrders += 1;
       }
 
-      if (visitDrafts.length) {
-        setMessage("Draft SO berhasil disinkron. Draft kunjungan masih lokal sampai endpoint visit backend diaktifkan.");
-      } else {
-        setMessage("Semua draft Sales Order berhasil disinkron.");
+      for (const draft of visitDrafts) {
+        await apiFetch("/api/v1/visits", {
+          method: "POST",
+          body: JSON.stringify({
+            customerId: draft.customerId,
+            visitStatus: draft.visitStatus,
+            note: draft.note,
+            visitedAt: draft.visitedAt,
+            location: draft.location,
+            photos: draft.photos.map((photo) => ({
+              name: photo.name,
+              previewUrl: photo.previewUrl,
+              capturedAt: photo.capturedAt,
+            })),
+          }),
+        });
+        removeVisitDraft(draft.localId);
+        syncedVisits += 1;
       }
+
+      setMessage(`Sinkron selesai. ${syncedOrders} draft SO dan ${syncedVisits} draft kunjungan berhasil dikirim.`);
     } catch {
-      setMessage("Ada draft yang gagal disinkron. Coba lagi saat koneksi lebih stabil.");
+      setMessage(
+        `Sinkron berhenti di tengah jalan. Berhasil: ${syncedOrders} draft SO dan ${syncedVisits} draft kunjungan. Coba lagi saat koneksi lebih stabil.`,
+      );
     } finally {
       setSyncing(false);
     }
@@ -89,7 +112,7 @@ export default function SyncPage() {
             orderDrafts.map((draft) => (
               <div key={draft.localId} className="rounded-[22px] border border-zinc-200 px-4 py-3">
                 <div className="font-medium text-zinc-900">{draft.customerName}</div>
-                <div className="mt-1 text-sm text-zinc-500">{formatDate(draft.createdAt)} • {draft.items.length} item</div>
+                <div className="mt-1 text-sm text-zinc-500">{formatDateTime(draft.createdAt)} • {draft.items.length} item</div>
               </div>
             ))
           ) : (
@@ -105,7 +128,9 @@ export default function SyncPage() {
             visitDrafts.map((draft) => (
               <div key={draft.localId} className="rounded-[22px] border border-zinc-200 px-4 py-3">
                 <div className="font-medium text-zinc-900">{draft.customerName}</div>
-                <div className="mt-1 text-sm text-zinc-500">{draft.visitStatus} • {formatDate(draft.visitedAt)}</div>
+                <div className="mt-1 text-sm text-zinc-500">
+                  {draft.visitStatus} • {formatDateTime(draft.visitedAt)} • {draft.photos.length} foto
+                </div>
               </div>
             ))
           ) : (

@@ -12,8 +12,33 @@ import {
   getPurchaseReport,
   getStockReport,
 } from '../../services/reportService.js'
+import { getSalesVisitReport } from '../../services/visitService.js'
 
 const router = Router()
+
+router.get(
+  '/sales-visits',
+  authenticate,
+  authorizeAny(['reports:read']),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const query = z
+        .object({
+          startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+          endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+          status: z.enum(['OPEN', 'CLOSED', 'NOT_FOUND', 'FOLLOW_UP']).optional(),
+          q: z.string().optional(),
+        })
+        .parse(req.query)
+
+      const baseUrl = `${req.protocol}://${req.get('host')}`
+      const result = await getSalesVisitReport(query, req.user!, baseUrl)
+      ok(res, result)
+    } catch (err) {
+      next(err)
+    }
+  },
+)
 
 router.get(
   '/sales-performance',
