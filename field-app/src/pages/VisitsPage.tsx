@@ -178,7 +178,7 @@ export default function VisitsPage() {
 
   useEffect(() => {
     let active = true;
-    apiFetch<{ data: Customer[] }>("/api/v1/customers?page=1&pageSize=50")
+    apiFetch<{ data: Customer[] }>("/api/v1/customers?page=1&pageSize=50&includeUnassigned=true")
       .then((response) => {
         if (!active) return;
         setCustomers(response.data);

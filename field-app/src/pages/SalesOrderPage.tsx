@@ -45,7 +45,7 @@ export default function SalesOrderPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    apiFetch<{ data: Customer[] }>("/api/v1/customers?page=1&pageSize=60").then((response) => {
+    apiFetch<{ data: Customer[] }>("/api/v1/customers?page=1&pageSize=60&includeUnassigned=true").then((response) => {
       setCustomers(response.data);
     });
   }, []);

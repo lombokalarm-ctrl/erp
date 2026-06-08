@@ -34,7 +34,9 @@ export default function HomePage() {
   useEffect(() => {
     let active = true;
     Promise.all([
-      apiFetch<{ data: Array<{ id: string }>; meta?: { total?: number } }>("/api/v1/customers?page=1&pageSize=6"),
+      apiFetch<{ data: Array<{ id: string }>; meta?: { total?: number } }>(
+        "/api/v1/customers?page=1&pageSize=6&includeUnassigned=true",
+      ),
       apiFetch<{ data: SalesOrderRow[] }>("/api/v1/sales-orders?page=1&pageSize=4"),
     ])
       .then(([customers, orders]) => {

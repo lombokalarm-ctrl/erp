@@ -25,7 +25,9 @@ export default function CustomersPage() {
   useEffect(() => {
     const handle = window.setTimeout(() => {
       setLoading(true);
-      apiFetch<{ data: Customer[] }>(`/api/v1/customers?page=1&pageSize=30&q=${encodeURIComponent(q)}`)
+      apiFetch<{ data: Customer[] }>(
+        `/api/v1/customers?page=1&pageSize=30&includeUnassigned=true&q=${encodeURIComponent(q)}`,
+      )
         .then((response) => setItems(response.data))
         .finally(() => setLoading(false));
     }, 200);
