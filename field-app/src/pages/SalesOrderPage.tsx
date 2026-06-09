@@ -221,7 +221,7 @@ export default function SalesOrderPage() {
           </div>
           <PackageSearch className="h-5 w-5 text-emerald-700" />
         </div>
-        <div className="mt-4 relative">
+        <div className="mt-4">
           <input
             value={productQuery}
             onChange={(event) => setProductQuery(event.target.value)}
@@ -230,7 +230,7 @@ export default function SalesOrderPage() {
             autoComplete="off"
           />
           {normalizedProductQuery ? (
-            <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-20 overflow-hidden rounded-[22px] border border-zinc-200 bg-white shadow-lg">
+            <div className="mt-2 overflow-hidden rounded-[22px] border border-zinc-200 bg-white shadow-lg">
               {loadingProducts ? (
                 <div className="px-4 py-3 text-sm text-zinc-500">Mencari produk...</div>
               ) : products.length ? (
