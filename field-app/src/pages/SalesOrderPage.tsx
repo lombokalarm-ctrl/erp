@@ -43,6 +43,9 @@ export default function SalesOrderPage() {
   const [items, setItems] = useState<SelectedItem[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+
+  const normalizedProductQuery = productQuery.trim();
 
   useEffect(() => {
     apiFetch<{ data: Customer[] }>("/api/v1/customers?page=1&pageSize=60&includeUnassigned=true").then((response) => {
@@ -51,14 +54,38 @@ export default function SalesOrderPage() {
   }, []);
 
   useEffect(() => {
+    if (!normalizedProductQuery) {
+      setProducts([]);
+      setLoadingProducts(false);
+      return;
+    }
+
+    let cancelled = false;
     const handle = window.setTimeout(() => {
-      apiFetch<{ data: Product[] }>(`/api/v1/products?page=1&pageSize=20&q=${encodeURIComponent(productQuery)}`).then(
-        (response) => setProducts(response.data),
-      );
+      setLoadingProducts(true);
+      apiFetch<{ data: Product[] }>(`/api/v1/products?page=1&pageSize=20&q=${encodeURIComponent(normalizedProductQuery)}`)
+        .then((response) => {
+          if (!cancelled) {
+            setProducts(response.data);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setProducts([]);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setLoadingProducts(false);
+          }
+        });
     }, 200);
 
-    return () => window.clearTimeout(handle);
-  }, [productQuery]);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [normalizedProductQuery]);
 
   const totalAmount = useMemo(
     () => items.reduce((sum, item) => sum + item.qty * item.unitPrice, 0),
@@ -72,6 +99,8 @@ export default function SalesOrderPage() {
   }
 
   function addProduct(product: Product) {
+    setProductQuery("");
+    setProducts([]);
     setItems((current) => {
       const existing = current.find((item) => item.productId === product.id);
       if (existing) {
@@ -192,34 +221,45 @@ export default function SalesOrderPage() {
           </div>
           <PackageSearch className="h-5 w-5 text-emerald-700" />
         </div>
-        <div className="mt-4">
+        <div className="mt-4 relative">
           <input
             value={productQuery}
             onChange={(event) => setProductQuery(event.target.value)}
             className="field-input"
             placeholder="Cari produk atau SKU..."
+            autoComplete="off"
           />
-        </div>
-        <div className="mt-4 space-y-2">
-          {products.length ? (
-            products.map((product) => (
-              <button
-                key={product.id}
-                type="button"
-                onClick={() => addProduct(product)}
-                className="flex w-full items-center justify-between rounded-[22px] border border-zinc-200 px-4 py-3 text-left transition hover:bg-zinc-50"
-              >
-                <div>
-                  <div className="text-sm font-medium text-zinc-900">{product.name}</div>
-                  <div className="text-xs text-zinc-500">
-                    {product.sku} • {product.unit}
-                  </div>
+          {normalizedProductQuery ? (
+            <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-20 overflow-hidden rounded-[22px] border border-zinc-200 bg-white shadow-lg">
+              {loadingProducts ? (
+                <div className="px-4 py-3 text-sm text-zinc-500">Mencari produk...</div>
+              ) : products.length ? (
+                <div className="max-h-72 overflow-y-auto p-2">
+                  {products.map((product) => (
+                    <button
+                      key={product.id}
+                      type="button"
+                      onClick={() => addProduct(product)}
+                      className="flex w-full items-center justify-between rounded-[18px] px-3 py-3 text-left transition hover:bg-zinc-50"
+                    >
+                      <div>
+                        <div className="text-sm font-medium text-zinc-900">{product.name}</div>
+                        <div className="text-xs text-zinc-500">
+                          {product.sku} • {product.unit}
+                        </div>
+                      </div>
+                      <div className="pl-3 text-sm font-semibold text-zinc-900">{formatCurrency(product.salePrice)}</div>
+                    </button>
+                  ))}
                 </div>
-                <div className="text-sm font-semibold text-zinc-900">{formatCurrency(product.salePrice)}</div>
-              </button>
-            ))
+              ) : (
+                <div className="px-4 py-3 text-sm text-zinc-500">Produk tidak ditemukan.</div>
+              )}
+            </div>
           ) : (
-            <EmptyState title="Produk belum muncul" description="Ketik nama produk untuk menampilkan hasil pencarian." />
+            <div className="mt-3 rounded-[22px] border border-dashed border-zinc-300 bg-zinc-50 px-4 py-4 text-sm text-zinc-500">
+              Ketik nama produk atau SKU untuk menampilkan dropdown pencarian.
+            </div>
           )}
         </div>
       </SurfaceCard>
