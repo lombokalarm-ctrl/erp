@@ -20,6 +20,20 @@ type Product = {
   name: string;
   unit: string;
   salePrice: string;
+  unitPrices?: Record<string, number | string>;
+};
+
+type ProductUomMapping = {
+  uomCode: string;
+  uomName: string;
+  toBaseFactor: number;
+  isSale: boolean;
+  isDefaultSale: boolean;
+};
+
+type UomOption = {
+  code: string;
+  name: string;
 };
 
 type SelectedItem = {
@@ -44,6 +58,9 @@ export default function SalesOrderPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [productCache, setProductCache] = useState<Record<string, Product>>({});
+  const [productUomMappings, setProductUomMappings] = useState<Record<string, ProductUomMapping[]>>({});
+  const [productUomOptions, setProductUomOptions] = useState<Record<string, UomOption[]>>({});
 
   const normalizedProductQuery = productQuery.trim();
 
@@ -67,6 +84,10 @@ export default function SalesOrderPage() {
         .then((response) => {
           if (!cancelled) {
             setProducts(response.data);
+            setProductCache((current) => ({
+              ...current,
+              ...Object.fromEntries(response.data.map((product) => [product.id, product])),
+            }));
           }
         })
         .catch(() => {
@@ -98,9 +119,105 @@ export default function SalesOrderPage() {
     setCustomerName(customer?.name ?? "");
   }
 
-  function addProduct(product: Product) {
+  function toNumericPrice(value: number | string | null | undefined) {
+    const numeric = Number(value ?? 0);
+    return Number.isFinite(numeric) ? numeric : 0;
+  }
+
+  function toSaleUomOptions(mappings: ProductUomMapping[], fallbackUnit: string) {
+    const saleMappings = mappings.filter((item) => item.isSale);
+    const source = saleMappings.length ? saleMappings : mappings;
+    const options = source.map((item) => ({
+      code: item.uomCode,
+      name: item.uomName || item.uomCode,
+    }));
+    if (options.length) return options;
+    return [{ code: fallbackUnit || "pcs", name: (fallbackUnit || "pcs").toUpperCase() }];
+  }
+
+  function pickDefaultSaleUom(mappings: ProductUomMapping[], fallbackUnit: string) {
+    const saleMappings = mappings.filter((item) => item.isSale);
+    const source = saleMappings.length ? saleMappings : mappings;
+    const explicitDefault = source.find((item) => item.isDefaultSale);
+    if (explicitDefault?.uomCode) return explicitDefault.uomCode;
+    const base = source.find((item) => Number(item.toBaseFactor) === 1);
+    if (base?.uomCode) return base.uomCode;
+    return source[0]?.uomCode ?? fallbackUnit ?? "pcs";
+  }
+
+  function resolveUnitPrice(product: Product, mappings: ProductUomMapping[], uomCode: string) {
+    const normalized = String(uomCode || "").trim().toLowerCase();
+    const directPrice = product.unitPrices?.[normalized];
+    if (directPrice !== undefined && toNumericPrice(directPrice) > 0) {
+      return toNumericPrice(directPrice);
+    }
+
+    const mapping = mappings.find((item) => item.uomCode === normalized);
+    const factor = Number(mapping?.toBaseFactor ?? 0);
+    const basePrice = toNumericPrice(product.salePrice);
+    if (factor > 0) return basePrice * factor;
+    return basePrice;
+  }
+
+  async function ensureProductUomsLoaded(product: Product) {
+    const cachedMappings = productUomMappings[product.id];
+    if (cachedMappings) {
+      return {
+        mappings: cachedMappings,
+        options:
+          productUomOptions[product.id] ??
+          toSaleUomOptions(cachedMappings, String(product.unit || "pcs").toLowerCase()),
+      };
+    }
+
+    try {
+      const response = await apiFetch<{ data: ProductUomMapping[] }>(`/api/v1/products/${product.id}/uoms`);
+      const mappings = (response.data ?? []).map((item) => ({
+        ...item,
+        uomCode: String(item.uomCode || "").toLowerCase(),
+        uomName: item.uomName || String(item.uomCode || "").toUpperCase(),
+      }));
+      const options = toSaleUomOptions(mappings, String(product.unit || "pcs").toLowerCase());
+      setProductUomMappings((current) => ({ ...current, [product.id]: mappings }));
+      setProductUomOptions((current) => ({ ...current, [product.id]: options }));
+      return { mappings, options };
+    } catch {
+      const fallbackMappings: ProductUomMapping[] = [
+        {
+          uomCode: String(product.unit || "pcs").toLowerCase(),
+          uomName: String(product.unit || "pcs").toUpperCase(),
+          toBaseFactor: 1,
+          isSale: true,
+          isDefaultSale: true,
+        },
+      ];
+      const options = toSaleUomOptions(fallbackMappings, String(product.unit || "pcs").toLowerCase());
+      setProductUomMappings((current) => ({ ...current, [product.id]: fallbackMappings }));
+      setProductUomOptions((current) => ({ ...current, [product.id]: options }));
+      return { mappings: fallbackMappings, options };
+    }
+  }
+
+  function getItemUomOptions(productId: string, fallbackUom: string) {
+    return (
+      productUomOptions[productId] ?? [
+        {
+          code: String(fallbackUom || "pcs").toLowerCase(),
+          name: String(fallbackUom || "pcs").toUpperCase(),
+        },
+      ]
+    );
+  }
+
+  async function addProduct(product: Product) {
     setProductQuery("");
     setProducts([]);
+    setProductCache((current) => ({ ...current, [product.id]: product }));
+
+    const { mappings } = await ensureProductUomsLoaded(product);
+    const defaultUom = pickDefaultSaleUom(mappings, String(product.unit || "pcs").toLowerCase());
+    const defaultPrice = resolveUnitPrice(product, mappings, defaultUom);
+
     setItems((current) => {
       const existing = current.find((item) => item.productId === product.id);
       if (existing) {
@@ -113,12 +230,29 @@ export default function SalesOrderPage() {
           productId: product.id,
           productName: product.name,
           qty: 1,
-          unitPrice: Number(product.salePrice || 0),
-          uom: product.unit || "pcs",
+          unitPrice: defaultPrice,
+          uom: defaultUom,
         },
         ...current,
       ];
     });
+  }
+
+  function handleItemUomChange(productId: string, nextUom: string) {
+    const product = productCache[productId];
+    const mappings = productUomMappings[productId] ?? [];
+    setItems((current) =>
+      current.map((item) => {
+        if (item.productId !== productId) return item;
+        if (!product) return { ...item, uom: nextUom };
+        const nextPrice = resolveUnitPrice(product, mappings, nextUom);
+        return {
+          ...item,
+          uom: nextUom,
+          unitPrice: nextPrice,
+        };
+      }),
+    );
   }
 
   function saveDraft() {
@@ -273,7 +407,7 @@ export default function SalesOrderPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="font-medium text-zinc-900">{item.productName}</div>
-                    <div className="text-sm text-zinc-500">{item.uom}</div>
+                    <div className="text-sm text-zinc-500">Satuan: {item.uom}</div>
                   </div>
                   <div className="text-right text-sm font-semibold text-zinc-900">
                     {formatCurrency(item.qty * item.unitPrice)}
@@ -295,6 +429,17 @@ export default function SalesOrderPage() {
                     }
                     className="field-input w-24"
                   />
+                  <select
+                    value={item.uom}
+                    onChange={(event) => handleItemUomChange(item.productId, event.target.value)}
+                    className="field-input"
+                  >
+                    {getItemUomOptions(item.productId, item.uom).map((option) => (
+                      <option key={`${item.productId}-${option.code}`} value={option.code}>
+                        {option.name}
+                      </option>
+                    ))}
+                  </select>
                   <button
                     type="button"
                     className="text-sm font-medium text-rose-600"
