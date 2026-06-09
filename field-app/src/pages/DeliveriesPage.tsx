@@ -6,6 +6,7 @@ import StatusPill from "@/components/StatusPill";
 import SurfaceCard from "@/components/SurfaceCard";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { useAuthStore } from "@/stores/authStore";
+import { Link } from "react-router-dom";
 
 type SalesOrderRow = {
   id: string;
@@ -80,6 +81,11 @@ export default function DeliveriesPage() {
 
               <div className="mt-4 rounded-[22px] border border-dashed border-zinc-300 px-4 py-3 text-sm text-zinc-500">
                 Tahap berikutnya: hubungkan ke detail DO dan update status antar khusus driver.
+              </div>
+              <div className="mt-3">
+                <Link to={`/sales-order/${order.id}`} className="text-sm font-medium text-emerald-700">
+                  View SO
+                </Link>
               </div>
             </SurfaceCard>
           ))

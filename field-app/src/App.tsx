@@ -8,6 +8,7 @@ import HomePage from "@/pages/HomePage";
 import CustomersPage from "@/pages/CustomersPage";
 import CustomerDetailPage from "@/pages/CustomerDetailPage";
 import SalesOrderPage from "@/pages/SalesOrderPage";
+import SalesOrderPreviewPage from "@/pages/SalesOrderPreviewPage";
 import DeliveriesPage from "@/pages/DeliveriesPage";
 import VisitsPage from "@/pages/VisitsPage";
 import ReceivablesPage from "@/pages/ReceivablesPage";
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="customers" element={<CustomersPage />} />
           <Route path="customers/:customerId" element={<CustomerDetailPage />} />
           <Route path="sales-order/new" element={<SalesOrderPage />} />
+          <Route path="sales-order/:orderId" element={<SalesOrderPreviewPage />} />
           <Route path="deliveries" element={<DeliveriesPage />} />
           <Route path="visits" element={<VisitsPage />} />
           <Route path="receivables/:customerId" element={<ReceivablesPage />} />

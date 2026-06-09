@@ -3,6 +3,7 @@ import type { JwtUser } from '../auth/jwt.js'
 import { getPool } from '../db/pool.js'
 import { withTransaction } from '../db/tx.js'
 import { ApiError } from '../lib/http.js'
+import { buildSimplePdfLines, createSimplePdfBuffer } from '../lib/simplePdf.js'
 import {
   getCustomerCreditProfile,
   validateCreditOrThrow,
@@ -12,6 +13,7 @@ import {
 } from './creditService.js'
 import { applyInventoryTransaction, getDefaultWarehouseId } from './inventoryService.js'
 import { calculateBestPromo } from './promoService.js'
+import { getCompanySettings } from './settingService.js'
 import { getToBaseFactorByCode } from './uomConversionService.js'
 
 export type SalesOrderItemInput = {
@@ -52,6 +54,29 @@ type SalesOrderAccessRecord = {
 
 function normalizeUom(uom: string) {
   return uom.trim().toLowerCase()
+}
+
+function formatSimpleCurrency(value: number | string | null | undefined) {
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    maximumFractionDigits: 0,
+  }).format(Number(value ?? 0) || 0)
+}
+
+function formatSalesOrderStatusLabel(status: string | null | undefined) {
+  switch (String(status ?? '').toUpperCase()) {
+    case 'DRAFT':
+      return 'Draft'
+    case 'CONFIRMED':
+      return 'Terkonfirmasi'
+    case 'DELIVERED':
+      return 'Terkirim'
+    case 'CANCELLED':
+      return 'Dibatalkan'
+    default:
+      return status || '-'
+  }
 }
 
 async function getSalesOrderAccessRecord(executor: Queryable, salesOrderId: string) {
@@ -648,6 +673,59 @@ export async function getSalesOrderDetail(soId: string, actor?: SalesOrderActor)
   })
 
   return { ...order, items: itemRes.rows, approvals }
+}
+
+export async function exportSalesOrderPdf(soId: string, actor?: SalesOrderActor) {
+  const [company, detail] = await Promise.all([getCompanySettings(), getSalesOrderDetail(soId, actor)])
+  const rows = detail.items.map((item: any, index: number) => [
+    index + 1,
+    item.sku,
+    item.productName,
+    Number(item.qty),
+    String(item.uom || '').toUpperCase(),
+    formatSimpleCurrency(item.unitPrice),
+    formatSimpleCurrency(item.lineTotal),
+  ])
+
+  const lines = buildSimplePdfLines({
+    companyName: company.name || 'PT ERP DISTRIBUTOR FNB',
+    title: `Sales Order ${detail.orderNo}`,
+    printedAt: new Date().toLocaleString('id-ID'),
+    sections: [
+      {
+        title: 'Informasi Order',
+        headers: ['Field', 'Nilai'],
+        rows: [
+          ['No. SO', detail.orderNo],
+          ['Tanggal', detail.orderDate],
+          ['Pelanggan', `${detail.customerCode} - ${detail.customerName}`],
+          ['Status', formatSalesOrderStatusLabel(detail.status)],
+          ['Status Kirim', detail.deliveryStatus || '-'],
+          ['Catatan', detail.notes || '-'],
+        ],
+      },
+      {
+        title: 'Item Order',
+        headers: ['No', 'SKU', 'Produk', 'Qty', 'Satuan', 'Harga', 'Total'],
+        rows,
+      },
+      {
+        title: 'Ringkasan',
+        headers: ['Komponen', 'Nilai'],
+        rows: [
+          ['Subtotal', formatSimpleCurrency(detail.subtotal)],
+          ['Diskon', formatSimpleCurrency(detail.discountAmount)],
+          ['Total', formatSimpleCurrency(detail.totalAmount)],
+        ],
+      },
+    ],
+  })
+
+  return {
+    fileName: `${String(detail.orderNo || 'sales-order').replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`,
+    contentType: 'application/pdf',
+    buffer: createSimplePdfBuffer(`Sales Order ${detail.orderNo}`, lines),
+  }
 }
 
 export async function updateSalesOrder(params: {

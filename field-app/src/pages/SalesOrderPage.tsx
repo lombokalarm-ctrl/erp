@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, PackageSearch, Save, Send } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { apiFetch, ApiError } from "@/api/client";
 import EmptyState from "@/components/EmptyState";
 import SurfaceCard from "@/components/SurfaceCard";
@@ -56,6 +56,7 @@ export default function SalesOrderPage() {
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<SelectedItem[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const [lastCreatedOrderId, setLastCreatedOrderId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [productCache, setProductCache] = useState<Record<string, Product>>({});
@@ -286,11 +287,12 @@ export default function SalesOrderPage() {
 
     setSubmitting(true);
     setMessage(null);
+    setLastCreatedOrderId(null);
     try {
       const response = await apiFetch<{
         data: {
           orderNo?: string;
-          salesOrder?: { order_no?: string };
+          salesOrder?: { id?: string; order_no?: string };
           approvalContext?: { requestSummary?: string };
         };
       }>("/api/v1/sales-orders", {
@@ -309,14 +311,18 @@ export default function SalesOrderPage() {
         }),
       });
       const orderNo = response.data.salesOrder?.order_no ?? response.data.orderNo ?? "SO baru";
+      const createdOrderId = response.data.salesOrder?.id ?? null;
       const approval = response.data.approvalContext?.requestSummary;
       setItems([]);
       setNotes("");
+      setLastCreatedOrderId(createdOrderId);
       setMessage(approval ? `${orderNo} masuk antrean approval. ${approval}` : `${orderNo} berhasil dikirim.`);
     } catch (err) {
       if (err instanceof ApiError) {
+        setLastCreatedOrderId(null);
         setMessage(err.message);
       } else {
+        setLastCreatedOrderId(null);
         setMessage("Gagal mengirim Sales Order.");
       }
     } finally {
@@ -460,7 +466,14 @@ export default function SalesOrderPage() {
         <div className="rounded-[24px] bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           <div className="flex items-start gap-2">
             <CheckCircle2 className="mt-0.5 h-4 w-4" />
-            <span>{message}</span>
+            <div className="space-y-2">
+              <div>{message}</div>
+              {lastCreatedOrderId ? (
+                <Link to={`/sales-order/${lastCreatedOrderId}`} className="inline-flex font-semibold text-emerald-900 underline">
+                  View SO
+                </Link>
+              ) : null}
+            </div>
           </div>
         </div>
       ) : null}

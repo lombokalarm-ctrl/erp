@@ -150,6 +150,11 @@ export default function HomePage() {
                 <div className="mt-2 text-xs text-zinc-500">
                   Status SO {order.status} • Kirim {order.deliveryStatus}
                 </div>
+                <div className="mt-3">
+                  <Link to={`/sales-order/${order.id}`} className="text-sm font-medium text-emerald-700">
+                    View
+                  </Link>
+                </div>
               </div>
             ))
           ) : (

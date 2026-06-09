@@ -6,6 +6,7 @@ import {
   createSalesOrder,
   createDeliveryOrder,
   deleteSalesOrder,
+  exportSalesOrderPdf,
   getDeliveryOrderBySoId,
   getSalesOrderDetail,
   listSalesOrders,
@@ -101,6 +102,22 @@ router.post(
         payload: { orderNo: result.salesOrder.order_no },
       })
       ok(res, result)
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+router.get(
+  '/:id([0-9a-fA-F-]{36})/pdf',
+  authenticate,
+  authorizeAny(['sales_orders:read']),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const file = await exportSalesOrderPdf(req.params.id, req.user)
+      res.setHeader('Content-Type', file.contentType)
+      res.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`)
+      res.send(file.buffer)
     } catch (err) {
       next(err)
     }
