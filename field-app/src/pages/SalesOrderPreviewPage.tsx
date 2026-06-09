@@ -196,7 +196,7 @@ export default function SalesOrderPreviewPage() {
               <div className="flex flex-col items-end gap-2">
                 <StatusPill tone={getStatusTone(detail.status)}>{getStatusLabel(detail.status)}</StatusPill>
                 <StatusPill tone={detail.deliveryStatus === "DELIVERED" ? "green" : "amber"}>
-                  Kirim {detail.deliveryStatus === "DELIVERED" ? "Selesai" : detail.deliveryStatus || "Proses"}
+                  {`Kirim ${detail.deliveryStatus === "DELIVERED" ? "Selesai" : detail.deliveryStatus || "Proses"}`}
                 </StatusPill>
               </div>
             </div>
