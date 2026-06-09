@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -28,6 +28,7 @@ import {
   Ruler,
   Activity,
   MapPinned,
+  Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -38,7 +39,7 @@ import { apiFetch } from "@/api/client";
 type NavItem = {
   to: string;
   label: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   anyPerm?: string[];
   matchMode?: "exact" | "prefix";
 };
@@ -241,6 +242,12 @@ export default function AppLayout() {
           { to: "/sales-orders", label: "Sales Order", icon: <ShoppingCart className="h-4 w-4" />, anyPerm: ["sales_orders:read"] },
           { to: "/sales-orders/approvals", label: "Approval SO", icon: <ShieldAlert className="h-4 w-4" />, anyPerm: ["sales_orders:approve"] },
           { to: "/delivery-orders", label: "Surat Jalan (DO)", icon: <Truck className="h-4 w-4" />, anyPerm: ["sales_orders:read"] },
+          {
+            to: "/performance-targets",
+            label: "Target Kinerja",
+            icon: <Target className="h-4 w-4" />,
+            anyPerm: ["performance_targets:read", "performance_targets:write", "performance_targets:finalize"],
+          },
         ]
       },
       {
@@ -265,6 +272,7 @@ export default function AppLayout() {
           { to: "/profit-loss", label: "Laporan Rugi Laba", icon: <Calculator className="h-4 w-4" />, anyPerm: ["reports:read"] },
           { to: "/promo-report", label: "Laporan Promo & Diskon", icon: <Tag className="h-4 w-4" />, anyPerm: ["reports:read"] },
           { to: "/sales-performance", label: "Kinerja Sales", icon: <LineChart className="h-4 w-4" />, anyPerm: ["reports:read"] },
+          { to: "/driver-performance", label: "Kinerja Driver", icon: <Truck className="h-4 w-4" />, anyPerm: ["reports:read"] },
           { to: "/sales-visit-report", label: "Laporan Kunjungan Sales", icon: <MapPinned className="h-4 w-4" />, anyPerm: ["reports:read"] },
         ]
       },
@@ -447,11 +455,11 @@ export default function AppLayout() {
       <div className="mx-auto grid max-w-screen-2xl grid-cols-1 md:grid-cols-[260px_1fr]">
         <aside
           className={cn(
-            "border-r border-zinc-200 bg-white md:sticky md:top-14 md:h-[calc(100dvh-56px)]",
+            "border-r border-zinc-200 bg-white md:sticky md:top-14 md:h-[calc(100dvh-56px)] md:overflow-hidden",
             open ? "block" : "hidden md:block",
           )}
         >
-          <nav className="p-3">
+          <nav className="max-h-[calc(100dvh-56px)] overflow-y-auto p-3">
             <div className="space-y-1">
               {visibleGroups.map((g) => (
                 <NavGroupMenu

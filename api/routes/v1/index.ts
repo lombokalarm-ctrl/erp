@@ -29,6 +29,7 @@ import notificationRoutes from './notifications.js'
 import searchRoutes from './search.js'
 import uomRoutes from './uoms.js'
 import visitRoutes from './visits.js'
+import performanceTargetRoutes from './performance-targets.js'
 
 const router = Router()
 
@@ -62,6 +63,7 @@ router.use('/notifications', notificationRoutes)
 router.use('/search', searchRoutes)
 router.use('/uoms', uomRoutes)
 router.use('/visits', visitRoutes)
+router.use('/performance-targets', performanceTargetRoutes)
 
 router.get('/health', (req: Request, res: Response) => {
   res.status(200).json({ data: { ok: true } })

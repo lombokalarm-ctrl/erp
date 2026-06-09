@@ -32,6 +32,8 @@ import GoodsReceipts from "@/pages/GoodsReceipts";
 import PurchaseInvoices from "@/pages/PurchaseInvoices";
 import Returns from "@/pages/Returns";
 import DeliveryOrders from "@/pages/DeliveryOrders";
+import DriverPerformance from "@/pages/DriverPerformance";
+import PerformanceTargets from "@/pages/PerformanceTargets";
 import SalesPerformance from "@/pages/SalesPerformance";
 import SalesVisitReport from "@/pages/SalesVisitReport";
 import SalesReport from "@/pages/SalesReport";
@@ -80,6 +82,7 @@ export default function App() {
           <Route path="sales-orders" element={<SalesOrders />} />
           <Route path="sales-orders/approvals" element={<ApprovalOrders />} />
           <Route path="delivery-orders" element={<DeliveryOrders />} />
+          <Route path="performance-targets" element={<PerformanceTargets />} />
           <Route path="invoices" element={<Invoices />} />
           <Route path="invoices/:id" element={<InvoiceDetail />} />
           <Route path="payments" element={<Payments />} />
@@ -89,6 +92,7 @@ export default function App() {
           <Route path="users" element={<Users />} />
           <Route path="change-password" element={<ChangePassword />} />
           <Route path="sales-performance" element={<SalesPerformance />} />
+          <Route path="driver-performance" element={<DriverPerformance />} />
           <Route path="sales-visit-report" element={<SalesVisitReport />} />
           <Route path="sales-report" element={<SalesReport />} />
           <Route path="return-report" element={<ReturnReport />} />

@@ -13,8 +13,20 @@ import {
   getStockReport,
 } from '../../services/reportService.js'
 import { getSalesVisitReport } from '../../services/visitService.js'
+import {
+  getDriverPerformanceTargetReport,
+  getSalesPerformanceTargetReport,
+} from '../../services/performanceTargetService.js'
 
 const router = Router()
+
+type PerformanceTargetReportQuery = {
+  month: number
+  year: number
+  regionId?: string
+  salesUserId?: string
+  driverUserId?: string
+}
 
 router.get(
   '/sales-visits',
@@ -34,6 +46,64 @@ router.get(
       const baseUrl = `${req.protocol}://${req.get('host')}`
       const result = await getSalesVisitReport(query, req.user!, baseUrl)
       ok(res, result)
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+router.get(
+  '/sales-performance-target',
+  authenticate,
+  authorizeAny(['reports:read']),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parsed = z
+        .object({
+          month: z.coerce.number().int().min(1).max(12),
+          year: z.coerce.number().int().min(2000).max(2100),
+          regionId: z.string().uuid().optional(),
+          salesUserId: z.string().uuid().optional(),
+        })
+        .parse(req.query)
+      const query: PerformanceTargetReportQuery = {
+        month: parsed.month,
+        year: parsed.year,
+        regionId: parsed.regionId,
+        salesUserId: parsed.salesUserId,
+      }
+
+      const result = await getSalesPerformanceTargetReport(query)
+      ok(res, result)
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+router.get(
+  '/driver-performance-target',
+  authenticate,
+  authorizeAny(['reports:read']),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parsed = z
+        .object({
+          month: z.coerce.number().int().min(1).max(12),
+          year: z.coerce.number().int().min(2000).max(2100),
+          regionId: z.string().uuid().optional(),
+          driverUserId: z.string().uuid().optional(),
+        })
+        .parse(req.query)
+      const query: PerformanceTargetReportQuery = {
+        month: parsed.month,
+        year: parsed.year,
+        regionId: parsed.regionId,
+        driverUserId: parsed.driverUserId,
+      }
+
+      const result = await getDriverPerformanceTargetReport(query)
+      ok(res, result.data, result.meta)
     } catch (err) {
       next(err)
     }

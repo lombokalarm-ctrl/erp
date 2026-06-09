@@ -37,6 +37,9 @@ const permissions = [
   { code: 'payments:write', description: 'Write payments' },
   { code: 'reports:read', description: 'Read reports' },
   { code: 'scoring:write', description: 'Write scoring config' },
+  { code: 'performance_targets:read', description: 'Read performance targets' },
+  { code: 'performance_targets:write', description: 'Write performance targets' },
+  { code: 'performance_targets:finalize', description: 'Finalize performance targets' },
 ]
 
 const rolePermissionMap: Record<string, string[]> = {
@@ -64,6 +67,9 @@ const rolePermissionMap: Record<string, string[]> = {
     'payments:write',
     'reports:read',
     'scoring:write',
+    'performance_targets:read',
+    'performance_targets:write',
+    'performance_targets:finalize',
   ],
   [ROLE_SALES]: [
     'master_data:read',

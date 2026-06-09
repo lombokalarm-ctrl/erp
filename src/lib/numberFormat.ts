@@ -58,3 +58,12 @@ export function formatCurrencyCompact(value: number | string | null | undefined)
     maximumFractionDigits: 1,
   }).format(numeric)}`;
 }
+
+export function formatPercent(value: number | string | null | undefined, maximumFractionDigits = 2): string {
+  const numeric = toFiniteNumber(value);
+  if (numeric === null) return "-";
+  return `${new Intl.NumberFormat("id-ID", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits,
+  }).format(numeric)}%`;
+}
