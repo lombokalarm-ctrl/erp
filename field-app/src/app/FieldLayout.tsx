@@ -1,4 +1,4 @@
-import { Home, Truck, Users, ReceiptText, RefreshCcw, ClipboardPenLine, LogOut, Wifi, WifiOff } from "lucide-react";
+import { Home, Truck, Users, ReceiptText, RefreshCcw, ClipboardList, LogOut, Wifi, WifiOff } from "lucide-react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import SurfaceCard from "@/components/SurfaceCard";
 import StatusPill from "@/components/StatusPill";
@@ -9,7 +9,7 @@ import { useFieldStore } from "@/stores/fieldStore";
 const links = [
   { to: "/home", icon: Home, label: "Home" },
   { to: "/customers", icon: Users, label: "Pelanggan" },
-  { to: "/sales-order/new", icon: ClipboardPenLine, label: "Buat SO" },
+  { to: "/sales-orders", icon: ClipboardList, label: "SO" },
   { to: "/deliveries", icon: Truck, label: "Antar" },
   { to: "/visits", icon: ReceiptText, label: "Visit" },
   { to: "/sync", icon: RefreshCcw, label: "Sync" },

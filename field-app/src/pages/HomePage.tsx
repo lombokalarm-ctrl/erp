@@ -99,16 +99,16 @@ export default function HomePage() {
             <div className="text-sm font-semibold text-zinc-900">Quick Action</div>
             <div className="text-sm text-zinc-500">Masuk cepat ke alur lapangan utama.</div>
           </div>
-          <Link to="/sales-order/new" className="text-sm font-medium text-emerald-700">
+          <Link to="/sales-orders" className="text-sm font-medium text-emerald-700">
             Buka
           </Link>
         </div>
         <div className="mt-4 grid gap-3">
-          <Link className="quick-link-card" to="/sales-order/new">
+          <Link className="quick-link-card" to="/sales-orders">
             <ClipboardPenLine className="h-5 w-5 text-emerald-700" />
             <div>
-              <div className="font-medium text-zinc-900">Buat Sales Order</div>
-              <div className="text-sm text-zinc-500">Cari pelanggan lalu input item dengan cepat.</div>
+              <div className="font-medium text-zinc-900">Sales Order</div>
+              <div className="text-sm text-zinc-500">Lihat semua SO Anda, preview, lalu share PDF dengan lebih jelas.</div>
             </div>
           </Link>
           <Link className="quick-link-card" to="/visits">
@@ -124,7 +124,7 @@ export default function HomePage() {
       <SurfaceCard>
         <div className="flex items-center justify-between">
           <div className="text-sm font-semibold text-zinc-900">Order Terbaru</div>
-          <Link to="/deliveries" className="text-sm font-medium text-emerald-700">
+          <Link to="/sales-orders" className="text-sm font-medium text-emerald-700">
             Lihat semua
           </Link>
         </div>
