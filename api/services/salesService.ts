@@ -3,7 +3,7 @@ import type { JwtUser } from '../auth/jwt.js'
 import { getPool } from '../db/pool.js'
 import { withTransaction } from '../db/tx.js'
 import { ApiError } from '../lib/http.js'
-import { buildSimplePdfLines, createSimplePdfBuffer } from '../lib/simplePdf.js'
+import { createSalesOrderPdfBuffer } from '../lib/simplePdf.js'
 import {
   getCustomerCreditProfile,
   validateCreditOrThrow,
@@ -677,54 +677,37 @@ export async function getSalesOrderDetail(soId: string, actor?: SalesOrderActor)
 
 export async function exportSalesOrderPdf(soId: string, actor?: SalesOrderActor) {
   const [company, detail] = await Promise.all([getCompanySettings(), getSalesOrderDetail(soId, actor)])
-  const rows = detail.items.map((item: any, index: number) => [
-    index + 1,
-    item.sku,
-    item.productName,
-    Number(item.qty),
-    String(item.uom || '').toUpperCase(),
-    formatSimpleCurrency(item.unitPrice),
-    formatSimpleCurrency(item.lineTotal),
-  ])
-
-  const lines = buildSimplePdfLines({
-    companyName: company.name || 'PT ERP DISTRIBUTOR FNB',
-    title: `Sales Order ${detail.orderNo}`,
-    printedAt: new Date().toLocaleString('id-ID'),
-    sections: [
-      {
-        title: 'Informasi Order',
-        headers: ['Field', 'Nilai'],
-        rows: [
-          ['No. SO', detail.orderNo],
-          ['Tanggal', detail.orderDate],
-          ['Pelanggan', `${detail.customerCode} - ${detail.customerName}`],
-          ['Status', formatSalesOrderStatusLabel(detail.status)],
-          ['Status Kirim', detail.deliveryStatus || '-'],
-          ['Catatan', detail.notes || '-'],
-        ],
-      },
-      {
-        title: 'Item Order',
-        headers: ['No', 'SKU', 'Produk', 'Qty', 'Satuan', 'Harga', 'Total'],
-        rows,
-      },
-      {
-        title: 'Ringkasan',
-        headers: ['Komponen', 'Nilai'],
-        rows: [
-          ['Subtotal', formatSimpleCurrency(detail.subtotal)],
-          ['Diskon', formatSimpleCurrency(detail.discountAmount)],
-          ['Total', formatSimpleCurrency(detail.totalAmount)],
-        ],
-      },
-    ],
-  })
 
   return {
     fileName: `${String(detail.orderNo || 'sales-order').replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`,
     contentType: 'application/pdf',
-    buffer: createSimplePdfBuffer(`Sales Order ${detail.orderNo}`, lines),
+    buffer: createSalesOrderPdfBuffer({
+      companyName: company.name || 'PT ERP DISTRIBUTOR FNB',
+      title: `Sales Order ${detail.orderNo}`,
+      printedAt: new Date().toLocaleString('id-ID'),
+      orderInfo: [
+        ['No. SO', detail.orderNo],
+        ['Tanggal', detail.orderDate],
+        ['Pelanggan', `${detail.customerCode} - ${detail.customerName}`],
+        ['Status', formatSalesOrderStatusLabel(detail.status)],
+        ['Status Kirim', detail.deliveryStatus || '-'],
+        ['Catatan', detail.notes || '-'],
+      ],
+      items: detail.items.map((item: any, index: number) => ({
+        no: String(index + 1),
+        sku: String(item.sku || '-'),
+        productName: String(item.productName || '-'),
+        qty: String(Number(item.qty) || 0),
+        uom: String(item.uom || '').toUpperCase() || '-',
+        unitPrice: formatSimpleCurrency(item.unitPrice),
+        lineTotal: formatSimpleCurrency(item.lineTotal),
+      })),
+      summary: [
+        ['Subtotal', formatSimpleCurrency(detail.subtotal)],
+        ['Diskon', formatSimpleCurrency(detail.discountAmount)],
+        ['Total', formatSimpleCurrency(detail.totalAmount)],
+      ],
+    }),
   }
 }
 
