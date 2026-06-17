@@ -40,6 +40,13 @@ function onlyDigits(value: string) {
   return value.replace(/\D/g, "");
 }
 
+function normalizeNumericString(value: string | number | null | undefined, fallback = "0") {
+  if (value === null || value === undefined || value === "") return fallback;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Number.isInteger(numeric) ? String(numeric) : String(numeric);
+}
+
 const CATEGORY_OPTIONS = [
   "RETAIL",
   "GROSIR",
@@ -143,8 +150,8 @@ export default function Customers() {
     setSelected(c);
     loadCredit(c.id)
       .then((profile) => {
-        setCreditLimit(onlyDigits(profile?.creditLimit ?? "0") || "0");
-        setSalesOrderLimit(profile?.salesOrderLimit ?? "0");
+        setCreditLimit(normalizeNumericString(profile?.creditLimit));
+        setSalesOrderLimit(normalizeNumericString(profile?.salesOrderLimit));
         setPaymentTermDays(String(profile?.paymentTermDays ?? 0));
       })
       .catch(() => {
@@ -266,7 +273,7 @@ export default function Customers() {
         await apiFetch(`/api/v1/customers/${customerId}/credit-profile`, {
           method: "PUT",
           body: JSON.stringify({
-            creditLimit: Number(onlyDigits(creditLimit) || 0),
+            creditLimit: Number(creditLimit || 0),
             salesOrderLimit: Number(salesOrderLimit || 0),
             paymentTermDays: Number(paymentTermDays || 0),
           }),
