@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
@@ -61,6 +61,7 @@ export default function SalesVisitReport() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -123,15 +124,12 @@ export default function SalesVisitReport() {
   }
 
   function handlePrint() {
-    const headers = ["Waktu", "Sales", "Pelanggan", "Status", "Foto", "Koordinat", "Catatan"];
+    const headers = ["Nama Sales", "Nama Toko", "Jam", "Link Foto"];
     const rows = items.map((item) => [
-      formatDateTime(item.visitedAt),
       item.salesName ?? "-",
-      `${item.customerCode ?? "-"} - ${item.customerName ?? "-"}`,
-      getStatusLabel(item.visitStatus),
-      `${item.photos.length} foto`,
-      `${item.latitude.toFixed(5)}, ${item.longitude.toFixed(5)}`,
-      item.note ?? "-",
+      item.customerName ?? "-",
+      formatDateTime(item.visitedAt),
+      item.photos.map((photo) => photo.url).join(", "),
     ]);
     printTable("Laporan Kunjungan Sales", headers, rows);
   }
@@ -204,99 +202,108 @@ export default function SalesVisitReport() {
         </Card>
       </div>
 
-      <div className="space-y-4">
-        {items.map((item) => (
-          <Card key={item.id} className="overflow-hidden">
-            <div className="flex flex-col gap-4 border-b border-zinc-200 bg-zinc-50 px-4 py-3 md:flex-row md:items-start md:justify-between">
-              <div>
-                <div className="text-sm font-semibold text-zinc-900">
-                  {item.customerCode ?? "-"} - {item.customerName ?? "-"}
-                </div>
-                <div className="mt-1 text-sm text-zinc-500">
-                  {item.salesName ?? "-"} • {formatDateTime(item.visitedAt)}
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                  {getStatusLabel(item.visitStatus)}
-                </span>
-                <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
-                  {item.photos.length} foto
-                </span>
-              </div>
-            </div>
-
-            <div className="grid gap-4 p-4 lg:grid-cols-[1.1fr_0.9fr]">
-              <div className="space-y-3">
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm">
-                    <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Koordinat</div>
-                    <div className="mt-2 font-medium text-zinc-900">
-                      {item.latitude.toFixed(6)}, {item.longitude.toFixed(6)}
-                    </div>
-                    <div className="mt-1 text-zinc-500">
-                      Akurasi: {item.accuracyMeters ? `${Math.round(item.accuracyMeters)} m` : "-"}
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm">
-                    <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Tag Lokasi</div>
-                    <div className="mt-2 font-medium text-zinc-900">{formatDateTime(item.locationCapturedAt)}</div>
-                    <a
-                      href={`https://www.google.com/maps?q=${item.latitude},${item.longitude}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-1 inline-flex items-center gap-1 text-sky-700"
-                    >
-                      <MapPinned className="h-4 w-4" />
-                      Buka di Google Maps
-                    </a>
-                  </div>
-                </div>
-                <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm">
-                  <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Catatan Lapangan</div>
-                  <div className="mt-2 whitespace-pre-wrap text-zinc-700">{item.note || "-"}</div>
-                </div>
-              </div>
-
-              <div>
-                <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-900">
-                  <Camera className="h-4 w-4 text-zinc-500" />
-                  Foto Kunjungan
-                </div>
-                {item.photos.length ? (
-                  <div className="grid grid-cols-2 gap-3">
-                    {item.photos.map((photo) => (
-                      <a
-                        key={photo.id}
-                        href={photo.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="overflow-hidden rounded-xl border border-zinc-200 bg-white"
-                      >
-                        <img src={photo.url} alt={photo.originalName} className="h-32 w-full object-cover" />
-                        <div className="space-y-1 px-3 py-2">
-                          <div className="line-clamp-1 text-xs font-medium text-zinc-900">{photo.originalName}</div>
-                          <div className="text-[11px] text-zinc-500">{formatDateTime(photo.capturedAt)}</div>
-                        </div>
-                      </a>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-dashed border-zinc-300 px-4 py-8 text-center text-sm text-zinc-500">
-                    Belum ada foto tersimpan.
-                  </div>
-                )}
-              </div>
-            </div>
-          </Card>
-        ))}
-
-        {!loading && items.length === 0 ? (
-          <Card className="px-4 py-10 text-center text-sm text-zinc-500">
-            Belum ada data kunjungan yang cocok dengan filter saat ini.
-          </Card>
-        ) : null}
-      </div>
+      <Card className="overflow-hidden">
+        <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold">Tabel Kunjungan Sales</div>
+        <div className="overflow-auto">
+          <table className="min-w-[980px] text-sm">
+            <thead className="sticky top-0 bg-white">
+              <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
+                <th className="px-4 py-3">Nama Sales</th>
+                <th className="px-4 py-3">Nama Toko</th>
+                <th className="px-4 py-3">Jam</th>
+                <th className="px-4 py-3">Link Foto</th>
+                <th className="px-4 py-3 text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => {
+                const isExpanded = expandedId === item.id;
+                return (
+                  <Fragment key={item.id}>
+                    <tr className="border-b border-zinc-100 align-top hover:bg-zinc-50">
+                      <td className="px-4 py-3 font-medium text-zinc-900">{item.salesName ?? "-"}</td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-zinc-900">{item.customerName ?? "-"}</div>
+                        <div className="text-xs text-zinc-500">{item.customerCode ?? "-"}</div>
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-zinc-700">{formatDateTime(item.visitedAt)}</td>
+                      <td className="px-4 py-3">
+                        {item.photos.length ? (
+                          <div className="space-y-1">
+                            {item.photos.map((photo, index) => (
+                              <a
+                                key={photo.id}
+                                href={photo.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="block text-sky-700 hover:underline"
+                              >
+                                {`Foto ${index + 1} - ${photo.originalName}`}
+                              </a>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-zinc-500">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Button variant="secondary" onClick={() => setExpandedId(isExpanded ? null : item.id)}>
+                          {isExpanded ? "Tutup Detail" : "Detail"}
+                        </Button>
+                      </td>
+                    </tr>
+                    {isExpanded ? (
+                      <tr className="border-b border-zinc-100 bg-zinc-50/70">
+                        <td colSpan={5} className="px-4 py-3">
+                          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                            <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm">
+                              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Status</div>
+                              <div className="mt-2 font-medium text-zinc-900">{getStatusLabel(item.visitStatus)}</div>
+                            </div>
+                            <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm">
+                              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Koordinat</div>
+                              <div className="mt-2 font-medium text-zinc-900">
+                                {item.latitude.toFixed(6)}, {item.longitude.toFixed(6)}
+                              </div>
+                              <div className="mt-1 text-zinc-500">
+                                Akurasi: {item.accuracyMeters ? `${Math.round(item.accuracyMeters)} m` : "-"}
+                              </div>
+                            </div>
+                            <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm">
+                              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Tag Lokasi</div>
+                              <div className="mt-2 font-medium text-zinc-900">{formatDateTime(item.locationCapturedAt)}</div>
+                              <a
+                                href={`https://www.google.com/maps?q=${item.latitude},${item.longitude}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="mt-1 inline-flex items-center gap-1 text-sky-700 hover:underline"
+                              >
+                                <MapPinned className="h-4 w-4" />
+                                Buka di Google Maps
+                              </a>
+                            </div>
+                            <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm">
+                              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Catatan</div>
+                              <div className="mt-2 whitespace-pre-wrap text-zinc-700">{item.note || "-"}</div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                );
+              })}
+              {!loading && items.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-10 text-center text-sm text-zinc-500" colSpan={5}>
+                    Belum ada data kunjungan yang cocok dengan filter saat ini.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </Card>
     </div>
   );
 }
