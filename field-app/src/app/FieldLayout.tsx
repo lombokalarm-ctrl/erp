@@ -31,6 +31,7 @@ export default function FieldLayout() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-[11px] uppercase tracking-[0.24em] text-emerald-200">Madani Field</div>
+              <div className="mt-3 text-xs font-medium text-emerald-200">Pengguna aktif</div>
               <div className="mt-1 text-xl font-semibold">{user?.fullName || "Pengguna Lapangan"}</div>
               <div className="mt-1 text-sm text-emerald-100">{user?.role || "Sales / Driver"}</div>
             </div>
@@ -40,9 +41,10 @@ export default function FieldLayout() {
                 logout();
                 navigate("/login");
               }}
-              className="rounded-2xl bg-white/10 p-3 text-white transition hover:bg-white/20"
+              className="inline-flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/20"
             >
               <LogOut className="h-4 w-4" />
+              <span>Logout</span>
             </button>
           </div>
           <div className="mt-4 flex items-center justify-between">
