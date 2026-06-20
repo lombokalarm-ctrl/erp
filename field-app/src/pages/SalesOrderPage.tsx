@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, PackageSearch, Save, Search, Send } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { CheckCircle2, PackageSearch, Plus, Save, Search, Send } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { apiFetch, ApiError } from "@/api/client";
 import EmptyState from "@/components/EmptyState";
@@ -67,6 +67,7 @@ export default function SalesOrderPage() {
   const [productCache, setProductCache] = useState<Record<string, Product>>({});
   const [productUomMappings, setProductUomMappings] = useState<Record<string, ProductUomMapping[]>>({});
   const [productUomOptions, setProductUomOptions] = useState<Record<string, UomOption[]>>({});
+  const productSearchInputRef = useRef<HTMLInputElement | null>(null);
 
   const normalizedCustomerQuery = customerQuery.trim();
   const normalizedProductQuery = productQuery.trim();
@@ -313,6 +314,16 @@ export default function SalesOrderPage() {
     };
   }
 
+  function focusProductSearch() {
+    window.setTimeout(() => {
+      productSearchInputRef.current?.focus();
+      productSearchInputRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 50);
+  }
+
   async function addProduct(product: Product) {
     setProductQuery("");
     setProducts([]);
@@ -340,6 +351,7 @@ export default function SalesOrderPage() {
         ...current,
       ];
     });
+    focusProductSearch();
   }
 
   function handleItemUomChange(productId: string, nextUom: string) {
@@ -521,6 +533,7 @@ export default function SalesOrderPage() {
         </div>
         <div className="mt-4">
           <input
+            ref={productSearchInputRef}
             value={productQuery}
             onChange={(event) => setProductQuery(event.target.value)}
             className="field-input"
@@ -573,7 +586,20 @@ export default function SalesOrderPage() {
       </SurfaceCard>
 
       <SurfaceCard>
-        <div className="text-sm font-semibold text-zinc-900">Item Order</div>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-zinc-900">Item Order</div>
+            <div className="text-sm text-zinc-500">Tambahkan lebih dari satu produk untuk membuat SO multi item.</div>
+          </div>
+          <button
+            type="button"
+            onClick={focusProductSearch}
+            className="inline-flex items-center gap-2 rounded-[18px] border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900"
+          >
+            <Plus className="h-4 w-4" />
+            Tambah Item
+          </button>
+        </div>
         <div className="mt-4 space-y-3">
           {items.length ? (
             items.map((item) => (
@@ -627,6 +653,16 @@ export default function SalesOrderPage() {
           ) : (
             <EmptyState title="Belum ada item" description="Tambahkan produk dari hasil pencarian untuk mulai menyusun order." />
           )}
+          {items.length ? (
+            <button
+              type="button"
+              onClick={focusProductSearch}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-[22px] border border-dashed border-zinc-300 bg-zinc-50 px-4 py-3 text-sm font-semibold text-zinc-700"
+            >
+              <Plus className="h-4 w-4" />
+              Tambah Produk Lain
+            </button>
+          ) : null}
         </div>
       </SurfaceCard>
 
