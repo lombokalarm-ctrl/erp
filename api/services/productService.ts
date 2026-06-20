@@ -258,7 +258,7 @@ export async function listProducts(params: {
   const whereSql = where.length ? `where ${where.join(' and ')}` : ''
 
   const totalRes = await pool.query(
-    `select count(*)::int as c from products ${whereSql}`,
+    `select count(*)::int as c from products p ${whereSql}`,
     values,
   )
   const total = Number(totalRes.rows[0]?.c ?? 0)
