@@ -400,16 +400,27 @@ export default function Inventory() {
               <tbody>
                 {rows.map((r) => {
                   const qtyPcs = Math.trunc(Number(r.qty) || 0);
-                  const packPcs = Math.max(1, Number(r.packSize) || 1);
-                  const dusPcs =
-                    Math.max(1, Number(r.dusSize) || 0) ||
-                    Math.max(1, (Number(r.packPerDus) || 1) * packPcs);
-                  const dus = Math.floor(qtyPcs / dusPcs);
-                  const rem1 = qtyPcs % dusPcs;
-                  const pack = Math.floor(rem1 / packPcs);
-                  const pcs = rem1 % packPcs;
+                  const packPcs = Number(r.packSize) || 0;
+                  const fallbackDusPcs =
+                    packPcs > 0 && Number(r.packPerDus) > 0 ? Number(r.packPerDus) * packPcs : 0;
+                  const dusPcs = Number(r.dusSize) || fallbackDusPcs;
+                  const hasValidPack = packPcs > 1;
+                  const hasValidDus = dusPcs > 1;
 
-                  let formattedStock = [];
+                  let remaining = qtyPcs;
+                  const dus = hasValidDus ? Math.floor(remaining / dusPcs) : 0;
+                  if (hasValidDus) {
+                    remaining %= dusPcs;
+                  }
+
+                  const pack = hasValidPack ? Math.floor(remaining / packPcs) : 0;
+                  if (hasValidPack) {
+                    remaining %= packPcs;
+                  }
+
+                  const pcs = remaining;
+
+                  const formattedStock: string[] = [];
                   if (dus > 0) formattedStock.push(`${dus} Dus`);
                   if (pack > 0) formattedStock.push(`${pack} Pack`);
                   if (pcs > 0 || formattedStock.length === 0) formattedStock.push(`${pcs} Pcs`);
