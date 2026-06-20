@@ -27,7 +27,7 @@ export default function FieldLayout() {
   return (
     <div className="min-h-dvh bg-[radial-gradient(circle_at_top,#d9f99d_0%,#f7f5ef_28%,#f3f4f6_100%)] pb-28">
       <div className="mx-auto max-w-md px-4 pb-6 pt-4">
-        <SurfaceCard className="rounded-[32px] border-emerald-200/70 bg-emerald-950 px-5 py-4 text-white">
+        <SurfaceCard className="rounded-[32px] !border-emerald-700/40 !bg-[linear-gradient(135deg,#052e16,#14532d_62%,#4d7c0f)] px-5 py-4 !text-white">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-[11px] uppercase tracking-[0.24em] text-emerald-200">Madani Field</div>
@@ -41,7 +41,7 @@ export default function FieldLayout() {
                 logout();
                 navigate("/login");
               }}
-              className="inline-flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/20"
+              className="inline-flex items-center gap-2 rounded-2xl border border-emerald-100/60 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-950 transition hover:bg-white"
             >
               <LogOut className="h-4 w-4" />
               <span>Logout</span>
