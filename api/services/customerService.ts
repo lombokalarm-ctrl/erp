@@ -24,6 +24,7 @@ export async function listCustomers(params: {
   pageSize?: number
   q?: string
   salesId?: string
+  regionId?: string
   includeUnassigned?: boolean
 }) {
   const pool = getPool()
@@ -48,6 +49,11 @@ export async function listCustomers(params: {
     } else {
       where.push(`c.sales_id = $${salesIdParamIndex}`)
     }
+  }
+
+  if (params.regionId) {
+    values.push(params.regionId)
+    where.push(`c.region_id = $${values.length}`)
   }
 
   const whereSql = where.length ? `where ${where.join(' and ')}` : ''

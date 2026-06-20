@@ -94,6 +94,7 @@ export default function Customers() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "BLOCKED">("ALL");
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
+  const [regionFilter, setRegionFilter] = useState<string>("ALL");
   const [sortBy, setSortBy] = useState<"name" | "code" | "category" | "status">("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
@@ -102,7 +103,8 @@ export default function Customers() {
     const filtered = items.filter((c) => {
       const statusMatch = statusFilter === "ALL" || c.status === statusFilter;
       const categoryMatch = categoryFilter === "ALL" || c.category === categoryFilter;
-      return statusMatch && categoryMatch;
+      const regionMatch = regionFilter === "ALL" || c.regionId === regionFilter;
+      return statusMatch && categoryMatch && regionMatch;
     });
     const factor = sortDir === "asc" ? 1 : -1;
     return [...filtered].sort((a, b) => {
@@ -110,7 +112,7 @@ export default function Customers() {
       const bv = String(b[sortBy] ?? "").toLowerCase();
       return av.localeCompare(bv) * factor;
     });
-  }, [items, statusFilter, categoryFilter, sortBy, sortDir]);
+  }, [items, statusFilter, categoryFilter, regionFilter, sortBy, sortDir]);
 
   function handleOpenCreate() {
     setEditingId(null);
@@ -198,7 +200,15 @@ export default function Customers() {
   async function load() {
     setError(null);
     try {
-      const res = await apiFetch<{ data: Customer[] }>("/api/v1/customers?page=1&pageSize=50&q=" + encodeURIComponent(q));
+      const params = new URLSearchParams({
+        page: "1",
+        pageSize: "50",
+        q,
+      });
+      if (regionFilter !== "ALL") {
+        params.set("regionId", regionFilter);
+      }
+      const res = await apiFetch<{ data: Customer[] }>(`/api/v1/customers?${params.toString()}`);
       setItems(res.data);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Gagal memuat data");
@@ -394,6 +404,18 @@ export default function Customers() {
             {CATEGORY_OPTIONS.map((cat) => (
               <option key={cat} value={cat}>
                 {cat}
+              </option>
+            ))}
+          </select>
+          <select
+            className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+            value={regionFilter}
+            onChange={(e) => setRegionFilter(e.target.value)}
+          >
+            <option value="ALL">Semua Wilayah</option>
+            {regions.map((region) => (
+              <option key={region.id} value={region.id}>
+                {region.name}
               </option>
             ))}
           </select>
