@@ -446,14 +446,14 @@ export default function SalesOrderPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <SurfaceCard>
-        <div className="text-lg font-semibold text-zinc-950">Buat Sales Order</div>
-        <div className="mt-1 text-sm text-zinc-500">Mode lapangan: cepat, hemat scroll, dan aman saat sinyal tidak stabil.</div>
-        <div className="mt-4 space-y-3">
+    <div className="space-y-3">
+      <SurfaceCard className="rounded-[22px] px-3 py-3">
+        <div className="text-base font-semibold text-zinc-950">Buat Sales Order</div>
+        <div className="mt-1 text-[11px] text-zinc-500">Mode lapangan yang lebih rapat, cepat, dan hemat scroll.</div>
+        <div className="mt-3 space-y-3">
           <div>
-            <div className="mb-2 text-sm font-semibold text-zinc-900">Cari Pelanggan</div>
-            <div className="flex items-center gap-3 rounded-[22px] border border-zinc-200 bg-zinc-50 px-4 py-3">
+            <div className="mb-2 text-[12px] font-semibold text-zinc-900">Cari Pelanggan</div>
+            <div className="flex items-center gap-2 rounded-[16px] border border-zinc-200 bg-zinc-50 px-3 py-2.5">
               <Search className="h-4 w-4 text-zinc-400" />
               <input
                 value={customerQuery}
@@ -477,17 +477,17 @@ export default function SalesOrderPage() {
               />
             </div>
             {showCustomerResults ? (
-              <div className="mt-2 overflow-hidden rounded-[22px] border border-zinc-200 bg-white shadow-lg">
+              <div className="mt-2 overflow-hidden rounded-[16px] border border-zinc-200 bg-white shadow-lg">
                 {loadingCustomers ? (
-                  <div className="px-4 py-3 text-sm text-zinc-500">Mencari pelanggan...</div>
+                  <div className="px-3 py-2.5 text-sm text-zinc-500">Mencari pelanggan...</div>
                 ) : customerResults.length ? (
-                  <div className="max-h-72 overflow-y-auto p-2">
+                  <div className="max-h-72 overflow-y-auto p-1.5">
                     {customerResults.map((customer) => (
                       <button
                         key={customer.id}
                         type="button"
                         onClick={() => handleSelectCustomer(customer.id)}
-                        className="flex w-full items-center justify-between rounded-[18px] px-3 py-3 text-left transition hover:bg-zinc-50"
+                        className="flex w-full items-center justify-between rounded-[14px] px-3 py-2.5 text-left transition hover:bg-zinc-50"
                       >
                         <div>
                           <div className="text-sm font-medium text-zinc-900">{customer.name}</div>
@@ -500,16 +500,16 @@ export default function SalesOrderPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="px-4 py-3 text-sm text-zinc-500">Pelanggan tidak ditemukan.</div>
+                  <div className="px-3 py-2.5 text-sm text-zinc-500">Pelanggan tidak ditemukan.</div>
                 )}
               </div>
             ) : !normalizedCustomerQuery ? (
-              <div className="mt-3 rounded-[22px] border border-dashed border-zinc-300 bg-zinc-50 px-4 py-4 text-sm text-zinc-500">
+              <div className="mt-2 rounded-[16px] border border-dashed border-zinc-300 bg-zinc-50 px-3 py-3 text-[11px] text-zinc-500">
                 Ketik nama toko atau kode pelanggan untuk menampilkan dropdown pencarian.
               </div>
             ) : null}
             {customerId && customerName ? (
-              <div className="mt-3 rounded-[22px] bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+              <div className="mt-2 rounded-[16px] bg-emerald-50 px-3 py-2.5 text-sm text-emerald-900">
                 Pelanggan terpilih: <span className="font-semibold">{customerName}</span>
               </div>
             ) : null}
@@ -517,21 +517,21 @@ export default function SalesOrderPage() {
           <textarea
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
-            className="field-input min-h-24 resize-none"
+            className="field-input min-h-20 resize-none"
             placeholder="Catatan order atau catatan visit..."
           />
         </div>
       </SurfaceCard>
 
-      <SurfaceCard>
+      <SurfaceCard className="rounded-[22px] px-3 py-3">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold text-zinc-900">Cari Produk</div>
-            <div className="text-sm text-zinc-500">Tambah item satu per satu, cocok untuk transaksi di toko.</div>
+            <div className="text-[12px] font-semibold text-zinc-900">Cari Produk</div>
+            <div className="text-[11px] text-zinc-500">Tambah item satu per satu untuk transaksi toko.</div>
           </div>
-          <PackageSearch className="h-5 w-5 text-emerald-700" />
+          <PackageSearch className="h-4 w-4 text-emerald-700" />
         </div>
-        <div className="mt-4">
+        <div className="mt-3">
           <input
             ref={productSearchInputRef}
             value={productQuery}
@@ -541,11 +541,11 @@ export default function SalesOrderPage() {
             autoComplete="off"
           />
           {normalizedProductQuery ? (
-            <div className="mt-2 overflow-hidden rounded-[22px] border border-zinc-200 bg-white shadow-lg">
+            <div className="mt-2 overflow-hidden rounded-[16px] border border-zinc-200 bg-white shadow-lg">
               {loadingProducts ? (
-                <div className="px-4 py-3 text-sm text-zinc-500">Mencari produk...</div>
+                <div className="px-3 py-2.5 text-sm text-zinc-500">Mencari produk...</div>
               ) : products.length ? (
-                <div className="max-h-72 overflow-y-auto p-2">
+                <div className="max-h-72 overflow-y-auto p-1.5">
                   {products.map((product) => (
                     (() => {
                       const meta = getProductSearchMeta(product);
@@ -554,18 +554,18 @@ export default function SalesOrderPage() {
                           key={product.id}
                           type="button"
                           onClick={() => addProduct(product)}
-                          className="flex w-full items-center justify-between rounded-[18px] px-3 py-3 text-left transition hover:bg-zinc-50"
+                          className="flex w-full items-center justify-between gap-2 rounded-[14px] px-3 py-2.5 text-left transition hover:bg-zinc-50"
                         >
                           <div>
                             <div className="text-sm font-medium text-zinc-900">{product.name}</div>
-                            <div className="text-xs text-zinc-500">
+                            <div className="text-[11px] text-zinc-500">
                               {product.sku} • Stok gudang: {formatQuantity(meta.stockBase)} pcs
                             </div>
-                            <div className="mt-1 text-xs text-emerald-700">
+                            <div className="mt-1 text-[11px] font-medium text-emerald-700">
                               Harga {meta.largestUom.name}: {formatCurrency(meta.displayPrice)}
                             </div>
                           </div>
-                          <div className="pl-3 text-right text-xs font-medium text-zinc-500">
+                          <div className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">
                             {String(meta.largestUom.code || product.unit || "pcs").toUpperCase()}
                           </div>
                         </button>
@@ -574,46 +574,46 @@ export default function SalesOrderPage() {
                   ))}
                 </div>
               ) : (
-                <div className="px-4 py-3 text-sm text-zinc-500">Produk tidak ditemukan.</div>
+                <div className="px-3 py-2.5 text-sm text-zinc-500">Produk tidak ditemukan.</div>
               )}
             </div>
           ) : (
-            <div className="mt-3 rounded-[22px] border border-dashed border-zinc-300 bg-zinc-50 px-4 py-4 text-sm text-zinc-500">
+            <div className="mt-2 rounded-[16px] border border-dashed border-zinc-300 bg-zinc-50 px-3 py-3 text-[11px] text-zinc-500">
               Ketik nama produk atau SKU untuk menampilkan dropdown pencarian.
             </div>
           )}
         </div>
       </SurfaceCard>
 
-      <SurfaceCard>
+      <SurfaceCard className="rounded-[22px] px-3 py-3">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold text-zinc-900">Item Order</div>
-            <div className="text-sm text-zinc-500">Tambahkan lebih dari satu produk untuk membuat SO multi item.</div>
+            <div className="text-[12px] font-semibold text-zinc-900">Item Order</div>
+            <div className="text-[11px] text-zinc-500">Tambahkan lebih dari satu produk untuk SO multi item.</div>
           </div>
           <button
             type="button"
             onClick={focusProductSearch}
-            className="inline-flex items-center gap-2 rounded-[18px] border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900"
+            className="inline-flex items-center gap-2 rounded-[14px] border border-zinc-200 bg-white px-3 py-2 text-[11px] font-semibold text-zinc-900"
           >
             <Plus className="h-4 w-4" />
             Tambah Item
           </button>
         </div>
-        <div className="mt-4 space-y-3">
+        <div className="mt-3 space-y-2">
           {items.length ? (
             items.map((item) => (
-              <div key={item.productId} className="rounded-[22px] border border-zinc-200 px-4 py-3">
+              <div key={item.productId} className="rounded-[16px] border border-zinc-200 px-3 py-2.5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="font-medium text-zinc-900">{item.productName}</div>
-                    <div className="text-sm text-zinc-500">Satuan: {item.uom}</div>
+                    <div className="text-sm font-medium text-zinc-900">{item.productName}</div>
+                    <div className="text-[11px] text-zinc-500">Satuan: {item.uom}</div>
                   </div>
-                  <div className="text-right text-sm font-semibold text-zinc-900">
+                  <div className="text-right text-[11px] font-semibold text-zinc-900">
                     {formatCurrency(item.qty * item.unitPrice)}
                   </div>
                 </div>
-                <div className="mt-3 flex items-center gap-3">
+                <div className="mt-2 grid grid-cols-[72px_1fr_auto] items-center gap-2">
                   <input
                     type="number"
                     min={1}
@@ -627,7 +627,7 @@ export default function SalesOrderPage() {
                         ),
                       )
                     }
-                    className="field-input w-24"
+                    className="field-input w-[72px] text-center"
                   />
                   <select
                     value={item.uom}
@@ -642,7 +642,7 @@ export default function SalesOrderPage() {
                   </select>
                   <button
                     type="button"
-                    className="text-sm font-medium text-rose-600"
+                    className="text-[11px] font-semibold text-rose-600"
                     onClick={() => setItems((current) => current.filter((currentItem) => currentItem.productId !== item.productId))}
                   >
                     Hapus
@@ -657,7 +657,7 @@ export default function SalesOrderPage() {
             <button
               type="button"
               onClick={focusProductSearch}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-[22px] border border-dashed border-zinc-300 bg-zinc-50 px-4 py-3 text-sm font-semibold text-zinc-700"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-[16px] border border-dashed border-zinc-300 bg-zinc-50 px-3 py-2.5 text-sm font-semibold text-zinc-700"
             >
               <Plus className="h-4 w-4" />
               Tambah Produk Lain
@@ -667,7 +667,7 @@ export default function SalesOrderPage() {
       </SurfaceCard>
 
       {message ? (
-        <div className="rounded-[24px] bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <div className="rounded-[18px] bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">
           <div className="flex items-start gap-2">
             <CheckCircle2 className="mt-0.5 h-4 w-4" />
             <div className="space-y-2">
@@ -682,17 +682,17 @@ export default function SalesOrderPage() {
         </div>
       ) : null}
 
-      <SurfaceCard className="sticky bottom-24 bg-white/95">
+      <SurfaceCard className="sticky bottom-24 rounded-[22px] bg-white/95 px-3 py-3">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-sm text-zinc-500">Total order</div>
-            <div className="text-2xl font-semibold text-zinc-950">{formatCurrency(totalAmount)}</div>
+            <div className="text-[11px] text-zinc-500">Total order</div>
+            <div className="text-[1.35rem] font-semibold text-zinc-950">{formatCurrency(totalAmount)}</div>
           </div>
-          <div className="text-right text-xs text-zinc-500">
+          <div className="text-right text-[11px] text-zinc-500">
             {isOnline ? "Online: bisa kirim sekarang" : "Offline ringan: akan simpan draft"}
           </div>
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="mt-3 grid grid-cols-2 gap-2">
           <button type="button" onClick={saveDraft} className="secondary-button">
             <Save className="h-4 w-4" />
             Simpan Draft

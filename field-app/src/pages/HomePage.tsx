@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, ClipboardPenLine, ReceiptText, Truck, Users } from "lucide-react";
+import { ArrowRight, ClipboardPenLine, ReceiptText } from "lucide-react";
 import { Link } from "react-router-dom";
 import { apiFetch } from "@/api/client";
 import SurfaceCard from "@/components/SurfaceCard";
@@ -20,7 +20,6 @@ type SalesOrderRow = {
 type DashboardCard = {
   label: string;
   value: string;
-  icon: typeof Users;
   to: string;
 };
 
@@ -55,103 +54,96 @@ export default function HomePage() {
 
   const cards = useMemo<DashboardCard[]>(
     () => [
-      { label: "Pelanggan aktif", value: String(customersToday), icon: Users, to: "/customers" },
-      { label: "Draft order", value: String(orderDrafts.length), icon: ClipboardPenLine, to: "/sync" },
-      { label: "Visit lokal", value: String(visitDrafts.length), icon: ReceiptText, to: "/visits" },
-      { label: "Antar hari ini", value: String(latestOrders.length), icon: Truck, to: "/deliveries" },
+      { label: "Pelanggan aktif", value: String(customersToday), to: "/customers" },
+      { label: "Draft order", value: String(orderDrafts.length), to: "/sync" },
+      { label: "Visit lokal", value: String(visitDrafts.length), to: "/visits" },
+      { label: "Antar hari ini", value: String(latestOrders.length), to: "/deliveries" },
     ],
     [customersToday, latestOrders.length, orderDrafts.length, visitDrafts.length],
   );
 
   return (
-    <div className="space-y-4">
-      <SurfaceCard className="overflow-hidden bg-[linear-gradient(135deg,#052e16,#14532d_62%,#4d7c0f)] text-white">
-        <div className="text-xs uppercase tracking-[0.26em] text-emerald-200">Ringkas Hari Ini</div>
-        <div className="mt-2 max-w-[17rem] text-2xl font-semibold leading-tight">
-          Operasional lapangan lebih cepat, lebih fokus, dan siap dipakai di toko.
-        </div>
-        <div className="mt-4 flex items-center justify-between rounded-[24px] bg-white/10 px-4 py-3 text-sm">
-          <span>Prioritas utama: kunjungan dengan foto, lokasi, dan follow up toko</span>
-          <ArrowRight className="h-4 w-4" />
-        </div>
-      </SurfaceCard>
-
-      <div className="grid grid-cols-2 gap-3">
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
         {cards.map((card) => (
           <Link key={card.label} to={card.to}>
-            <SurfaceCard className="h-full bg-white/85">
-              <div className="flex items-center justify-between">
-                <div className="rounded-2xl bg-emerald-50 p-3 text-emerald-700">
-                  <card.icon className="h-5 w-5" />
-                </div>
-                <ArrowRight className="h-4 w-4 text-zinc-400" />
-              </div>
-              <div className="mt-4 text-2xl font-semibold text-zinc-950">{card.value}</div>
-              <div className="mt-1 text-sm text-zinc-500">{card.label}</div>
+            <SurfaceCard className="h-full rounded-[22px] bg-white/88 px-3 py-3">
+              <div className="text-[2rem] font-semibold leading-none text-zinc-950">{card.value}</div>
+              <div className="mt-2 text-[11px] text-zinc-500">{card.label}</div>
             </SurfaceCard>
           </Link>
         ))}
       </div>
 
-      <SurfaceCard>
+      <SurfaceCard className="rounded-[22px] px-3 py-3">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-sm font-semibold text-zinc-900">Quick Action</div>
-            <div className="text-sm text-zinc-500">Masuk cepat ke alur lapangan utama.</div>
+            <div className="text-[13px] font-semibold text-zinc-900">Quick Action</div>
+            <div className="text-[11px] text-zinc-500">Akses utama versi rapat.</div>
           </div>
-          <Link to="/sales-orders" className="text-sm font-medium text-emerald-700">
+          <Link to="/sales-orders" className="text-[11px] font-semibold text-emerald-700">
             Buka
           </Link>
         </div>
-        <div className="mt-4 grid gap-3">
-          <Link className="quick-link-card" to="/sales-orders">
-            <ClipboardPenLine className="h-5 w-5 text-emerald-700" />
-            <div>
-              <div className="font-medium text-zinc-900">Sales Order</div>
-              <div className="text-sm text-zinc-500">Lihat semua SO Anda, preview, lalu share PDF dengan lebih jelas.</div>
+        <div className="mt-3 grid gap-2">
+          <Link className="quick-link-card items-center justify-between" to="/sales-orders">
+            <div className="flex items-center gap-3">
+              <div className="rounded-[12px] bg-emerald-100 p-2 text-emerald-700">
+                <ClipboardPenLine className="h-4 w-4" />
+              </div>
+              <div>
+                <div className="text-sm font-medium text-zinc-900">Sales Order</div>
+                <div className="text-[11px] leading-4 text-zinc-500">Masuk cepat ke daftar dan form SO.</div>
+              </div>
             </div>
+            <ArrowRight className="h-4 w-4 shrink-0 text-zinc-400" />
           </Link>
-          <Link className="quick-link-card" to="/visits">
-            <ReceiptText className="h-5 w-5 text-amber-700" />
-            <div>
-              <div className="font-medium text-zinc-900">Catat Kunjungan</div>
-              <div className="text-sm text-zinc-500">Lengkapi foto toko dan tag lokasi walau koneksi tidak stabil.</div>
+          <Link className="quick-link-card items-center justify-between" to="/visits">
+            <div className="flex items-center gap-3">
+              <div className="rounded-[12px] bg-amber-100 p-2 text-amber-700">
+                <ReceiptText className="h-4 w-4" />
+              </div>
+              <div>
+                <div className="text-sm font-medium text-zinc-900">Catat Kunjungan</div>
+                <div className="text-[11px] leading-4 text-zinc-500">Foto toko dan tag lokasi lebih cepat.</div>
+              </div>
             </div>
+            <ArrowRight className="h-4 w-4 shrink-0 text-zinc-400" />
           </Link>
         </div>
       </SurfaceCard>
 
-      <SurfaceCard>
+      <SurfaceCard className="rounded-[22px] px-3 py-3">
         <div className="flex items-center justify-between">
-          <div className="text-sm font-semibold text-zinc-900">Order Terbaru</div>
-          <Link to="/sales-orders" className="text-sm font-medium text-emerald-700">
+          <div className="text-[13px] font-semibold text-zinc-900">Order Terbaru</div>
+          <Link to="/sales-orders" className="text-[11px] font-semibold text-emerald-700">
             Lihat semua
           </Link>
         </div>
-        <div className="mt-4 space-y-3">
+        <div className="mt-3 space-y-2">
           {loading ? (
             <div className="space-y-2">
-              <div className="h-16 animate-pulse rounded-2xl bg-zinc-100" />
-              <div className="h-16 animate-pulse rounded-2xl bg-zinc-100" />
+              <div className="h-14 animate-pulse rounded-[18px] bg-zinc-100" />
+              <div className="h-14 animate-pulse rounded-[18px] bg-zinc-100" />
             </div>
           ) : latestOrders.length ? (
             latestOrders.map((order) => (
-              <div key={order.id} className="rounded-[22px] border border-zinc-200 px-4 py-3">
+              <div key={order.id} className="rounded-[18px] border border-zinc-200 px-3 py-2.5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-sm font-semibold text-zinc-900">{order.orderNo}</div>
-                    <div className="text-sm text-zinc-500">{order.customerName}</div>
+                    <div className="text-[11px] text-zinc-500">{order.customerName}</div>
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-semibold text-zinc-900">{formatCurrency(order.totalAmount)}</div>
                     <div className="text-xs text-zinc-500">{formatDate(order.orderDate)}</div>
                   </div>
                 </div>
-                <div className="mt-2 text-xs text-zinc-500">
-                  Status SO {order.status} • Kirim {order.deliveryStatus}
+                <div className="mt-1.5 text-[11px] text-zinc-500">
+                  SO {order.status} • Kirim {order.deliveryStatus}
                 </div>
-                <div className="mt-3">
-                  <Link to={`/sales-order/${order.id}`} className="text-sm font-medium text-emerald-700">
+                <div className="mt-2">
+                  <Link to={`/sales-order/${order.id}`} className="text-[11px] font-semibold text-emerald-700">
                     View
                   </Link>
                 </div>

@@ -35,18 +35,18 @@ h3,
 
 @layer components {
   .field-input {
-    @apply w-full rounded-[22px] border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-200;
+    @apply w-full rounded-[16px] border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-200;
   }
 
   .primary-button {
-    @apply inline-flex w-full items-center justify-center gap-2 rounded-[22px] bg-emerald-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex w-full items-center justify-center gap-2 rounded-[16px] bg-emerald-950 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .secondary-button {
-    @apply inline-flex w-full items-center justify-center gap-2 rounded-[22px] border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex w-full items-center justify-center gap-2 rounded-[16px] border border-zinc-200 bg-white px-3 py-2.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .quick-link-card {
-    @apply flex items-start gap-3 rounded-[22px] border border-zinc-200 bg-zinc-50 px-4 py-4 transition hover:border-emerald-200 hover:bg-emerald-50/70;
+    @apply flex items-start gap-3 rounded-[16px] border border-zinc-200 bg-zinc-50 px-3 py-3 transition hover:border-emerald-200 hover:bg-emerald-50/70;
   }
 }
