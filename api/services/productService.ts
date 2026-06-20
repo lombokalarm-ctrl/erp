@@ -25,6 +25,7 @@ export type Product = {
   reorderQtyBase?: string
   leadTimeDays?: number
   bufferDays?: number
+  currentStockBase?: string
   uomMappings?: ProductUomMapping[]
 }
 
@@ -251,7 +252,7 @@ export async function listProducts(params: {
 
   if (q) {
     values.push(`%${q.toLowerCase()}%`)
-    where.push('(lower(sku) like $1 or lower(name) like $1)')
+    where.push('(lower(p.sku) like $1 or lower(p.name) like $1)')
   }
 
   const whereSql = where.length ? `where ${where.join(' and ')}` : ''
@@ -264,6 +265,15 @@ export async function listProducts(params: {
 
   const listRes = await pool.query(
     `
+      with stock_wh01 as (
+        select
+          b.product_id as "productId",
+          coalesce(sum(b.qty), 0)::text as "currentStockBase"
+        from inventory_balances b
+        join warehouses w on w.id = b.warehouse_id
+        where w.code = 'WH-01'
+        group by b.product_id
+      )
       select
         id,
         sku,
@@ -280,10 +290,12 @@ export async function listProducts(params: {
         min_stock_base::text as "minStockBase",
         reorder_qty_base::text as "reorderQtyBase",
         lead_time_days as "leadTimeDays",
-        buffer_days as "bufferDays"
-      from products
+        buffer_days as "bufferDays",
+        coalesce(s."currentStockBase", '0') as "currentStockBase"
+      from products p
+      left join stock_wh01 s on s."productId" = p.id
       ${whereSql}
-      order by created_at desc
+      order by p.created_at desc
       limit $${values.length + 1} offset $${values.length + 2}
     `,
     [...values, pageSize, offset],

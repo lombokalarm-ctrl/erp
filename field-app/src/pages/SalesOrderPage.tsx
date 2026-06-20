@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, PackageSearch, Save, Send } from "lucide-react";
+import { CheckCircle2, PackageSearch, Save, Search, Send } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { apiFetch, ApiError } from "@/api/client";
 import EmptyState from "@/components/EmptyState";
@@ -21,6 +21,7 @@ type Product = {
   unit: string;
   salePrice: string;
   unitPrices?: Record<string, number | string>;
+  currentStockBase?: string;
 };
 
 type ProductUomMapping = {
@@ -49,27 +50,84 @@ export default function SalesOrderPage() {
   const isOnline = useOnlineStatus();
   const addOrderDraft = useFieldStore((state) => state.addOrderDraft);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customerResults, setCustomerResults] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [customerId, setCustomerId] = useState(params.get("customerId") ?? "");
   const [customerName, setCustomerName] = useState(params.get("customerName") ?? "");
+  const [customerQuery, setCustomerQuery] = useState(params.get("customerName") ?? "");
   const [productQuery, setProductQuery] = useState("");
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<SelectedItem[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [lastCreatedOrderId, setLastCreatedOrderId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [customerCache, setCustomerCache] = useState<Record<string, Customer>>({});
   const [productCache, setProductCache] = useState<Record<string, Product>>({});
   const [productUomMappings, setProductUomMappings] = useState<Record<string, ProductUomMapping[]>>({});
   const [productUomOptions, setProductUomOptions] = useState<Record<string, UomOption[]>>({});
 
+  const normalizedCustomerQuery = customerQuery.trim();
   const normalizedProductQuery = productQuery.trim();
+  const selectedCustomerLabel = customerId
+    ? `${customerCache[customerId]?.code ?? ""} - ${customerCache[customerId]?.name ?? customerName}`.trim()
+    : "";
+  const showCustomerResults = Boolean(normalizedCustomerQuery) && normalizedCustomerQuery !== selectedCustomerLabel;
 
   useEffect(() => {
     apiFetch<{ data: Customer[] }>("/api/v1/customers?page=1&pageSize=60&includeUnassigned=true").then((response) => {
       setCustomers(response.data);
+      setCustomerResults(response.data);
+      setCustomerCache(Object.fromEntries(response.data.map((customer) => [customer.id, customer])));
     });
   }, []);
+
+  useEffect(() => {
+    if (!normalizedCustomerQuery) {
+      setCustomerResults(customers.slice(0, 20));
+      setLoadingCustomers(false);
+      return;
+    }
+
+    if (selectedCustomerLabel && normalizedCustomerQuery === selectedCustomerLabel) {
+      setCustomerResults([]);
+      setLoadingCustomers(false);
+      return;
+    }
+
+    let cancelled = false;
+    const handle = window.setTimeout(() => {
+      setLoadingCustomers(true);
+      apiFetch<{ data: Customer[] }>(
+        `/api/v1/customers?page=1&pageSize=20&includeUnassigned=true&q=${encodeURIComponent(normalizedCustomerQuery)}`,
+      )
+        .then((response) => {
+          if (!cancelled) {
+            setCustomerResults(response.data);
+            setCustomerCache((current) => ({
+              ...current,
+              ...Object.fromEntries(response.data.map((customer) => [customer.id, customer])),
+            }));
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setCustomerResults([]);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setLoadingCustomers(false);
+          }
+        });
+    }, 200);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [customers, normalizedCustomerQuery, selectedCustomerLabel]);
 
   useEffect(() => {
     if (!normalizedProductQuery) {
@@ -109,6 +167,14 @@ export default function SalesOrderPage() {
     };
   }, [normalizedProductQuery]);
 
+  useEffect(() => {
+    for (const product of products) {
+      if (!productUomMappings[product.id]) {
+        void ensureProductUomsLoaded(product);
+      }
+    }
+  }, [products, productUomMappings]);
+
   const totalAmount = useMemo(
     () => items.reduce((sum, item) => sum + item.qty * item.unitPrice, 0),
     [items],
@@ -116,13 +182,22 @@ export default function SalesOrderPage() {
 
   function handleSelectCustomer(nextCustomerId: string) {
     setCustomerId(nextCustomerId);
-    const customer = customers.find((item) => item.id === nextCustomerId);
+    const customer = customerCache[nextCustomerId] ?? customers.find((item) => item.id === nextCustomerId);
     setCustomerName(customer?.name ?? "");
+    setCustomerQuery(customer ? `${customer.code} - ${customer.name}` : "");
+    setCustomerResults([]);
   }
 
   function toNumericPrice(value: number | string | null | undefined) {
     const numeric = Number(value ?? 0);
     return Number.isFinite(numeric) ? numeric : 0;
+  }
+
+  function formatQuantity(value: number | string | null | undefined) {
+    const numeric = Number(value ?? 0);
+    return new Intl.NumberFormat("id-ID", {
+      maximumFractionDigits: Number.isInteger(numeric) ? 0 : 2,
+    }).format(Number.isFinite(numeric) ? numeric : 0);
   }
 
   function toSaleUomOptions(mappings: ProductUomMapping[], fallbackUnit: string) {
@@ -144,6 +219,24 @@ export default function SalesOrderPage() {
     const base = source.find((item) => Number(item.toBaseFactor) === 1);
     if (base?.uomCode) return base.uomCode;
     return source[0]?.uomCode ?? fallbackUnit ?? "pcs";
+  }
+
+  function pickLargestSaleUom(mappings: ProductUomMapping[], fallbackUnit: string) {
+    const saleMappings = mappings.filter((item) => item.isSale);
+    const source = saleMappings.length ? saleMappings : mappings;
+    const sorted = [...source].sort((left, right) => Number(right.toBaseFactor) - Number(left.toBaseFactor));
+    const largest = sorted[0];
+    if (largest?.uomCode) {
+      return {
+        code: largest.uomCode,
+        name: largest.uomName || largest.uomCode.toUpperCase(),
+      };
+    }
+    const fallbackCode = String(fallbackUnit || "pcs").toLowerCase();
+    return {
+      code: fallbackCode,
+      name: fallbackCode.toUpperCase(),
+    };
   }
 
   function resolveUnitPrice(product: Product, mappings: ProductUomMapping[], uomCode: string) {
@@ -208,6 +301,16 @@ export default function SalesOrderPage() {
         },
       ]
     );
+  }
+
+  function getProductSearchMeta(product: Product) {
+    const mappings = productUomMappings[product.id] ?? [];
+    const largestUom = pickLargestSaleUom(mappings, String(product.unit || "pcs").toLowerCase());
+    return {
+      largestUom,
+      displayPrice: resolveUnitPrice(product, mappings, largestUom.code),
+      stockBase: Number(product.currentStockBase ?? 0),
+    };
   }
 
   async function addProduct(product: Product) {
@@ -336,14 +439,69 @@ export default function SalesOrderPage() {
         <div className="text-lg font-semibold text-zinc-950">Buat Sales Order</div>
         <div className="mt-1 text-sm text-zinc-500">Mode lapangan: cepat, hemat scroll, dan aman saat sinyal tidak stabil.</div>
         <div className="mt-4 space-y-3">
-          <select value={customerId} onChange={(event) => handleSelectCustomer(event.target.value)} className="field-input">
-            <option value="">Pilih pelanggan</option>
-            {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>
-                {customer.code} - {customer.name}
-              </option>
-            ))}
-          </select>
+          <div>
+            <div className="mb-2 text-sm font-semibold text-zinc-900">Cari Pelanggan</div>
+            <div className="flex items-center gap-3 rounded-[22px] border border-zinc-200 bg-zinc-50 px-4 py-3">
+              <Search className="h-4 w-4 text-zinc-400" />
+              <input
+                value={customerQuery}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  setCustomerQuery(nextValue);
+                  if (!nextValue.trim()) {
+                    setCustomerId("");
+                    setCustomerName("");
+                  } else if (
+                    customerId &&
+                    nextValue !== `${customerCache[customerId]?.code ?? ""} - ${customerCache[customerId]?.name ?? customerName}`
+                  ) {
+                    setCustomerId("");
+                    setCustomerName("");
+                  }
+                }}
+                className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
+                placeholder="Cari nama toko atau kode pelanggan..."
+                autoComplete="off"
+              />
+            </div>
+            {showCustomerResults ? (
+              <div className="mt-2 overflow-hidden rounded-[22px] border border-zinc-200 bg-white shadow-lg">
+                {loadingCustomers ? (
+                  <div className="px-4 py-3 text-sm text-zinc-500">Mencari pelanggan...</div>
+                ) : customerResults.length ? (
+                  <div className="max-h-72 overflow-y-auto p-2">
+                    {customerResults.map((customer) => (
+                      <button
+                        key={customer.id}
+                        type="button"
+                        onClick={() => handleSelectCustomer(customer.id)}
+                        className="flex w-full items-center justify-between rounded-[18px] px-3 py-3 text-left transition hover:bg-zinc-50"
+                      >
+                        <div>
+                          <div className="text-sm font-medium text-zinc-900">{customer.name}</div>
+                          <div className="text-xs text-zinc-500">{customer.code}</div>
+                        </div>
+                        {customerId === customer.id ? (
+                          <span className="text-xs font-semibold text-emerald-700">Dipilih</span>
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="px-4 py-3 text-sm text-zinc-500">Pelanggan tidak ditemukan.</div>
+                )}
+              </div>
+            ) : !normalizedCustomerQuery ? (
+              <div className="mt-3 rounded-[22px] border border-dashed border-zinc-300 bg-zinc-50 px-4 py-4 text-sm text-zinc-500">
+                Ketik nama toko atau kode pelanggan untuk menampilkan dropdown pencarian.
+              </div>
+            ) : null}
+            {customerId && customerName ? (
+              <div className="mt-3 rounded-[22px] bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                Pelanggan terpilih: <span className="font-semibold">{customerName}</span>
+              </div>
+            ) : null}
+          </div>
           <textarea
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
@@ -376,20 +534,30 @@ export default function SalesOrderPage() {
               ) : products.length ? (
                 <div className="max-h-72 overflow-y-auto p-2">
                   {products.map((product) => (
-                    <button
-                      key={product.id}
-                      type="button"
-                      onClick={() => addProduct(product)}
-                      className="flex w-full items-center justify-between rounded-[18px] px-3 py-3 text-left transition hover:bg-zinc-50"
-                    >
-                      <div>
-                        <div className="text-sm font-medium text-zinc-900">{product.name}</div>
-                        <div className="text-xs text-zinc-500">
-                          {product.sku} • {product.unit}
-                        </div>
-                      </div>
-                      <div className="pl-3 text-sm font-semibold text-zinc-900">{formatCurrency(product.salePrice)}</div>
-                    </button>
+                    (() => {
+                      const meta = getProductSearchMeta(product);
+                      return (
+                        <button
+                          key={product.id}
+                          type="button"
+                          onClick={() => addProduct(product)}
+                          className="flex w-full items-center justify-between rounded-[18px] px-3 py-3 text-left transition hover:bg-zinc-50"
+                        >
+                          <div>
+                            <div className="text-sm font-medium text-zinc-900">{product.name}</div>
+                            <div className="text-xs text-zinc-500">
+                              {product.sku} • Stok gudang: {formatQuantity(meta.stockBase)} pcs
+                            </div>
+                            <div className="mt-1 text-xs text-emerald-700">
+                              Harga {meta.largestUom.name}: {formatCurrency(meta.displayPrice)}
+                            </div>
+                          </div>
+                          <div className="pl-3 text-right text-xs font-medium text-zinc-500">
+                            {String(meta.largestUom.code || product.unit || "pcs").toUpperCase()}
+                          </div>
+                        </button>
+                      );
+                    })()
                   ))}
                 </div>
               ) : (
