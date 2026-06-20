@@ -45,7 +45,7 @@ router.post(
               z.object({
                 productId: z.string().uuid(),
                 qty: z.coerce.number().positive(),
-                uom: z.enum(['pcs', 'pack', 'dus']),
+                uom: z.string().min(1).transform((value) => value.trim().toLowerCase()),
               }),
             )
             .min(1),
