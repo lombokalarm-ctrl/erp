@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import { apiFetch, ApiError } from "@/api/client";
 import { BarcodeScanner } from "@/components/ui/BarcodeScanner";
+import { formatDate } from "@/lib/date";
 import { fetchProductUomMappings, pickDefaultUom, toUomOptions } from "@/lib/uom";
 
 type Warehouse = { id: string; code: string; name: string };
@@ -133,7 +134,7 @@ export default function GoodsReceipts() {
               {rows.map((r) => (
                 <tr key={r.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                   <td className="px-4 py-2 font-medium">{r.grnNo}</td>
-                  <td className="px-4 py-2">{r.receivedDate}</td>
+                  <td className="px-4 py-2">{formatDate(r.receivedDate)}</td>
                   <td className="px-4 py-2">{r.warehouseCode}</td>
                 </tr>
               ))}

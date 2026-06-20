@@ -4,6 +4,7 @@ import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { exportToCSV, printTable } from "@/lib/exportUtils";
+import { formatDate } from "@/lib/date";
 import { Printer, Download, RotateCcw } from "lucide-react";
 
 type ReturnReportData = {
@@ -59,7 +60,7 @@ export default function ReturnReport() {
     const rows = data.details.map(d => [
       d.returnNo,
       d.type === 'SALES_RETURN' ? 'Dari Pelanggan' : 'Ke Supplier',
-      d.returnDate,
+      formatDate(d.returnDate),
       d.partnerName,
       d.referenceNo || '-',
       d.sku,
@@ -76,7 +77,7 @@ export default function ReturnReport() {
     const rows = data.details.map(d => [
       d.returnNo,
       d.type === 'SALES_RETURN' ? 'Dari Pelanggan' : 'Ke Supplier',
-      d.returnDate,
+      formatDate(d.returnDate),
       d.partnerName,
       `${d.productName} (${d.sku})`,
       d.qty,
@@ -175,7 +176,7 @@ export default function ReturnReport() {
                     <tr key={idx} className="border-b border-zinc-100 hover:bg-zinc-50">
                       <td className="px-4 py-3">
                         <div className="font-medium text-indigo-600">{d.returnNo}</div>
-                        <div className="text-xs text-zinc-500">{d.returnDate}</div>
+                        <div className="text-xs text-zinc-500">{formatDate(d.returnDate)}</div>
                       </td>
                       <td className="px-4 py-3">
                         <div className="mb-1">

@@ -1,5 +1,6 @@
 import { useSettingsStore } from "@/stores/settingsStore";
 import * as XLSX from "xlsx";
+import { formatDateTime } from "@/lib/date";
 
 function escapeHtml(value?: string | null) {
   return String(value ?? "")
@@ -122,7 +123,7 @@ export function printTable(title: string, headers: string[], rows: (string | num
           </tbody>
         </table>
         <div style="margin-top: 20px; text-align: right; font-size: 10px; color: #888;">
-          Dicetak pada: ${new Date().toLocaleString('id-ID')}
+          Dicetak pada: ${formatDateTime(new Date().toISOString())}
         </div>
       </body>
     </html>
@@ -213,7 +214,7 @@ export function printSections(
         <h1>${escapeHtml(title)}</h1>
         ${sectionHtml}
         <div style="margin-top: 20px; text-align: right; font-size: 10px; color: #888;">
-          Dicetak pada: ${new Date().toLocaleString('id-ID')}
+          Dicetak pada: ${formatDateTime(new Date().toISOString())}
         </div>
       </body>
     </html>

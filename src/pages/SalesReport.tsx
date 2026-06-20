@@ -6,6 +6,7 @@ import { apiDownload, apiFetch, ApiError } from "@/api/client";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Printer, Download } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/numberFormat";
+import { formatDate } from "@/lib/date";
 
 type SalesReportData = {
   summary: {
@@ -63,7 +64,7 @@ export default function SalesReport() {
   }, []);
 
   const chartData = data?.daily.map(d => ({
-    date: d.date.slice(5), // MM-DD
+    date: formatDate(d.date),
     revenue: Number(d.revenue)
   })).reverse() || [];
 

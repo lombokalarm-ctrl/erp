@@ -8,6 +8,7 @@ import SearchableSelect from "@/components/ui/SearchableSelect";
 import { apiFetch, ApiError } from "@/api/client";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { formatCurrency, formatQuantity } from "@/lib/numberFormat";
+import { formatDate, formatDateTime } from "@/lib/date";
 import { fetchProductUomMappings, pickDefaultUom, toUomOptions, type ProductUomMapping } from "@/lib/uom";
 
 type Customer = { id: string; name: string; code: string; category: string };
@@ -431,7 +432,7 @@ export default function SalesOrders() {
             <div class="meta">
               <div class="meta-box">
                 <div><strong>No. SO :</strong> ${detail.orderNo}</div>
-                <div><strong>Tanggal:</strong> ${detail.orderDate}</div>
+                <div><strong>Tanggal:</strong> ${formatDate(detail.orderDate)}</div>
                 <div><strong>Status :</strong> ${escapeHtml(formatSalesOrderPrintStatus(detail.status))}</div>
               </div>
               <div class="meta-box">
@@ -562,7 +563,7 @@ export default function SalesOrders() {
                     {o.orderNo}
                   </td>
                   <td className="px-4 py-2">{o.customerName}</td>
-                  <td className="px-4 py-2 text-zinc-600">{o.orderDate}</td>
+                  <td className="px-4 py-2 text-zinc-600">{formatDate(o.orderDate)}</td>
                   <td className="px-4 py-2">
                     <span
                       className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
@@ -814,7 +815,7 @@ export default function SalesOrders() {
               </button>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-              <div><span className="text-zinc-500">Tanggal:</span> {viewOrder.orderDate}</div>
+              <div><span className="text-zinc-500">Tanggal:</span> {formatDate(viewOrder.orderDate)}</div>
               <div><span className="text-zinc-500">Status SO:</span> {viewOrder.status}</div>
               <div><span className="text-zinc-500">Status Kirim:</span> {viewOrder.deliveryStatus}</div>
               <div><span className="text-zinc-500">Total:</span> {formatCurrency(viewOrder.totalAmount)}</div>
@@ -830,7 +831,7 @@ export default function SalesOrders() {
                     <div key={approval.id} className="space-y-3 px-4 py-4 text-sm">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="font-medium text-zinc-800">
-                          Request oleh {approval.requestedByName} pada {new Date(approval.requestedAt).toLocaleString("id-ID")}
+                          Request oleh {approval.requestedByName} pada {formatDateTime(approval.requestedAt)}
                         </div>
                         <span
                           className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
@@ -868,7 +869,7 @@ export default function SalesOrders() {
                             Approver: {approval.approverName || "-"}
                           </div>
                           <div className="text-xs text-zinc-500">
-                            Diproses: {approval.processedAt ? new Date(approval.processedAt).toLocaleString("id-ID") : "-"}
+                            Diproses: {approval.processedAt ? formatDateTime(approval.processedAt) : "-"}
                           </div>
                         </div>
                       </div>

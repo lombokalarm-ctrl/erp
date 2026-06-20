@@ -5,6 +5,7 @@ import { apiFetch } from "@/api/client";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { ArrowRight, AlertTriangle, AlertCircle, ShoppingCart, Users, Wallet, Activity } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/numberFormat";
+import { formatDate } from "@/lib/date";
 
 type DashboardData = {
   kpi: {
@@ -47,7 +48,7 @@ export default function Dashboard() {
   }, []);
 
   const chartData = data?.trend.map(d => ({
-    date: d.date.slice(5),
+    date: formatDate(d.date),
     Omzet: d.revenue
   })) || [];
 
@@ -194,7 +195,7 @@ export default function Dashboard() {
                         </span>
                       </div>
                       <div className="text-xs text-zinc-600">{inv.customerName}</div>
-                      <div className="text-[10px] text-zinc-500 mt-1">Jatuh tempo: <span className="font-medium text-red-600">{inv.dueDate}</span></div>
+                      <div className="text-[10px] text-zinc-500 mt-1">Jatuh tempo: <span className="font-medium text-red-600">{formatDate(inv.dueDate)}</span></div>
                     </div>
                   ))}
                 </div>

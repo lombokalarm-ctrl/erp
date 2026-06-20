@@ -5,6 +5,7 @@ import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { exportToCSV, printTable } from "@/lib/exportUtils";
 import { formatCurrency } from "@/lib/numberFormat";
+import { formatDate } from "@/lib/date";
 import { Download, Printer } from "lucide-react";
 
 type PurchaseReportData = {
@@ -182,7 +183,7 @@ export default function PurchaseReport() {
                       <tr key={row.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                         <td className="px-4 py-3">
                           <div className="font-medium">{row.poNo}</div>
-                          <div className="text-xs text-zinc-500">{row.orderDate} • {row.status}</div>
+                          <div className="text-xs text-zinc-500">{formatDate(row.orderDate)} • {row.status}</div>
                         </td>
                         <td className="px-4 py-3">{row.supplierName}</td>
                         <td className="whitespace-nowrap px-4 py-3 text-right">{formatCurrency(row.totalAmount)}</td>

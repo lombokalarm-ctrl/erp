@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import { apiFetch, ApiError } from "@/api/client";
 import { formatCurrency } from "@/lib/numberFormat";
+import { formatDate } from "@/lib/date";
 import { fetchProductUomMappings, pickDefaultUom, toUomOptions, type ProductUomMapping } from "@/lib/uom";
 
 type Supplier = { id: string; code: string; name: string };
@@ -127,7 +128,7 @@ export default function PurchaseOrders() {
                 <tr key={r.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                   <td className="px-4 py-2 font-medium">{r.poNo}</td>
                   <td className="px-4 py-2">{r.supplierName}</td>
-                  <td className="px-4 py-2">{r.orderDate}</td>
+                  <td className="px-4 py-2">{formatDate(r.orderDate)}</td>
                   <td className="px-4 py-2">{r.status}</td>
                   <td className="whitespace-nowrap px-4 py-2 text-right">{formatCurrency(r.totalAmount)}</td>
                 </tr>

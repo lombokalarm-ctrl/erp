@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import { apiFetch, ApiError } from "@/api/client";
 import { RotateCcw } from "lucide-react";
+import { formatDate } from "@/lib/date";
 import { fetchProductUomMappings, pickDefaultUom, toUomOptions } from "@/lib/uom";
 
 type ReturnRow = {
@@ -258,7 +259,7 @@ export default function Returns() {
                       {r.status}
                     </span>
                   </td>
-                  <td className="px-4 py-2 text-zinc-600">{r.returnDate}</td>
+                  <td className="px-4 py-2 text-zinc-600">{formatDate(r.returnDate)}</td>
                   <td className="px-4 py-2 text-xs text-zinc-500">{r.referenceNo || '-'}</td>
                   <td className="px-4 py-2 text-xs text-zinc-600">{r.creditNoteNo || "-"}</td>
                   <td className="px-4 py-2 text-right">

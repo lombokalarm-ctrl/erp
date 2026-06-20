@@ -5,6 +5,7 @@ import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { Camera, Download, MapPinned, Printer, RefreshCcw } from "lucide-react";
 import { exportToCSV, printTable } from "@/lib/exportUtils";
+import { formatDateTime } from "@/lib/date";
 
 type VisitStatus = "OPEN" | "CLOSED" | "NOT_FOUND" | "FOLLOW_UP";
 
@@ -38,19 +39,15 @@ const statusOptions: Array<{ value: "" | VisitStatus; label: string }> = [
   { value: "FOLLOW_UP", label: "Perlu follow up" },
 ];
 
-function formatDateTime(value: string | null | undefined) {
-  if (!value) return "-";
-  return new Date(value).toLocaleString("id-ID", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 function getStatusLabel(status: VisitStatus) {
   return statusOptions.find((item) => item.value === status)?.label ?? status;
+}
+
+function getStatusTone(status: VisitStatus) {
+  if (status === "OPEN") return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+  if (status === "FOLLOW_UP") return "bg-amber-50 text-amber-700 ring-amber-200";
+  if (status === "CLOSED") return "bg-zinc-100 text-zinc-700 ring-zinc-200";
+  return "bg-rose-50 text-rose-700 ring-rose-200";
 }
 
 export default function SalesVisitReport() {
@@ -255,36 +252,96 @@ export default function SalesVisitReport() {
                     {isExpanded ? (
                       <tr className="border-b border-zinc-100 bg-zinc-50/70">
                         <td colSpan={5} className="px-4 py-3">
-                          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                            <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm">
-                              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Status</div>
-                              <div className="mt-2 font-medium text-zinc-900">{getStatusLabel(item.visitStatus)}</div>
-                            </div>
-                            <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm">
-                              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Koordinat</div>
-                              <div className="mt-2 font-medium text-zinc-900">
-                                {item.latitude.toFixed(6)}, {item.longitude.toFixed(6)}
+                          <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+                            <div className="flex flex-col gap-3 border-b border-zinc-200 pb-4 md:flex-row md:items-start md:justify-between">
+                              <div>
+                                <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Detail Kunjungan</div>
+                                <div className="mt-2 text-base font-semibold text-zinc-950">{item.customerName ?? "-"}</div>
+                                <div className="mt-1 text-sm text-zinc-500">
+                                  {item.customerCode ?? "-"} · {item.salesName ?? "-"} · {formatDateTime(item.visitedAt)}
+                                </div>
                               </div>
-                              <div className="mt-1 text-zinc-500">
-                                Akurasi: {item.accuracyMeters ? `${Math.round(item.accuracyMeters)} m` : "-"}
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span
+                                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ${getStatusTone(item.visitStatus)}`}
+                                >
+                                  {getStatusLabel(item.visitStatus)}
+                                </span>
+                                <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700 ring-1 ring-sky-200">
+                                  <Camera className="h-3.5 w-3.5" />
+                                  {item.photos.length} foto
+                                </span>
                               </div>
                             </div>
-                            <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm">
-                              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Tag Lokasi</div>
-                              <div className="mt-2 font-medium text-zinc-900">{formatDateTime(item.locationCapturedAt)}</div>
-                              <a
-                                href={`https://www.google.com/maps?q=${item.latitude},${item.longitude}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="mt-1 inline-flex items-center gap-1 text-sky-700 hover:underline"
-                              >
-                                <MapPinned className="h-4 w-4" />
-                                Buka di Google Maps
-                              </a>
-                            </div>
-                            <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm">
-                              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Catatan</div>
-                              <div className="mt-2 whitespace-pre-wrap text-zinc-700">{item.note || "-"}</div>
+
+                            <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+                              <div className="grid gap-3 md:grid-cols-2">
+                                <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm">
+                                  <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Koordinat</div>
+                                  <div className="mt-2 font-medium text-zinc-900">
+                                    {item.latitude.toFixed(6)}, {item.longitude.toFixed(6)}
+                                  </div>
+                                  <div className="mt-1 text-zinc-500">
+                                    Akurasi: {item.accuracyMeters ? `${Math.round(item.accuracyMeters)} m` : "-"}
+                                  </div>
+                                </div>
+                                <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm">
+                                  <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Tag Lokasi</div>
+                                  <div className="mt-2 font-medium text-zinc-900">{formatDateTime(item.locationCapturedAt)}</div>
+                                  <a
+                                    href={`https://www.google.com/maps?q=${item.latitude},${item.longitude}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="mt-2 inline-flex items-center gap-1 text-sky-700 hover:underline"
+                                  >
+                                    <MapPinned className="h-4 w-4" />
+                                    Buka di Google Maps
+                                  </a>
+                                </div>
+                                <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm md:col-span-2">
+                                  <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Catatan Lapangan</div>
+                                  <div className="mt-2 whitespace-pre-wrap leading-6 text-zinc-700">{item.note || "-"}</div>
+                                </div>
+                              </div>
+
+                              <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">File Foto</div>
+                                  <div className="text-xs text-zinc-500">{item.photos.length} lampiran</div>
+                                </div>
+                                {item.photos.length ? (
+                                  <div className="mt-3 space-y-2">
+                                    {item.photos.map((photo, photoIndex) => (
+                                      <div
+                                        key={photo.id}
+                                        className="rounded-lg border border-zinc-200 bg-white px-3 py-2"
+                                      >
+                                        <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                                          <div className="min-w-0">
+                                            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                                              Foto {photoIndex + 1}
+                                            </div>
+                                            <div className="truncate font-medium text-zinc-900">{photo.originalName}</div>
+                                            <div className="text-xs text-zinc-500">
+                                              {formatDateTime(photo.capturedAt)}
+                                            </div>
+                                          </div>
+                                          <a
+                                            href={photo.url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-sm font-medium text-sky-700 hover:underline"
+                                          >
+                                            Buka file
+                                          </a>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="mt-3 text-zinc-500">Tidak ada file foto pada kunjungan ini.</div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </td>

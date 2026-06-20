@@ -5,6 +5,7 @@ import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { formatCurrency } from "@/lib/numberFormat";
+import { formatDate } from "@/lib/date";
 
 type InvoiceRow = {
   id: string;
@@ -20,26 +21,56 @@ type InvoiceRow = {
   status: string;
 };
 
+type InvoiceListResponse = {
+  data: InvoiceRow[];
+  meta?: {
+    total?: number;
+  };
+};
+
 export default function Invoices() {
   const [q, setQ] = useState("");
+  const [appliedQ, setAppliedQ] = useState("");
   const [items, setItems] = useState<InvoiceRow[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
 
-  async function load() {
+  async function load(nextPage = page, nextPageSize = pageSize, nextQ = appliedQ) {
     setError(null);
+    setLoading(true);
     try {
-      const res = await apiFetch<{ data: InvoiceRow[] }>(
-        "/api/v1/invoices?page=1&pageSize=50&q=" + encodeURIComponent(q),
+      const params = new URLSearchParams({
+        page: String(nextPage),
+        pageSize: String(nextPageSize),
+        q: nextQ,
+      });
+      const res = await apiFetch<InvoiceListResponse>(
+        `/api/v1/invoices?${params.toString()}`,
       );
       setItems(res.data);
+      setTotal(Number(res.meta?.total ?? 0));
+      setPage(nextPage);
+      setPageSize(nextPageSize);
+      setAppliedQ(nextQ);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Gagal memuat data");
+    } finally {
+      setLoading(false);
     }
   }
 
   useEffect(() => {
-    load();
+    void load();
   }, []);
+
+  const startItem = items.length === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endItem = items.length === 0 ? 0 : startItem + items.length - 1;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const canGoPrev = page > 1 && !loading;
+  const canGoNext = page < totalPages && !loading;
 
   return (
     <div className="space-y-4">
@@ -52,8 +83,13 @@ export default function Invoices() {
           <div className="w-full md:w-72">
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nomor invoice / pelanggan..." />
           </div>
-          <Button variant="secondary" onClick={load}>
-            Cari
+          <Button
+            variant="secondary"
+            onClick={() => {
+              void load(1, pageSize, q);
+            }}
+          >
+            {loading ? "Memuat..." : "Cari"}
           </Button>
         </div>
       </div>
@@ -93,8 +129,8 @@ export default function Invoices() {
                     </Link>
                   </td>
                   <td className="px-4 py-3">{i.customerName}</td>
-                  <td className="px-4 py-3">{i.invoiceDate}</td>
-                  <td className="px-4 py-3">{i.dueDate}</td>
+                  <td className="px-4 py-3">{formatDate(i.invoiceDate)}</td>
+                  <td className="px-4 py-3">{formatDate(i.dueDate)}</td>
                   <td className="px-4 py-3">
                     <span className={`rounded-full px-2 py-0.5 text-xs ${
                       i.status === "PAID"
@@ -122,6 +158,52 @@ export default function Invoices() {
               ) : null}
             </tbody>
           </table>
+        </div>
+        <div className="flex flex-col gap-3 border-t border-zinc-200 bg-zinc-50 px-4 py-3 text-sm md:flex-row md:items-center md:justify-between">
+          <div className="text-zinc-600">
+            Menampilkan {startItem}-{endItem} dari {total} invoice
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <label className="flex items-center gap-2 text-zinc-600">
+              <span>Baris</span>
+              <select
+                className="h-9 rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                value={pageSize}
+                onChange={(e) => {
+                  const nextPageSize = Number(e.target.value);
+                  void load(1, nextPageSize, appliedQ);
+                }}
+                disabled={loading}
+              >
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </label>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                disabled={!canGoPrev}
+                onClick={() => {
+                  void load(page - 1, pageSize, appliedQ);
+                }}
+              >
+                Prev
+              </Button>
+              <span className="min-w-[88px] text-center text-zinc-600">
+                Hal {page} / {totalPages}
+              </span>
+              <Button
+                variant="secondary"
+                disabled={!canGoNext}
+                onClick={() => {
+                  void load(page + 1, pageSize, appliedQ);
+                }}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </div>
       </Card>
     </div>

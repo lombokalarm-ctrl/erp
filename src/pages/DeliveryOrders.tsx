@@ -8,6 +8,7 @@ import { BarcodeScanner } from "@/components/ui/BarcodeScanner";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useAuthStore } from "@/stores/authStore";
 import { formatCurrency } from "@/lib/numberFormat";
+import { formatDate } from "@/lib/date";
 
 type SalesOrderRow = {
   id: string;
@@ -126,7 +127,7 @@ export default function DeliveryOrders() {
             <div class="meta">
               <div class="meta-box">
                 <div><strong>No. Surat Jalan :</strong> ${doData.doNo}</div>
-                <div><strong>Tanggal:</strong> ${doData.deliveryDate}</div>
+                <div><strong>Tanggal:</strong> ${formatDate(doData.deliveryDate)}</div>
                 <div><strong>No. SO :</strong> ${doData.soNo}</div>
               </div>
               <div class="meta-box">
@@ -239,7 +240,7 @@ export default function DeliveryOrders() {
                 <tr key={o.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                   <td className="px-4 py-2 font-medium">{o.orderNo}</td>
                   <td className="px-4 py-2">{o.customerName}</td>
-                  <td className="px-4 py-2">{o.orderDate}</td>
+                  <td className="px-4 py-2">{formatDate(o.orderDate)}</td>
                   <td className="px-4 py-2">
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs ${

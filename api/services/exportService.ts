@@ -2,6 +2,7 @@ import * as XLSX from "xlsx";
 import { getCompanySettings } from "./settingService.js";
 import { listInventoryTransfers, listReplenishmentSuggestions } from "./inventoryService.js";
 import { getProfitLossReport, getSalesReport, getStockReport } from "./reportService.js";
+import { formatDateTime } from "../lib/date.js";
 import { buildSimplePdfLines, createSimplePdfBuffer } from "../lib/simplePdf.js";
 
 export type ExportFormat = "xlsx" | "pdf";
@@ -37,7 +38,7 @@ function makePdfBuffer(args: {
   const lines = buildSimplePdfLines({
     companyName: args.companyName,
     title: args.title,
-    printedAt: new Date().toLocaleString("id-ID"),
+    printedAt: formatDateTime(new Date().toISOString()),
     sections: args.sections,
   });
   return createSimplePdfBuffer(args.title, lines);

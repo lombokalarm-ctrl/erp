@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import { apiDownload, apiFetch, ApiError } from "@/api/client";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import { useAuthStore } from "@/stores/authStore";
+import { formatDate, formatDateTime } from "@/lib/date";
 
 type SummaryRow = {
   productId: string;
@@ -523,7 +524,7 @@ export default function Inventory() {
               <tbody>
                 {txRows.map((t) => (
                   <tr key={t.id} className="border-b border-zinc-100 hover:bg-zinc-50">
-                    <td className="px-4 py-2">{new Date(t.createdAt).toLocaleString('id-ID')}</td>
+                    <td className="px-4 py-2">{formatDateTime(t.createdAt)}</td>
                     <td className="px-4 py-2 font-medium">
                       <div className="text-zinc-900">{t.sku}</div>
                       <div className="text-xs text-zinc-500 font-normal">{t.productName}</div>
@@ -789,7 +790,7 @@ export default function Inventory() {
                       <tr key={row.approvalId} className="border-b border-zinc-100 hover:bg-zinc-50">
                         <td className="px-4 py-2 font-medium">{row.requestNo}</td>
                         <td className="px-4 py-2">L{row.level}</td>
-                        <td className="px-4 py-2">{row.transferDate}</td>
+                        <td className="px-4 py-2">{formatDate(row.transferDate)}</td>
                         <td className="px-4 py-2">{row.sourceWarehouseCode}</td>
                         <td className="px-4 py-2">{row.targetWarehouseCode}</td>
                         <td className="px-4 py-2 text-right">{Number(row.itemCount || 0)}</td>
@@ -839,7 +840,7 @@ export default function Inventory() {
                   {transferRows.map((row) => (
                     <tr key={row.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                       <td className="px-4 py-2 font-medium">{row.transferNo}</td>
-                      <td className="px-4 py-2">{row.transferDate}</td>
+                      <td className="px-4 py-2">{formatDate(row.transferDate)}</td>
                       <td className="px-4 py-2">{row.sourceWarehouseCode}</td>
                       <td className="px-4 py-2">{row.targetWarehouseCode}</td>
                       <td className="px-4 py-2 text-right">{Number(row.itemCount || 0)}</td>

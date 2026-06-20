@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { apiFetch } from "@/api/client";
+import { formatDateTime } from "@/lib/date";
 
 type AuditLog = {
   id: string;
@@ -51,7 +52,7 @@ export default function AuditLogs() {
             <tbody>
               {items.map((l) => (
                 <tr key={l.id} className="border-b border-zinc-100 hover:bg-zinc-50">
-                  <td className="px-4 py-3">{new Date(l.createdAt).toLocaleString("id-ID")}</td>
+                  <td className="px-4 py-3">{formatDateTime(l.createdAt)}</td>
                   <td className="px-4 py-3">{l.actorEmail ?? "-"}</td>
                   <td className="px-4 py-3 font-medium">{l.action}</td>
                   <td className="px-4 py-3">

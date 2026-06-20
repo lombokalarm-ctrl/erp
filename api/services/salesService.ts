@@ -3,6 +3,7 @@ import type { JwtUser } from '../auth/jwt.js'
 import { getPool } from '../db/pool.js'
 import { withTransaction } from '../db/tx.js'
 import { ApiError } from '../lib/http.js'
+import { formatDate, formatDateTime } from '../lib/date.js'
 import { createSalesOrderPdfBuffer } from '../lib/simplePdf.js'
 import {
   getCustomerCreditProfile,
@@ -684,10 +685,10 @@ export async function exportSalesOrderPdf(soId: string, actor?: SalesOrderActor)
     buffer: createSalesOrderPdfBuffer({
       companyName: company.name || 'PT ERP DISTRIBUTOR FNB',
       title: `Sales Order ${detail.orderNo}`,
-      printedAt: new Date().toLocaleString('id-ID'),
+      printedAt: formatDateTime(new Date().toISOString()),
       orderInfo: [
         ['No. SO', detail.orderNo],
-        ['Tanggal', detail.orderDate],
+        ['Tanggal', formatDate(detail.orderDate)],
         ['Pelanggan', `${detail.customerCode} - ${detail.customerName}`],
         ['Status', formatSalesOrderStatusLabel(detail.status)],
         ['Status Kirim', detail.deliveryStatus || '-'],

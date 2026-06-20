@@ -4,6 +4,7 @@ import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { ApiError, apiFetch } from "@/api/client";
 import { formatCurrency } from "@/lib/numberFormat";
+import { formatDateTime } from "@/lib/date";
 
 type CreditNoteRow = {
   id: string;
@@ -204,7 +205,7 @@ export default function CreditNotes() {
                 <tbody>
                   {selected.applies.map((ap) => (
                     <tr key={ap.id} className="border-b border-zinc-100">
-                      <td className="px-3 py-2">{new Date(ap.applyDate).toLocaleString("id-ID")}</td>
+                      <td className="px-3 py-2">{formatDateTime(ap.applyDate)}</td>
                       <td className="px-3 py-2">{ap.invoiceNo}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">{formatCurrency(ap.amount)}</td>
                     </tr>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
+import { formatDateTime } from "@/lib/date";
 
 type Customer = { id: string; name: string; code: string };
 
@@ -151,7 +152,7 @@ export default function StoreAnalysis() {
                 {analysis.scores.map((s, idx) => (
                   <div key={idx} className="flex items-center justify-between rounded-lg border border-zinc-200 px-3 py-2 text-sm">
                     <div className="font-medium">{s.score} ({s.grade})</div>
-                    <div className="text-xs text-zinc-500">{new Date(s.calculatedAt).toLocaleString("id-ID")}</div>
+                    <div className="text-xs text-zinc-500">{formatDateTime(s.calculatedAt)}</div>
                   </div>
                 ))}
                 {analysis.scores.length === 0 ? (

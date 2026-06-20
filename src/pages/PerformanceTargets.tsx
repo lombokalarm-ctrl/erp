@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { formatCurrency, formatNumber } from "@/lib/numberFormat";
 import { useAuthStore } from "@/stores/authStore";
+import { formatDateTime } from "@/lib/date";
 
 type Region = {
   id: string;
@@ -648,7 +649,7 @@ export default function PerformanceTargets() {
               {formatStatusLabel(detail.status)}
             </span>
             {detail.finalizedAt ? (
-              <span className="text-zinc-500">Difinalkan: {new Date(detail.finalizedAt).toLocaleString("id-ID")}</span>
+              <span className="text-zinc-500">Difinalkan: {formatDateTime(detail.finalizedAt)}</span>
             ) : null}
             {isLocked ? <span className="text-zinc-500">Gunakan `Buka Edit` jika ada revisi setelah final.</span> : null}
           </div>

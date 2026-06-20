@@ -7,6 +7,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { exportToCSV, printTable } from "@/lib/exportUtils";
 import { Printer, Download } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/numberFormat";
+import { formatDate } from "@/lib/date";
 
 type CollectionReportData = {
   summary: {
@@ -57,7 +58,7 @@ export default function CollectionReport() {
   }, []);
 
   const chartData = data?.daily.map(d => ({
-    date: d.date.slice(5),
+    date: formatDate(d.date),
     Cash: Number(d.cash),
     Transfer: Number(d.transfer),
   })).reverse() || [];
@@ -66,7 +67,7 @@ export default function CollectionReport() {
     if (!data) return;
     const headers = ["Tanggal", "Pelanggan", "No Invoice", "Metode", "Nominal"];
     const rows = data.latestPayments.map(p => [
-      new Date(p.paidAt).toLocaleDateString("id-ID"),
+      formatDate(p.paidAt),
       p.customerName,
       p.invoiceNo,
       p.method,
@@ -79,7 +80,7 @@ export default function CollectionReport() {
     if (!data) return;
     const headers = ["Tanggal", "Pelanggan", "No Invoice", "Metode", "Nominal"];
     const rows = data.latestPayments.map(p => [
-      new Date(p.paidAt).toLocaleDateString("id-ID"),
+      formatDate(p.paidAt),
       p.customerName,
       p.invoiceNo,
       p.method,
@@ -184,7 +185,7 @@ export default function CollectionReport() {
                     {data.latestPayments.map((p) => (
                       <tr key={p.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                         <td className="px-4 py-3">
-                          <div className="font-medium">{new Date(p.paidAt).toLocaleDateString("id-ID")}</div>
+                          <div className="font-medium">{formatDate(p.paidAt)}</div>
                           <div className="text-xs text-zinc-500">{p.method}</div>
                         </td>
                         <td className="px-4 py-3">

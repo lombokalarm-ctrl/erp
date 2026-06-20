@@ -5,6 +5,7 @@ import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { formatCurrency } from "@/lib/numberFormat";
+import { formatDate } from "@/lib/date";
 
 type Promo = {
   id: string;
@@ -185,9 +186,9 @@ export default function Promos() {
                     <div className="text-xs text-zinc-500">Min: {p.minQty} pcs</div>
                   </td>
                   <td className="px-4 py-3 text-xs">
-                    {p.startDate ? new Date(p.startDate).toLocaleDateString('id-ID') : 'Selamanya'}
+                    {p.startDate ? formatDate(p.startDate) : 'Selamanya'}
                     {' - '}
-                    {p.endDate ? new Date(p.endDate).toLocaleDateString('id-ID') : 'Selamanya'}
+                    {p.endDate ? formatDate(p.endDate) : 'Selamanya'}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span className={`px-2 py-0.5 rounded-full text-[10px] ${p.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-zinc-200 text-zinc-600'}`}>

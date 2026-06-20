@@ -4,6 +4,7 @@ import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { ShieldAlert, Check, X, ChevronDown, ChevronUp } from "lucide-react";
 import { formatCurrency } from "@/lib/numberFormat";
+import { formatDate, formatDateTime } from "@/lib/date";
 
 type ReasonType = "CREDIT_LIMIT" | "DOCUMENT_LIMIT";
 type ApprovalDocument = {
@@ -196,7 +197,7 @@ export default function ApprovalOrders() {
                   <Fragment key={r.approvalId}>
                     <tr key={r.approvalId} className="border-b border-zinc-100 hover:bg-zinc-50">
                       <td className="px-4 py-3">
-                        <div className="font-medium text-zinc-800">{new Date(r.requestedAt).toLocaleDateString('id-ID')}</div>
+                        <div className="font-medium text-zinc-800">{formatDate(r.requestedAt)}</div>
                         <div className="text-xs text-zinc-500">Oleh: {r.requestedByName}</div>
                       </td>
                       <td className="px-4 py-3">
@@ -382,7 +383,7 @@ export default function ApprovalOrders() {
             ) : detailOrder ? (
               <div className="space-y-4">
                 <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                  <div><span className="text-zinc-500">Tanggal:</span> {detailOrder.orderDate}</div>
+                  <div><span className="text-zinc-500">Tanggal:</span> {formatDate(detailOrder.orderDate)}</div>
                   <div><span className="text-zinc-500">Status SO:</span> {detailOrder.status}</div>
                   <div><span className="text-zinc-500">Status Kirim:</span> {detailOrder.deliveryStatus}</div>
                   <div><span className="text-zinc-500">Total:</span> {formatCurrency(detailOrder.totalAmount)}</div>
@@ -400,7 +401,7 @@ export default function ApprovalOrders() {
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="flex flex-wrap items-center gap-2 font-medium text-zinc-800">
                               <span>
-                                Request oleh {approval.requestedByName} pada {new Date(approval.requestedAt).toLocaleString("id-ID")}
+                                Request oleh {approval.requestedByName} pada {formatDateTime(approval.requestedAt)}
                               </span>
                               {index === 0 ? (
                                 <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
@@ -444,7 +445,7 @@ export default function ApprovalOrders() {
                                 Approver: {approval.approverName || "-"}
                               </div>
                               <div className="text-xs text-zinc-500">
-                                Diproses: {approval.processedAt ? new Date(approval.processedAt).toLocaleString("id-ID") : "-"}
+                                Diproses: {approval.processedAt ? formatDateTime(approval.processedAt) : "-"}
                               </div>
                             </div>
                           </div>

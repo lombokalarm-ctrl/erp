@@ -5,6 +5,7 @@ import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { formatCurrency } from "@/lib/numberFormat";
+import { formatDate, formatDateTime } from "@/lib/date";
 
 type InvoiceState = {
   id: string;
@@ -143,8 +144,8 @@ export default function InvoiceDetail() {
             <div class="meta">
               <div class="meta-box">
                 <div><strong>No. Faktur :</strong> ${inv.invoiceNo}</div>
-                <div><strong>Tanggal    :</strong> ${inv.invoiceDate}</div>
-                <div><strong>Jatuh Tempo:</strong> ${inv.dueDate}</div>
+                <div><strong>Tanggal    :</strong> ${formatDate(inv.invoiceDate)}</div>
+                <div><strong>Jatuh Tempo:</strong> ${formatDate(inv.dueDate)}</div>
                 <div><strong>No. SO     :</strong> ${inv.soNo || '-'}</div>
               </div>
               <div class="meta-box">
@@ -269,7 +270,7 @@ export default function InvoiceDetail() {
                 <div>${p.customerCode} - ${p.customerName}</div>
               </div>
               <div class="meta-box">
-                <div><strong>Tanggal Bayar:</strong> ${new Date(p.paidAt).toLocaleDateString("id-ID")}</div>
+                <div><strong>Tanggal Bayar:</strong> ${formatDate(p.paidAt)}</div>
                 <div><strong>No. Faktur   :</strong> ${p.invoiceNo}</div>
                 <div><strong>Metode       :</strong> ${escapeHtml(formatPaymentMethodLabel(p.method))}</div>
               </div>
@@ -348,11 +349,11 @@ export default function InvoiceDetail() {
             <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
               <div>
                 <div className="text-xs font-medium text-zinc-500">Tanggal</div>
-                <div className="mt-1 font-medium">{invoice.invoiceDate}</div>
+                <div className="mt-1 font-medium">{formatDate(invoice.invoiceDate)}</div>
               </div>
               <div>
                 <div className="text-xs font-medium text-zinc-500">Jatuh Tempo</div>
-                <div className="mt-1 font-medium">{invoice.dueDate}</div>
+                <div className="mt-1 font-medium">{formatDate(invoice.dueDate)}</div>
               </div>
               <div>
                 <div className="text-xs font-medium text-zinc-500">Total</div>
@@ -388,7 +389,7 @@ export default function InvoiceDetail() {
                 <tbody>
                   {payments.map((p) => (
                     <tr key={p.id} className="border-b border-zinc-100">
-                      <td className="px-4 py-2">{new Date(p.paidAt).toLocaleString("id-ID")}</td>
+                      <td className="px-4 py-2">{formatDateTime(p.paidAt)}</td>
                       <td className="px-4 py-2">{p.method}</td>
                       <td className="whitespace-nowrap px-4 py-2 text-right">{formatCurrency(p.amount)}</td>
                       <td className="px-4 py-2 text-right">

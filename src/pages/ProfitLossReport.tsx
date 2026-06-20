@@ -6,6 +6,7 @@ import { apiDownload, apiFetch, ApiError } from "@/api/client";
 import { Printer, Download } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatCurrency, formatCurrencyCompact } from "@/lib/numberFormat";
+import { formatDate } from "@/lib/date";
 
 type ProfitLossData = {
   summary: {
@@ -99,7 +100,7 @@ export default function ProfitLossReport() {
   }, []);
 
   const chartData = data?.trend.map(d => ({
-    date: d.date.slice(5), // MM-DD
+    date: formatDate(d.date),
     'Laba Kotor': Number(d.grossProfit),
     'Net Sales': Number(d.netSales)
   })).reverse() || [];

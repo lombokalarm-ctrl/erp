@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import { apiFetch, ApiError } from "@/api/client";
 import { formatCurrency } from "@/lib/numberFormat";
+import { formatDate } from "@/lib/date";
 import { fetchProductUomMappings, pickDefaultUom, toUomOptions, type ProductUomMapping } from "@/lib/uom";
 
 type Warehouse = { id: string; code: string; name: string };
@@ -250,8 +251,8 @@ export default function PurchaseInvoices() {
                   <td className="px-4 py-2">{r.supplierInvoiceNo || "-"}</td>
                   <td className="px-4 py-2">{r.supplierName}</td>
                   <td className="px-4 py-2">{r.warehouseCode}</td>
-                  <td className="px-4 py-2">{r.invoiceDate}</td>
-                  <td className="px-4 py-2">{r.dueDate}</td>
+                  <td className="px-4 py-2">{formatDate(r.invoiceDate)}</td>
+                  <td className="px-4 py-2">{formatDate(r.dueDate)}</td>
                   <td className="px-4 py-2">{r.status}</td>
                   <td className="whitespace-nowrap px-4 py-2 text-right">{formatCurrency(r.netAmount)}</td>
                   <td className="px-4 py-2 text-right">

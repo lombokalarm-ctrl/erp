@@ -4,6 +4,7 @@ import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { apiDownload, apiFetch, ApiError } from "@/api/client";
 import { Download, Printer } from "lucide-react";
+import { formatDate } from "@/lib/date";
 
 type StockReportData = {
   summary: {
@@ -170,7 +171,7 @@ export default function StockReport() {
                       <tr key={row.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                         <td className="px-4 py-3">
                           <div className="font-medium">
-                            {new Date(row.createdAt).toLocaleDateString("id-ID")}
+                            {formatDate(row.createdAt)}
                           </div>
                           <div className="text-xs text-zinc-500">{row.type}</div>
                         </td>

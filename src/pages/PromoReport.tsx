@@ -6,6 +6,7 @@ import { apiFetch, ApiError } from "@/api/client";
 import { exportToCSV, printTable } from "@/lib/exportUtils";
 import { Printer, Download } from "lucide-react";
 import { formatCurrency } from "@/lib/numberFormat";
+import { formatDate } from "@/lib/date";
 
 type PromoReportData = {
   summary: {
@@ -186,9 +187,9 @@ export default function PromoReport() {
                     <div className="mt-3 flex items-center justify-between text-[10px] text-zinc-500">
                       <div>Min Qty: <span className="font-medium text-zinc-700">{ap.minQty}</span></div>
                       <div>
-                        {ap.startDate ? new Date(ap.startDate).toLocaleDateString('id-ID') : '∞'} 
+                        {ap.startDate ? formatDate(ap.startDate) : '∞'} 
                         {' - '} 
-                        {ap.endDate ? new Date(ap.endDate).toLocaleDateString('id-ID') : '∞'}
+                        {ap.endDate ? formatDate(ap.endDate) : '∞'}
                       </div>
                     </div>
                   </div>

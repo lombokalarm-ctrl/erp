@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Card from "@/components/ui/Card";
 import { apiFetch } from "@/api/client";
 import { formatCurrency } from "@/lib/numberFormat";
+import { formatDate } from "@/lib/date";
 
 type Receivable = {
   id: string;
@@ -80,7 +81,7 @@ export default function Receivables() {
                 <tr key={r.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                   <td className="px-4 py-3 font-medium">{r.invoiceNo}</td>
                   <td className="px-4 py-3">{r.customerName}</td>
-                  <td className="px-4 py-3">{r.dueDate}</td>
+                  <td className="px-4 py-3">{formatDate(r.dueDate)}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-right">{formatCurrency(r.remainingAmount)}</td>
                   <td className="px-4 py-3">{r.status}</td>
                 </tr>
