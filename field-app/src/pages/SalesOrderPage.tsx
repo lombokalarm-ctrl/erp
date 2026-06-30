@@ -41,7 +41,7 @@ type UomOption = {
 type SelectedItem = {
   productId: string;
   productName: string;
-  qty: number;
+  qty: string;
   unitPrice: number;
   uom: string;
 };
@@ -178,7 +178,7 @@ export default function SalesOrderPage() {
   }, [products, productUomMappings]);
 
   const totalAmount = useMemo(
-    () => items.reduce((sum, item) => sum + item.qty * item.unitPrice, 0),
+    () => items.reduce((sum, item) => sum + Number(item.qty || 0) * item.unitPrice, 0),
     [items],
   );
 
@@ -211,16 +211,6 @@ export default function SalesOrderPage() {
     }));
     if (options.length) return options;
     return [{ code: fallbackUnit || "pcs", name: (fallbackUnit || "pcs").toUpperCase() }];
-  }
-
-  function pickDefaultSaleUom(mappings: ProductUomMapping[], fallbackUnit: string) {
-    const saleMappings = mappings.filter((item) => item.isSale);
-    const source = saleMappings.length ? saleMappings : mappings;
-    const explicitDefault = source.find((item) => item.isDefaultSale);
-    if (explicitDefault?.uomCode) return explicitDefault.uomCode;
-    const base = source.find((item) => Number(item.toBaseFactor) === 1);
-    if (base?.uomCode) return base.uomCode;
-    return source[0]?.uomCode ?? fallbackUnit ?? "pcs";
   }
 
   function pickLargestSaleUom(mappings: ProductUomMapping[], fallbackUnit: string) {
@@ -331,21 +321,19 @@ export default function SalesOrderPage() {
     setProductCache((current) => ({ ...current, [product.id]: product }));
 
     const { mappings } = await ensureProductUomsLoaded(product);
-    const defaultUom = pickDefaultSaleUom(mappings, String(product.unit || "pcs").toLowerCase());
+    const defaultUom = pickLargestSaleUom(mappings, String(product.unit || "pcs").toLowerCase()).code;
     const defaultPrice = resolveUnitPrice(product, mappings, defaultUom);
 
     setItems((current) => {
       const existing = current.find((item) => item.productId === product.id);
       if (existing) {
-        return current.map((item) =>
-          item.productId === product.id ? { ...item, qty: item.qty + 1 } : item,
-        );
+        return current;
       }
       return [
         {
           productId: product.id,
           productName: product.name,
-          qty: 1,
+          qty: "",
           unitPrice: defaultPrice,
           uom: defaultUom,
         },
@@ -353,6 +341,15 @@ export default function SalesOrderPage() {
       ];
     });
     focusProductSearch();
+  }
+
+  function getInvalidItemMessage() {
+    const invalidItem = items.find((item) => {
+      const qty = Number(item.qty);
+      return !item.uom || !item.qty.trim() || !Number.isFinite(qty) || qty <= 0;
+    });
+    if (!invalidItem) return null;
+    return `Lengkapi qty dan satuan untuk produk "${invalidItem.productName}" sebelum menyimpan atau mengirim SO.`;
   }
 
   function handleItemUomChange(productId: string, nextUom: string) {
@@ -377,13 +374,21 @@ export default function SalesOrderPage() {
       setMessage("Pilih pelanggan dan minimal satu item sebelum menyimpan draft.");
       return;
     }
+    const invalidItemMessage = getInvalidItemMessage();
+    if (invalidItemMessage) {
+      setMessage(invalidItemMessage);
+      return;
+    }
     addOrderDraft({
       localId: generateLocalId("so"),
       customerId,
       customerName,
       orderDate: new Date().toISOString().slice(0, 10),
       notes,
-      items,
+      items: items.map((item) => ({
+        ...item,
+        qty: Number(item.qty),
+      })),
       createdAt: new Date().toISOString(),
       status: "PENDING_SYNC",
     });
@@ -393,6 +398,11 @@ export default function SalesOrderPage() {
   async function submitOrder() {
     if (!customerId || !items.length) {
       setMessage("Pilih pelanggan dan minimal satu item sebelum mengirim order.");
+      return;
+    }
+    const invalidItemMessage = getInvalidItemMessage();
+    if (invalidItemMessage) {
+      setMessage(invalidItemMessage);
       return;
     }
 
@@ -419,7 +429,7 @@ export default function SalesOrderPage() {
           notes,
           items: items.map((item) => ({
             productId: item.productId,
-            qty: item.qty,
+            qty: Number(item.qty),
             uom: item.uom,
             unitPrice: item.unitPrice,
             discountAmount: 0,
@@ -615,24 +625,25 @@ export default function SalesOrderPage() {
                     <div className="text-[11px] text-zinc-500">Satuan: {item.uom}</div>
                   </div>
                   <div className="text-right text-[11px] font-semibold text-zinc-900">
-                    {formatCurrency(item.qty * item.unitPrice)}
+                    {formatCurrency(Number(item.qty || 0) * item.unitPrice)}
                   </div>
                 </div>
                 <div className="mt-2 grid grid-cols-[72px_1fr_auto] items-center gap-2">
                   <input
                     type="number"
-                    min={1}
+                    min={0}
                     value={item.qty}
                     onChange={(event) =>
                       setItems((current) =>
                         current.map((currentItem) =>
                           currentItem.productId === item.productId
-                            ? { ...currentItem, qty: Math.max(1, Number(event.target.value || 1)) }
+                            ? { ...currentItem, qty: event.target.value }
                             : currentItem,
                         ),
                       )
                     }
                     className="field-input w-[72px] text-center"
+                    placeholder="Qty"
                   />
                   <select
                     value={item.uom}
