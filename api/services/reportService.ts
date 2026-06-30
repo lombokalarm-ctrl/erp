@@ -994,20 +994,11 @@ export async function getStockReport(params: { q?: string; supplierId?: string }
 
   const supplierOptionsRes = await pool.query(
     `
-      with latest_supplier as (
-        select distinct on (poi.product_id)
-          poi.product_id,
-          po.supplier_id
-        from purchase_order_items poi
-        join purchase_orders po on po.id = poi.purchase_order_id
-        order by poi.product_id, po.order_date desc, po.created_at desc
-      )
-      select distinct
+      select
         s.id,
         s.code,
         s.name
-      from latest_supplier ls
-      join suppliers s on s.id = ls.supplier_id
+      from suppliers s
       order by s.name asc
     `,
   )
