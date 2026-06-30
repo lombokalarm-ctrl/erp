@@ -151,6 +151,9 @@ export default function InvoiceDetail() {
               <div class="meta-box">
                 <div><strong>Kepada Yth:</strong></div>
                 <div>${inv.customerCode} - ${inv.customerName}</div>
+                <div><strong>Wilayah:</strong> ${escapeHtml(inv.customerRegionName || "-")}</div>
+                <div><strong>Alamat:</strong> ${escapeHtml(inv.customerAddress || "-").replace(/\r?\n/g, "<br/>")}</div>
+                <div><strong>Telp:</strong> ${escapeHtml(inv.customerPhone || "-")}</div>
               </div>
             </div>
 

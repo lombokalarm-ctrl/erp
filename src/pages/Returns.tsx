@@ -8,6 +8,7 @@ import { apiFetch, ApiError } from "@/api/client";
 import { RotateCcw } from "lucide-react";
 import { formatDate } from "@/lib/date";
 import { fetchProductUomMappings, pickDefaultUom, toUomOptions } from "@/lib/uom";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 type ReturnRow = {
   id: string;
@@ -36,8 +37,48 @@ type InvoiceDetail = {
   }>;
 };
 
+type ReturnDetail = {
+  id: string;
+  returnNo: string;
+  type: "SALES_RETURN" | "PURCHASE_RETURN";
+  status: string;
+  financialStatus: string;
+  creditNoteNo?: string | null;
+  sourceInvoiceNo?: string | null;
+  referenceNo?: string | null;
+  returnDate: string;
+  notes?: string | null;
+  customerName?: string | null;
+  customerCode?: string | null;
+  customerAddress?: string | null;
+  customerPhone?: string | null;
+  customerRegionName?: string | null;
+  supplierName?: string | null;
+  supplierCode?: string | null;
+  supplierAddress?: string | null;
+  supplierPhone?: string | null;
+  createdBy?: string | null;
+  items: Array<{
+    id: string;
+    qty: number;
+    uom: string;
+    reason?: string | null;
+    sku: string;
+    productName: string;
+  }>;
+};
+
 function today() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function escapeHtml(value?: string | null) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 export default function Returns() {
@@ -61,6 +102,8 @@ export default function Returns() {
   const [saving, setSaving] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [invoiceAllowedProductIds, setInvoiceAllowedProductIds] = useState<string[]>([]);
+  const company = useSettingsStore((s) => s.company);
+  const fetchCompany = useSettingsStore((s) => s.fetchCompany);
 
   const canSubmit = useMemo(
     () =>
@@ -87,7 +130,8 @@ export default function Returns() {
 
   useEffect(() => {
     loadInitial().catch(() => {});
-  }, []);
+    fetchCompany();
+  }, [fetchCompany]);
 
   useEffect(() => {
     if (type !== "SALES_RETURN" || !sourceInvoiceId) {
@@ -179,6 +223,135 @@ export default function Returns() {
     }
   }
 
+  async function handlePrint(returnId: string) {
+    setError(null);
+    try {
+      const res = await apiFetch<{ data: ReturnDetail }>(`/api/v1/returns/${returnId}`);
+      const detail = res.data;
+      const companyName = escapeHtml(company?.name || "PT. ERP DISTRIBUTOR F&B");
+      const companyAddress = escapeHtml(company?.address || "Alamat belum diatur").replace(/\r?\n/g, "<br/>");
+      const companyPhone = escapeHtml(company?.phone || "-");
+      const isSalesReturn = detail.type === "SALES_RETURN";
+      const partnerName = isSalesReturn
+        ? `${detail.customerCode || "-"} - ${detail.customerName || "-"}`
+        : `${detail.supplierCode || "-"} - ${detail.supplierName || "-"}`;
+      const partnerAddress = isSalesReturn ? detail.customerAddress : detail.supplierAddress;
+      const partnerPhone = isSalesReturn ? detail.customerPhone : detail.supplierPhone;
+      const partnerRegion = isSalesReturn ? detail.customerRegionName : null;
+      const partnerLabel = isSalesReturn ? "Pelanggan" : "Supplier";
+      const printWindow = window.open("", "_blank");
+
+      if (!printWindow) {
+        alert("Pop-up diblokir. Izinkan pop-up untuk mencetak.");
+        return;
+      }
+
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Cetak Retur - ${detail.returnNo}</title>
+            <style>
+              @page { size: A4; margin: 0.5in; }
+              body { font-family: "Courier New", Courier, monospace; font-size: 13px; line-height: 1.4; color: #000; margin: 0; padding: 0; }
+              .header { display: flex; justify-content: space-between; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 15px; }
+              .title { font-size: 18px; font-weight: bold; text-align: center; letter-spacing: 2px; }
+              .meta { display: flex; justify-content: space-between; margin-bottom: 15px; }
+              .meta-box { width: 48%; }
+              .meta-box div { margin-bottom: 3px; }
+              table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+              th, td { border: 1px solid #000; padding: 6px 8px; text-align: left; vertical-align: top; }
+              th { font-weight: bold; border-bottom: 2px solid #000; }
+              .text-center { text-align: center; }
+              .text-right { text-align: right; }
+              .footer { display: flex; justify-content: space-between; margin-top: 26px; text-align: center; }
+              .signature { width: 30%; }
+              .signature-line { margin-top: 50px; border-bottom: 1px solid #000; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div>
+                <strong>${companyName}</strong><br/>
+                ${companyAddress}<br/>
+                Telp: ${companyPhone}
+              </div>
+              <div class="title">DOKUMEN RETUR</div>
+            </div>
+
+            <div class="meta">
+              <div class="meta-box">
+                <div><strong>No. Retur:</strong> ${detail.returnNo}</div>
+                <div><strong>Tanggal:</strong> ${formatDate(detail.returnDate)}</div>
+                <div><strong>Tipe:</strong> ${detail.type === "SALES_RETURN" ? "Sales Return" : "Purchase Return"}</div>
+                <div><strong>Referensi:</strong> ${escapeHtml(detail.referenceNo || "-")}</div>
+                <div><strong>Invoice Sumber:</strong> ${escapeHtml(detail.sourceInvoiceNo || "-")}</div>
+              </div>
+              <div class="meta-box">
+                <div><strong>${partnerLabel}:</strong></div>
+                <div>${escapeHtml(partnerName)}</div>
+                ${isSalesReturn ? `<div><strong>Wilayah:</strong> ${escapeHtml(partnerRegion || "-")}</div>` : ""}
+                <div><strong>Alamat:</strong> ${escapeHtml(partnerAddress || "-").replace(/\r?\n/g, "<br/>")}</div>
+                <div><strong>Telp:</strong> ${escapeHtml(partnerPhone || "-")}</div>
+              </div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 5%" class="text-center">No</th>
+                  <th style="width: 16%">SKU</th>
+                  <th style="width: 35%">Nama Barang</th>
+                  <th style="width: 12%" class="text-right">Qty</th>
+                  <th style="width: 12%">Satuan</th>
+                  <th>Alasan</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${detail.items
+                  .map(
+                    (it, i) => `
+                  <tr>
+                    <td class="text-center">${i + 1}</td>
+                    <td>${escapeHtml(it.sku)}</td>
+                    <td>${escapeHtml(it.productName)}</td>
+                    <td class="text-right">${it.qty}</td>
+                    <td>${escapeHtml(it.uom)}</td>
+                    <td>${escapeHtml(it.reason || "-")}</td>
+                  </tr>
+                `,
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+
+            <div><strong>Catatan:</strong> ${escapeHtml(detail.notes || "-")}</div>
+
+            <div class="footer">
+              <div class="signature">
+                <div>${partnerLabel}</div>
+                <div class="signature-line"></div>
+              </div>
+              <div class="signature">
+                <div>Dibuat Oleh</div>
+                <div class="signature-line"></div>
+              </div>
+              <div class="signature">
+                <div>Gudang</div>
+                <div class="signature-line"></div>
+              </div>
+            </div>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      setTimeout(() => {
+        printWindow.print();
+      }, 500);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Gagal memuat data cetak retur");
+    }
+  }
+
   const salesInvoices = useMemo(
     () => invoices.filter((inv) => inv.customerId === partnerId && inv.status !== "CANCELLED"),
     [invoices, partnerId],
@@ -263,13 +436,16 @@ export default function Returns() {
                   <td className="px-4 py-2 text-xs text-zinc-500">{r.referenceNo || '-'}</td>
                   <td className="px-4 py-2 text-xs text-zinc-600">{r.creditNoteNo || "-"}</td>
                   <td className="px-4 py-2 text-right">
-                    {r.status === "DRAFT" ? (
-                      <Button size="sm" variant="secondary" onClick={() => handlePost(r.id)}>
-                        Post
+                    <div className="flex justify-end gap-2">
+                      {r.status === "DRAFT" ? (
+                        <Button size="sm" variant="secondary" onClick={() => handlePost(r.id)}>
+                          Post
+                        </Button>
+                      ) : null}
+                      <Button size="sm" onClick={() => handlePrint(r.id)}>
+                        Cetak
                       </Button>
-                    ) : (
-                      <span className="text-xs text-zinc-400">-</span>
-                    )}
+                    </div>
                   </td>
                 </tr>
               ))}

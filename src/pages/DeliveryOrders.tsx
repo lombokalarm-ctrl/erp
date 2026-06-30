@@ -133,6 +133,9 @@ export default function DeliveryOrders() {
               <div class="meta-box">
                 <div><strong>Kepada Yth:</strong></div>
                 <div>${doData.customerCode} - ${doData.customerName}</div>
+                <div><strong>Wilayah:</strong> ${escapeHtml(doData.customerRegionName || "-")}</div>
+                <div><strong>Alamat:</strong> ${escapeHtml(doData.customerAddress || "-").replace(/\r?\n/g, "<br/>")}</div>
+                <div><strong>Telp:</strong> ${escapeHtml(doData.customerPhone || "-")}</div>
               </div>
             </div>
 

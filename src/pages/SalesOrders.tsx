@@ -40,6 +40,9 @@ type SalesOrderDetail = {
   customerId: string;
   customerCode: string;
   customerName: string;
+  customerAddress?: string | null;
+  customerPhone?: string | null;
+  customerRegionName?: string | null;
   orderDate: string;
   status: string;
   deliveryStatus: string;
@@ -438,6 +441,9 @@ export default function SalesOrders() {
               <div class="meta-box">
                 <div><strong>Pelanggan:</strong></div>
                 <div>${detail.customerCode} - ${detail.customerName}</div>
+                <div><strong>Wilayah:</strong> ${escapeHtml(detail.customerRegionName || "-")}</div>
+                <div><strong>Alamat:</strong> ${escapeHtml(detail.customerAddress || "-").replace(/\r?\n/g, "<br/>")}</div>
+                <div><strong>Telp:</strong> ${escapeHtml(detail.customerPhone || "-")}</div>
               </div>
             </div>
             <table>
@@ -817,6 +823,9 @@ export default function SalesOrders() {
             <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
               <div><span className="text-zinc-500">Tanggal:</span> {formatDate(viewOrder.orderDate)}</div>
               <div><span className="text-zinc-500">Status SO:</span> {viewOrder.status}</div>
+              <div><span className="text-zinc-500">Wilayah:</span> {viewOrder.customerRegionName || "-"}</div>
+              <div><span className="text-zinc-500">Telepon:</span> {viewOrder.customerPhone || "-"}</div>
+              <div className="col-span-2"><span className="text-zinc-500">Alamat:</span> {viewOrder.customerAddress || "-"}</div>
               <div><span className="text-zinc-500">Status Kirim:</span> {viewOrder.deliveryStatus}</div>
               <div><span className="text-zinc-500">Total:</span> {formatCurrency(viewOrder.totalAmount)}</div>
               <div className="col-span-2"><span className="text-zinc-500">Catatan:</span> {viewOrder.notes || "-"}</div>

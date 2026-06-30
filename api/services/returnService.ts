@@ -637,12 +637,20 @@ export async function getReturnDetail(id: string) {
         r.return_date::text as "returnDate",
         r.notes,
         c.name as "customerName",
+        c.code as "customerCode",
+        c.address as "customerAddress",
+        c.phone as "customerPhone",
+        rg.name as "customerRegionName",
         s.name as "supplierName",
+        s.code as "supplierCode",
+        s.address as "supplierAddress",
+        s.phone as "supplierPhone",
         u.full_name as "createdBy"
       from returns r
       left join credit_notes cn on cn.id = r.credit_note_id
       left join invoices i on i.id = r.source_invoice_id
       left join customers c on c.id = r.customer_id
+      left join regions rg on rg.id = c.region_id
       left join suppliers s on s.id = r.supplier_id
       join users u on u.id = r.created_by
       where r.id = $1

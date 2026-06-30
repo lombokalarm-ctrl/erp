@@ -146,6 +146,9 @@ export async function getInvoiceDetail(id: string) {
         i.invoice_no as "invoiceNo",
         c.name as "customerName",
         c.code as "customerCode",
+        c.address as "customerAddress",
+        c.phone as "customerPhone",
+        r.name as "customerRegionName",
         i.invoice_date::text as "invoiceDate",
         i.due_date::text as "dueDate",
         i.total_amount::text as "totalAmount",
@@ -153,6 +156,7 @@ export async function getInvoiceDetail(id: string) {
         so.order_no as "soNo"
       from invoices i
       join customers c on c.id = i.customer_id
+      left join regions r on r.id = c.region_id
       left join sales_orders so on so.id = i.sales_order_id
       where i.id = $1
       limit 1

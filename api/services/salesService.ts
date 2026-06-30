@@ -584,6 +584,9 @@ export async function getSalesOrderDetail(soId: string, actor?: SalesOrderActor)
         so.customer_id as "customerId",
         c.code as "customerCode",
         c.name as "customerName",
+        c.address as "customerAddress",
+        c.phone as "customerPhone",
+        r.name as "customerRegionName",
         so.order_date::text as "orderDate",
         case
           when so.status = 'DRAFT'
@@ -601,6 +604,7 @@ export async function getSalesOrderDetail(soId: string, actor?: SalesOrderActor)
         so.notes
       from sales_orders so
       join customers c on c.id = so.customer_id
+      left join regions r on r.id = c.region_id
       where so.id = $1
       limit 1
     `,
@@ -690,6 +694,9 @@ export async function exportSalesOrderPdf(soId: string, actor?: SalesOrderActor)
         ['No. SO', detail.orderNo],
         ['Tanggal', formatDate(detail.orderDate)],
         ['Pelanggan', `${detail.customerCode} - ${detail.customerName}`],
+        ['Wilayah', detail.customerRegionName || '-'],
+        ['Alamat', detail.customerAddress || '-'],
+        ['Telepon', detail.customerPhone || '-'],
         ['Status', formatSalesOrderStatusLabel(detail.status)],
         ['Status Kirim', detail.deliveryStatus || '-'],
         ['Catatan', detail.notes || '-'],
@@ -894,10 +901,14 @@ export async function getDeliveryOrderBySoId(soId: string, actor?: SalesOrderAct
         so.order_no as "soNo",
         so.order_date::text as "orderDate",
         c.name as "customerName",
-        c.code as "customerCode"
+        c.code as "customerCode",
+        c.address as "customerAddress",
+        c.phone as "customerPhone",
+        r.name as "customerRegionName"
       from delivery_orders d
       join sales_orders so on so.id = d.sales_order_id
       join customers c on c.id = so.customer_id
+      left join regions r on r.id = c.region_id
       where d.sales_order_id = $1
       limit 1
     `,
