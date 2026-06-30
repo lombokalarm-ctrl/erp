@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CloudOff, RefreshCw } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
@@ -92,8 +92,34 @@ type SalesOrderSaveResult = {
   approvalContext?: SalesOrderApprovalContext;
 };
 
+type SalesOrderFormItem = {
+  id: string;
+  productId: string;
+  qty: string;
+  uom: string;
+  unitPrice: string;
+};
+
 function today() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function createEmptySalesOrderItem(): SalesOrderFormItem {
+  return {
+    id: crypto.randomUUID(),
+    productId: "",
+    qty: "1",
+    uom: "pcs",
+    unitPrice: "0",
+  };
+}
+
+function isSalesOrderItemComplete(item: Pick<SalesOrderFormItem, "productId" | "qty">) {
+  return Boolean(item.productId) && Number(item.qty) > 0;
+}
+
+function isSalesOrderItemBlank(item: Pick<SalesOrderFormItem, "productId" | "qty">) {
+  return !item.productId;
 }
 
 function escapeHtml(value?: string | null) {
@@ -139,13 +165,15 @@ export default function SalesOrders() {
   const [customerId, setCustomerId] = useState("");
   const [orderDate, setOrderDate] = useState(today());
   const [notes, setNotes] = useState("");
-  const [items, setItems] = useState<
-    { productId: string; qty: string; uom: string; unitPrice: string }[]
-  >([{ productId: "", qty: "1", uom: "pcs", unitPrice: "0" }]);
+  const [items, setItems] = useState<SalesOrderFormItem[]>([createEmptySalesOrderItem()]);
   const [productUoms, setProductUoms] = useState<Record<string, Array<{ code: string; name: string }>>>({});
   const [productUomMappings, setProductUomMappings] = useState<Record<string, ProductUomMapping[]>>({});
+  const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
+  const topItemSearchRef = useRef<HTMLInputElement | null>(null);
   const company = useSettingsStore((s) => s.company);
   const fetchCompany = useSettingsStore((s) => s.fetchCompany);
+
+  const completedItems = useMemo(() => items.filter(isSalesOrderItemComplete), [items]);
 
   function getToBaseFactor(productId: string, uom: string) {
     const mappings = productUomMappings[productId] ?? [];
@@ -195,10 +223,7 @@ export default function SalesOrders() {
     ];
   }
 
-  const canSubmit = useMemo(
-    () => customerId && items.every((i) => i.productId && Number(i.qty) > 0),
-    [customerId, items],
-  );
+  const canSubmit = useMemo(() => Boolean(customerId) && completedItems.length > 0, [completedItems, customerId]);
 
   async function loadInitial() {
     try {
@@ -250,8 +275,35 @@ export default function SalesOrders() {
     setCustomerId("");
     setOrderDate(today());
     setNotes("");
-    setItems([{ productId: "", qty: "1", uom: "pcs", unitPrice: "0" }]);
+    setItems([createEmptySalesOrderItem()]);
     setEditingOrderId(null);
+    setFocusedItemId(null);
+  }
+
+  function focusTopItemSearch() {
+    window.requestAnimationFrame(() => {
+      topItemSearchRef.current?.focus();
+      topItemSearchRef.current?.select();
+    });
+  }
+
+  function handleAddDraftItem() {
+    setItems((prev) => {
+      const blankIndex = prev.findIndex(isSalesOrderItemBlank);
+      if (blankIndex === 0) {
+        setFocusedItemId(prev[0]?.id ?? null);
+        return prev;
+      }
+      if (blankIndex > 0) {
+        const draft = prev[blankIndex];
+        setFocusedItemId(draft.id);
+        return [draft, ...prev.filter((_, index) => index !== blankIndex)];
+      }
+      const draft = createEmptySalesOrderItem();
+      setFocusedItemId(draft.id);
+      return [draft, ...prev];
+    });
+    focusTopItemSearch();
   }
 
   function buildApprovalNotice(result: SalesOrderSaveResult) {
@@ -274,7 +326,7 @@ export default function SalesOrders() {
       customerId,
       orderDate,
       notes: notes.trim() || undefined,
-      items: items.map((i) => ({
+      items: completedItems.map((i) => ({
         productId: i.productId,
         qty: Number(i.qty),
         uom: i.uom,
@@ -363,12 +415,14 @@ export default function SalesOrders() {
       setNotes(detail.notes || "");
       setItems(
         detail.items.map((it) => ({
+          id: it.id || crypto.randomUUID(),
           productId: it.productId,
           qty: String(Number(it.qty)),
           uom: it.uom,
           unitPrice: String(Number(it.unitPrice)),
         })),
       );
+      setFocusedItemId(null);
       for (const item of detail.items) {
         void ensureProductUomsLoaded(item.productId);
       }
@@ -683,9 +737,11 @@ export default function SalesOrders() {
               </div>
               <div className="grid gap-2 p-3">
                 {items.map((it, idx) => (
-                  <div key={idx} className="grid grid-cols-1 gap-2">
+                  <div key={it.id} className="grid grid-cols-1 gap-2">
                     <SearchableSelect
                       value={it.productId}
+                      autoFocusSearch={idx === 0 && focusedItemId === it.id}
+                      searchInputRef={idx === 0 ? topItemSearchRef : undefined}
                       onChange={async (pid) => {
                         const p = products.find((x) => x.id === pid);
                         const c = customers.find((x) => x.id === customerId);
@@ -708,6 +764,9 @@ export default function SalesOrders() {
                               : x,
                           ),
                         );
+                        if (idx === 0) {
+                          setFocusedItemId(null);
+                        }
                       }}
                       placeholder="Pilih produk"
                       searchPlaceholder="Cari SKU / nama produk..."
@@ -719,7 +778,7 @@ export default function SalesOrders() {
                         value={it.qty}
                         onValueChange={(v) =>
                           setItems((prev) =>
-                            prev.map((x, i) => (i === idx ? { ...x, qty: v || "0" } : x)),
+                              prev.map((x, i) => (i === idx ? { ...x, qty: v || (x.productId ? "0" : "") } : x)),
                           )
                         }
                       />
@@ -766,20 +825,19 @@ export default function SalesOrders() {
                         size="sm"
                         onClick={() =>
                           setItems((prev) =>
-                            prev.length === 1 ? prev : prev.filter((_, i) => i !== idx),
+                            prev.length === 1 ? [createEmptySalesOrderItem()] : prev.filter((_, i) => i !== idx),
                           )
                         }
-                        disabled={items.length === 1}
                         type="button"
                       >
                         Hapus
                       </Button>
-                      {idx === items.length - 1 ? (
+                      {idx === 0 ? (
                         <Button
                           variant="secondary"
                           size="sm"
                           type="button"
-                          onClick={() => setItems((prev) => [...prev, { productId: "", qty: "1", uom: "pcs", unitPrice: "0" }])}
+                          onClick={handleAddDraftItem}
                         >
                           Tambah Item
                         </Button>

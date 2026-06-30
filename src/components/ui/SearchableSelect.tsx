@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { cn } from "@/lib/utils";
 
 type Option = {
@@ -17,6 +17,8 @@ type Props = {
   selectClassName?: string;
   includePlaceholder?: boolean;
   emptyText?: string;
+  autoFocusSearch?: boolean;
+  searchInputRef?: MutableRefObject<HTMLInputElement | null> | ((node: HTMLInputElement | null) => void);
 };
 
 export default function SearchableSelect({
@@ -30,6 +32,8 @@ export default function SearchableSelect({
   selectClassName,
   includePlaceholder = true,
   emptyText = "Data tidak ditemukan",
+  autoFocusSearch = false,
+  searchInputRef,
 }: Props) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -73,10 +77,27 @@ export default function SearchableSelect({
     setQuery("");
   }, [value]);
 
+  useEffect(() => {
+    if (!autoFocusSearch || disabled) return;
+    const id = window.requestAnimationFrame(() => {
+      searchRef.current?.focus();
+      searchRef.current?.select();
+      setOpen(true);
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [autoFocusSearch, disabled]);
+
   return (
     <div ref={containerRef} className={cn("space-y-1", className)}>
       <input
-        ref={searchRef}
+        ref={(node) => {
+          searchRef.current = node;
+          if (typeof searchInputRef === "function") {
+            searchInputRef(node);
+          } else if (searchInputRef && "current" in searchInputRef) {
+            searchInputRef.current = node;
+          }
+        }}
         className={cn(
           "h-9 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-900",
           "placeholder:text-zinc-400",

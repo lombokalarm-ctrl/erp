@@ -987,7 +987,7 @@ export async function getStockReport(params: { q?: string; supplierId?: string }
 
   if (params.supplierId) {
     values.push(params.supplierId)
-    where.push(`ls.supplier_id = $${values.length}`)
+    where.push(`p.supplier_id = $${values.length}`)
   }
 
   const whereSql = where.length ? `where ${where.join(' and ')}` : ''
@@ -1005,34 +1005,10 @@ export async function getStockReport(params: { q?: string; supplierId?: string }
 
   const summaryRes = await pool.query(
     `
-      with latest_supplier as (
-        select distinct on (src.product_id)
-          src.product_id,
-          src.supplier_id
-        from (
-          select
-            poi.product_id,
-            po.supplier_id,
-            po.order_date::timestamp as event_at,
-            po.created_at
-          from purchase_order_items poi
-          join purchase_orders po on po.id = poi.purchase_order_id
-          union all
-          select
-            pii.product_id,
-            pi.supplier_id,
-            pi.invoice_date::timestamp as event_at,
-            pi.created_at
-          from purchase_invoice_items pii
-          join purchase_invoices pi on pi.id = pii.purchase_invoice_id
-        ) src
-        order by src.product_id, src.event_at desc, src.created_at desc
-      )
       select
         count(p.id)::int as "totalProducts",
         coalesce(sum(coalesce(b.qty, 0)), 0)::text as "totalQty"
       from products p
-      left join latest_supplier ls on ls.product_id = p.id
       left join (
         select product_id, sum(qty) as qty
         from inventory_balances
@@ -1045,34 +1021,11 @@ export async function getStockReport(params: { q?: string; supplierId?: string }
 
   const stockRes = await pool.query(
     `
-      with latest_supplier as (
-        select distinct on (src.product_id)
-          src.product_id,
-          src.supplier_id
-        from (
-          select
-            poi.product_id,
-            po.supplier_id,
-            po.order_date::timestamp as event_at,
-            po.created_at
-          from purchase_order_items poi
-          join purchase_orders po on po.id = poi.purchase_order_id
-          union all
-          select
-            pii.product_id,
-            pi.supplier_id,
-            pi.invoice_date::timestamp as event_at,
-            pi.created_at
-          from purchase_invoice_items pii
-          join purchase_invoices pi on pi.id = pii.purchase_invoice_id
-        ) src
-        order by src.product_id, src.event_at desc, src.created_at desc
-      )
       select
         p.id as "productId",
         p.sku,
         p.name as "productName",
-        ls.supplier_id as "supplierId",
+        p.supplier_id as "supplierId",
         s.name as "supplierName",
         coalesce(sum(b.qty), 0)::text as qty,
         bu.code as "baseUomCode",
@@ -1088,14 +1041,13 @@ export async function getStockReport(params: { q?: string; supplierId?: string }
           '[]'::json
         ) as "uomMappings"
       from products p
-      left join latest_supplier ls on ls.product_id = p.id
-      left join suppliers s on s.id = ls.supplier_id
+      left join suppliers s on s.id = p.supplier_id
       left join inventory_balances b on b.product_id = p.id
       left join uoms bu on bu.id = p.base_uom_id
       left join product_uoms pu on pu.product_id = p.id
       left join uoms u on u.id = pu.uom_id
       ${whereSql}
-      group by p.id, p.sku, p.name, ls.supplier_id, s.name, bu.code
+      group by p.id, p.sku, p.name, p.supplier_id, s.name, bu.code
       order by p.name asc
       limit 500
     `,
@@ -1104,29 +1056,6 @@ export async function getStockReport(params: { q?: string; supplierId?: string }
 
   const movementRes = await pool.query(
     `
-      with latest_supplier as (
-        select distinct on (src.product_id)
-          src.product_id,
-          src.supplier_id
-        from (
-          select
-            poi.product_id,
-            po.supplier_id,
-            po.order_date::timestamp as event_at,
-            po.created_at
-          from purchase_order_items poi
-          join purchase_orders po on po.id = poi.purchase_order_id
-          union all
-          select
-            pii.product_id,
-            pi.supplier_id,
-            pi.invoice_date::timestamp as event_at,
-            pi.created_at
-          from purchase_invoice_items pii
-          join purchase_invoices pi on pi.id = pii.purchase_invoice_id
-        ) src
-        order by src.product_id, src.event_at desc, src.created_at desc
-      )
       select
         it.id,
         it.created_at as "createdAt",
@@ -1137,7 +1066,6 @@ export async function getStockReport(params: { q?: string; supplierId?: string }
         it.ref_type as "refType"
       from inventory_transactions it
       join products p on p.id = it.product_id
-      left join latest_supplier ls on ls.product_id = p.id
       ${whereSql}
       order by it.created_at desc
       limit 100

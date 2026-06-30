@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import NumericInput from "@/components/ui/NumericInput";
@@ -13,28 +13,52 @@ type Supplier = { id: string; code: string; name: string };
 type Product = { id: string; sku: string; name: string; purchasePrice: string };
 type PoRow = { id: string; poNo: string; orderDate: string; status: string; totalAmount: string; supplierName: string };
 
+type PurchaseOrderFormItem = {
+  id: string;
+  productId: string;
+  qty: string;
+  uom: string;
+  unitPrice: string;
+};
+
 function today() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function createEmptyPurchaseOrderItem(): PurchaseOrderFormItem {
+  return {
+    id: crypto.randomUUID(),
+    productId: "",
+    qty: "1",
+    uom: "pcs",
+    unitPrice: "0",
+  };
+}
+
+function isPurchaseOrderItemComplete(item: Pick<PurchaseOrderFormItem, "productId" | "qty">) {
+  return Boolean(item.productId) && Number(item.qty) > 0;
+}
+
+function isPurchaseOrderItemBlank(item: Pick<PurchaseOrderFormItem, "productId" | "qty">) {
+  return !item.productId;
 }
 
 export default function PurchaseOrders() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [items, setItems] = useState<{ productId: string; qty: string; uom: string; unitPrice: string }[]>([
-    { productId: "", qty: "1", uom: "pcs", unitPrice: "0" },
-  ]);
+  const [items, setItems] = useState<PurchaseOrderFormItem[]>([createEmptyPurchaseOrderItem()]);
   const [productUoms, setProductUoms] = useState<Record<string, Array<{ code: string; name: string }>>>({});
   const [productUomMappings, setProductUomMappings] = useState<Record<string, ProductUomMapping[]>>({});
+  const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
+  const topItemSearchRef = useRef<HTMLInputElement | null>(null);
   const [supplierId, setSupplierId] = useState("");
   const [orderDate, setOrderDate] = useState(today());
   const [rows, setRows] = useState<PoRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
 
-  const canSubmit = useMemo(
-    () => supplierId && items.every((i) => i.productId && Number(i.qty) > 0),
-    [supplierId, items],
-  );
+  const completedItems = useMemo(() => items.filter(isPurchaseOrderItemComplete), [items]);
+  const canSubmit = useMemo(() => Boolean(supplierId) && completedItems.length > 0, [completedItems, supplierId]);
 
   async function load() {
     const [s, p, po] = await Promise.all([
@@ -86,6 +110,32 @@ export default function PurchaseOrders() {
       { code: "pack", name: "Pack" },
       { code: "dus", name: "Dus" },
     ];
+  }
+
+  function focusTopItemSearch() {
+    window.requestAnimationFrame(() => {
+      topItemSearchRef.current?.focus();
+      topItemSearchRef.current?.select();
+    });
+  }
+
+  function handleAddDraftItem() {
+    setItems((prev) => {
+      const blankIndex = prev.findIndex(isPurchaseOrderItemBlank);
+      if (blankIndex === 0) {
+        setFocusedItemId(prev[0]?.id ?? null);
+        return prev;
+      }
+      if (blankIndex > 0) {
+        const draft = prev[blankIndex];
+        setFocusedItemId(draft.id);
+        return [draft, ...prev.filter((_, index) => index !== blankIndex)];
+      }
+      const draft = createEmptyPurchaseOrderItem();
+      setFocusedItemId(draft.id);
+      return [draft, ...prev];
+    });
+    focusTopItemSearch();
   }
 
   return (
@@ -178,9 +228,11 @@ export default function PurchaseOrders() {
               <div className="border-b border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-600">Item</div>
               <div className="grid gap-2 p-3">
                 {items.map((it, idx) => (
-                  <div key={idx} className="grid gap-2">
+                  <div key={it.id} className="grid gap-2">
                     <SearchableSelect
                       value={it.productId}
+                      autoFocusSearch={idx === 0 && focusedItemId === it.id}
+                      searchInputRef={idx === 0 ? topItemSearchRef : undefined}
                       onChange={async (pid) => {
                         const p = products.find((x) => x.id === pid);
                         let nextUom = "pcs";
@@ -201,6 +253,9 @@ export default function PurchaseOrders() {
                               : x,
                           ),
                         );
+                        if (idx === 0) {
+                          setFocusedItemId(null);
+                        }
                       }}
                       placeholder="Pilih produk"
                       searchPlaceholder="Cari SKU / nama produk..."
@@ -211,7 +266,7 @@ export default function PurchaseOrders() {
                         label="Qty"
                         value={it.qty}
                         onValueChange={(v) =>
-                          setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, qty: v || "0" } : x)))
+                          setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, qty: v || (x.productId ? "0" : "") } : x)))
                         }
                       />
                       <label className="block">
@@ -248,18 +303,17 @@ export default function PurchaseOrders() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        disabled={items.length === 1}
-                        onClick={() => setItems((prev) => (prev.length === 1 ? prev : prev.filter((_, i) => i !== idx)))}
+                        onClick={() => setItems((prev) => (prev.length === 1 ? [createEmptyPurchaseOrderItem()] : prev.filter((_, i) => i !== idx)))}
                         type="button"
                       >
                         Hapus
                       </Button>
-                      {idx === items.length - 1 ? (
+                      {idx === 0 ? (
                         <Button
                           variant="secondary"
                           size="sm"
                           type="button"
-                          onClick={() => setItems((prev) => [...prev, { productId: "", qty: "1", uom: "pcs", unitPrice: "0" }])}
+                          onClick={handleAddDraftItem}
                         >
                           Tambah Item
                         </Button>
@@ -284,10 +338,11 @@ export default function PurchaseOrders() {
                         body: JSON.stringify({
                           supplierId,
                           orderDate,
-                          items: items.map((i) => ({ productId: i.productId, qty: Number(i.qty), uom: i.uom, unitPrice: Number(i.unitPrice) })),
+                          items: completedItems.map((i) => ({ productId: i.productId, qty: Number(i.qty), uom: i.uom, unitPrice: Number(i.unitPrice) })),
                         }),
                       });
-                      setItems([{ productId: "", qty: "1", uom: "pcs", unitPrice: "0" }]);
+                      setItems([createEmptyPurchaseOrderItem()]);
+                      setFocusedItemId(null);
                       const poRes = await apiFetch<{ data: PoRow[] }>("/api/v1/purchase-orders?page=1&pageSize=50");
                       setRows(poRes.data);
                       setIsFormOpen(false);

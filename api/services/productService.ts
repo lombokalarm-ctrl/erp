@@ -13,6 +13,8 @@ export type Product = {
   sku: string
   name: string
   unit: string
+  supplierId?: string | null
+  supplierName?: string | null
   purchasePrice: string
   salePrice: string
   categoryPrices?: Record<string, Record<string, number>>
@@ -170,6 +172,7 @@ async function upsertImportedProduct(
     sku: string
     name: string
     unit: string
+    supplierId?: string | null
     purchasePrice: number
     salePrice: number
     unitPrices: Record<string, number>
@@ -188,10 +191,11 @@ async function upsertImportedProduct(
         set sku = $2,
             name = $3,
             unit = $4,
-            purchase_price = $5,
-            sale_price = $6,
-            category_prices = $7,
-            unit_prices = $8,
+            supplier_id = $5,
+            purchase_price = $6,
+            sale_price = $7,
+            category_prices = $8,
+            unit_prices = $9,
             min_stock_base = 0,
             reorder_qty_base = 0,
             lead_time_days = 0,
@@ -205,6 +209,7 @@ async function upsertImportedProduct(
         input.sku,
         input.name,
         input.unit,
+        input.supplierId ?? null,
         input.purchasePrice,
         input.salePrice,
         JSON.stringify(input.categoryPrices),
@@ -217,16 +222,17 @@ async function upsertImportedProduct(
   const createdRes = await client.query(
     `
       insert into products(
-        sku, name, unit, purchase_price, sale_price, category_prices, unit_prices,
+        sku, name, unit, supplier_id, purchase_price, sale_price, category_prices, unit_prices,
         pack_size, pack_per_dus, dus_size, min_stock_base, reorder_qty_base, lead_time_days, buffer_days
       )
-      values ($1, $2, $3, $4, $5, $6, $7, 1, 1, 1, 0, 0, 0, 0)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, 1, 1, 1, 0, 0, 0, 0)
       returning id
     `,
     [
       input.sku,
       input.name,
       input.unit,
+      input.supplierId ?? null,
       input.purchasePrice,
       input.salePrice,
       JSON.stringify(input.categoryPrices),
@@ -275,25 +281,28 @@ export async function listProducts(params: {
         group by b.product_id
       )
       select
-        id,
-        sku,
-        name,
-        unit,
-        purchase_price::text as "purchasePrice",
-        sale_price::text as "salePrice",
-        category_prices as "categoryPrices",
-        unit_prices as "unitPrices",
-        pack_size as "packSize",
-        dus_size as "dusSize",
-        pack_per_dus as "packPerDus",
-        base_uom_id as "baseUomId",
-        min_stock_base::text as "minStockBase",
-        reorder_qty_base::text as "reorderQtyBase",
-        lead_time_days as "leadTimeDays",
-        buffer_days as "bufferDays",
-        coalesce(s."currentStockBase", '0') as "currentStockBase"
+        p.id,
+        p.sku,
+        p.name,
+        p.unit,
+        p.supplier_id as "supplierId",
+        sp.name as "supplierName",
+        p.purchase_price::text as "purchasePrice",
+        p.sale_price::text as "salePrice",
+        p.category_prices as "categoryPrices",
+        p.unit_prices as "unitPrices",
+        p.pack_size as "packSize",
+        p.dus_size as "dusSize",
+        p.pack_per_dus as "packPerDus",
+        p.base_uom_id as "baseUomId",
+        p.min_stock_base::text as "minStockBase",
+        p.reorder_qty_base::text as "reorderQtyBase",
+        p.lead_time_days as "leadTimeDays",
+        p.buffer_days as "bufferDays",
+        coalesce(st."currentStockBase", '0') as "currentStockBase"
       from products p
-      left join stock_wh01 s on s."productId" = p.id
+      left join suppliers sp on sp.id = p.supplier_id
+      left join stock_wh01 st on st."productId" = p.id
       ${whereSql}
       order by p.created_at desc
       limit $${values.length + 1} offset $${values.length + 2}
@@ -312,24 +321,27 @@ export async function getProductById(id: string) {
   const res = await pool.query(
     `
       select
-        id,
-        sku,
-        name,
-        unit,
-        purchase_price::text as "purchasePrice",
-        sale_price::text as "salePrice",
-        category_prices as "categoryPrices",
-        unit_prices as "unitPrices",
-        pack_size as "packSize",
-        dus_size as "dusSize",
-        pack_per_dus as "packPerDus",
-        base_uom_id as "baseUomId",
-        min_stock_base::text as "minStockBase",
-        reorder_qty_base::text as "reorderQtyBase",
-        lead_time_days as "leadTimeDays",
-        buffer_days as "bufferDays"
-      from products
-      where id = $1
+        p.id,
+        p.sku,
+        p.name,
+        p.unit,
+        p.supplier_id as "supplierId",
+        s.name as "supplierName",
+        p.purchase_price::text as "purchasePrice",
+        p.sale_price::text as "salePrice",
+        p.category_prices as "categoryPrices",
+        p.unit_prices as "unitPrices",
+        p.pack_size as "packSize",
+        p.dus_size as "dusSize",
+        p.pack_per_dus as "packPerDus",
+        p.base_uom_id as "baseUomId",
+        p.min_stock_base::text as "minStockBase",
+        p.reorder_qty_base::text as "reorderQtyBase",
+        p.lead_time_days as "leadTimeDays",
+        p.buffer_days as "bufferDays"
+      from products p
+      left join suppliers s on s.id = p.supplier_id
+      where p.id = $1
       limit 1
     `,
     [id],
@@ -346,6 +358,7 @@ export async function createProduct(input: {
   sku: string
   name: string
   unit: string
+  supplierId?: string | null
   purchasePrice: number
   salePrice: number
   categoryPrices?: Record<string, Record<string, number>>
@@ -365,15 +378,16 @@ export async function createProduct(input: {
   const res = await pool.query(
     `
       insert into products(
-        sku, name, unit, purchase_price, sale_price, category_prices, unit_prices, pack_size, pack_per_dus, dus_size,
+        sku, name, unit, supplier_id, purchase_price, sale_price, category_prices, unit_prices, pack_size, pack_per_dus, dus_size,
         min_stock_base, reorder_qty_base, lead_time_days, buffer_days
       )
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       returning
         id,
         sku,
         name,
         unit,
+        supplier_id as "supplierId",
         purchase_price::text as "purchasePrice",
         sale_price::text as "salePrice",
         category_prices as "categoryPrices",
@@ -391,6 +405,7 @@ export async function createProduct(input: {
       input.sku,
       input.name,
       input.unit,
+      input.supplierId ?? null,
       input.purchasePrice,
       input.salePrice,
       JSON.stringify(input.categoryPrices || {}),
@@ -434,6 +449,7 @@ export async function updateProduct(
     sku: string
     name: string
     unit: string
+    supplierId: string | null
     purchasePrice: number
     salePrice: number
     categoryPrices: Record<string, Record<string, number>>
@@ -462,17 +478,18 @@ export async function updateProduct(
       set sku = $2,
           name = $3,
           unit = $4,
-          purchase_price = $5,
-          sale_price = $6,
-          category_prices = $7,
-          unit_prices = $8,
-          pack_size = $9,
-          pack_per_dus = $10,
-          dus_size = $11,
-          min_stock_base = $12,
-          reorder_qty_base = $13,
-          lead_time_days = $14,
-          buffer_days = $15,
+          supplier_id = $5,
+          purchase_price = $6,
+          sale_price = $7,
+          category_prices = $8,
+          unit_prices = $9,
+          pack_size = $10,
+          pack_per_dus = $11,
+          dus_size = $12,
+          min_stock_base = $13,
+          reorder_qty_base = $14,
+          lead_time_days = $15,
+          buffer_days = $16,
           updated_at = now()
       where id = $1
       returning
@@ -480,6 +497,7 @@ export async function updateProduct(
         sku,
         name,
         unit,
+        supplier_id as "supplierId",
         purchase_price::text as "purchasePrice",
         sale_price::text as "salePrice",
         category_prices as "categoryPrices",
@@ -498,6 +516,7 @@ export async function updateProduct(
       input.sku ?? current.sku,
       input.name ?? current.name,
       input.unit ?? current.unit,
+      input.supplierId ?? current.supplierId ?? null,
       input.purchasePrice ?? Number(current.purchasePrice),
       input.salePrice ?? Number(current.salePrice),
       input.categoryPrices ? JSON.stringify(input.categoryPrices) : JSON.stringify(current.categoryPrices || {}),
@@ -565,6 +584,7 @@ export async function importProducts(rows: ProductImportRow[]) {
       if (!supplierRes.rows[0]?.id) {
         throw new Error(`Supplier "${supplierName}" tidak ditemukan di master supplier`)
       }
+      const supplierId = String(supplierRes.rows[0].id)
 
       const baseUom = uomByCode.get(baseUnit.code)
       const bigUom = uomByCode.get(bigUnit.code)
@@ -580,6 +600,7 @@ export async function importProducts(rows: ProductImportRow[]) {
           sku,
           name,
           unit: baseUnit.code,
+          supplierId,
           purchasePrice,
           salePrice,
           unitPrices,

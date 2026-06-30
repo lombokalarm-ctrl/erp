@@ -8,11 +8,32 @@ import SearchableSelect from "@/components/ui/SearchableSelect";
 import { apiFetch, ApiError } from "@/api/client";
 import { BarcodeScanner } from "@/components/ui/BarcodeScanner";
 import { formatDate } from "@/lib/date";
-import { fetchProductUomMappings, pickDefaultUom, toUomOptions } from "@/lib/uom";
+import { fetchProductUomMappings, toUomOptions, type ProductUomMapping } from "@/lib/uom";
 
 type Warehouse = { id: string; code: string; name: string };
-type Product = { id: string; sku: string; name: string };
+type Supplier = { id: string; code: string; name: string };
+type Product = {
+  id: string;
+  sku: string;
+  name: string;
+  purchasePrice?: string;
+  unitPrices?: Record<string, number>;
+  supplierId?: string | null;
+};
 type GrnRow = { id: string; grnNo: string; receivedDate: string; warehouseCode: string };
+
+type GoodsReceiptFormItem = {
+  productId: string;
+  qty: string;
+  uom: string;
+  masterPrice: string;
+};
+
+function pickLargestPurchaseUom(mappings: ProductUomMapping[]) {
+  if (!mappings.length) return "pcs";
+  const sorted = [...mappings].sort((left, right) => Number(right.toBaseFactor) - Number(left.toBaseFactor));
+  return sorted[0]?.uomCode || "pcs";
+}
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -20,30 +41,42 @@ function today() {
 
 export default function GoodsReceipts() {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [rows, setRows] = useState<GrnRow[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const [warehouseId, setWarehouseId] = useState("");
+  const [supplierId, setSupplierId] = useState("");
   const [receivedDate, setReceivedDate] = useState(today());
-  const [items, setItems] = useState<{ productId: string; qty: string; uom: string }[]>([{ productId: "", qty: "1", uom: "pcs" }]);
+  const [items, setItems] = useState<GoodsReceiptFormItem[]>([
+    { productId: "", qty: "1", uom: "pcs", masterPrice: "0" },
+  ]);
   const [productUoms, setProductUoms] = useState<Record<string, Array<{ code: string; name: string }>>>({});
+  const [productUomMappings, setProductUomMappings] = useState<Record<string, ProductUomMapping[]>>({});
   const [showScanner, setShowScanner] = useState(false);
   const [scannerTargetIdx, setScannerTargetIdx] = useState<number | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
 
   const canSubmit = useMemo(
-    () => warehouseId && items.every((i) => i.productId && Number(i.qty) > 0),
-    [warehouseId, items],
+    () => warehouseId && supplierId && items.every((i) => i.productId && Number(i.qty) > 0),
+    [warehouseId, supplierId, items],
   );
 
+  const filteredProducts = useMemo(() => {
+    if (!supplierId) return [];
+    return products.filter((product) => product.supplierId === supplierId);
+  }, [products, supplierId]);
+
   async function load() {
-    const [w, p, grn] = await Promise.all([
+    const [w, s, p, grn] = await Promise.all([
       apiFetch<{ data: Warehouse[] }>("/api/v1/warehouses"),
+      apiFetch<{ data: Supplier[] }>("/api/v1/suppliers?page=1&pageSize=200"),
       apiFetch<{ data: Product[] }>("/api/v1/products?page=1&pageSize=200"),
       apiFetch<{ data: GrnRow[] }>("/api/v1/goods-receipts?page=1&pageSize=50"),
     ]);
     setWarehouses(w.data);
+    setSuppliers(s.data);
     setProducts(p.data);
     setRows(grn.data);
     if (!warehouseId && w.data[0]?.id) setWarehouseId(w.data[0].id);
@@ -53,11 +86,27 @@ export default function GoodsReceipts() {
     load().catch(() => {});
   }, []);
 
+  function getToBaseFactor(productId: string, uom: string) {
+    const mappings = productUomMappings[productId] ?? [];
+    const match = mappings.find((m) => m.uomCode === uom);
+    return Number(match?.toBaseFactor ?? 0);
+  }
+
+  function resolveMasterPurchasePrice(p: Product | undefined, productId: string, uom: string) {
+    const directUnitPrice = Number(p?.unitPrices?.[uom] ?? 0);
+    if (directUnitPrice > 0) return String(directUnitPrice);
+    const base = Number(p?.purchasePrice ?? 0) || 0;
+    const factor = getToBaseFactor(productId, uom);
+    if (factor > 0) return String(base * factor);
+    return String(base);
+  }
+
   async function ensureProductUomsLoaded(productId: string) {
-    if (!productId || productUoms[productId]) return;
+    if (!productId || productUomMappings[productId]) return;
     try {
       const mappings = await fetchProductUomMappings(productId);
       const options = toUomOptions(mappings, "purchase");
+      setProductUomMappings((prev) => ({ ...prev, [productId]: mappings }));
       if (options.length) {
         setProductUoms((prev) => ({ ...prev, [productId]: options }));
       }
@@ -67,25 +116,61 @@ export default function GoodsReceipts() {
   }
 
   function getUomOptions(productId: string) {
-    return productUoms[productId] ?? [
-      { code: "pcs", name: "Pcs" },
-      { code: "pack", name: "Pack" },
+    const options = productUoms[productId];
+    const mappings = productUomMappings[productId] ?? [];
+    if (options?.length) {
+      return [...options].sort((left, right) => {
+        const leftFactor = Number(mappings.find((item) => item.uomCode === left.code)?.toBaseFactor ?? 0);
+        const rightFactor = Number(mappings.find((item) => item.uomCode === right.code)?.toBaseFactor ?? 0);
+        return rightFactor - leftFactor;
+      });
+    }
+    return [
       { code: "dus", name: "Dus" },
+      { code: "pack", name: "Pack" },
+      { code: "pcs", name: "Pcs" },
     ];
   }
 
   function handleScan(decodedText: string) {
     if (scannerTargetIdx === null) return;
-    
-    // Find product by SKU or Name
-    const found = products.find(p => p.sku === decodedText || p.name.includes(decodedText));
-    if (found) {
-      setItems(prev => prev.map((x, i) => i === scannerTargetIdx ? { ...x, productId: found.id } : x));
-      setShowScanner(false);
-      setScannerTargetIdx(null);
-    } else {
-      alert(`Produk dengan SKU ${decodedText} tidak ditemukan.`);
+    if (!supplierId) {
+      alert("Pilih supplier terlebih dahulu sebelum scan produk.");
+      return;
     }
+    
+    // Find product by SKU or Name within selected supplier
+    const found = filteredProducts.find((p) => p.sku === decodedText || p.name.includes(decodedText));
+    if (found) {
+      void (async () => {
+        let nextUom = "pcs";
+        await ensureProductUomsLoaded(found.id);
+        try {
+          const mappings = productUomMappings[found.id] ?? (await fetchProductUomMappings(found.id));
+          nextUom = pickLargestPurchaseUom(mappings);
+        } catch {
+          nextUom = "pcs";
+        }
+        const nextPrice = resolveMasterPurchasePrice(found, found.id, nextUom);
+        setItems(prev => prev.map((x, i) => i === scannerTargetIdx ? { ...x, productId: found.id, uom: nextUom, masterPrice: nextPrice } : x));
+        setShowScanner(false);
+        setScannerTargetIdx(null);
+      })();
+    } else {
+      alert(`Produk supplier terpilih dengan SKU ${decodedText} tidak ditemukan.`);
+    }
+  }
+
+  function handleSupplierChange(nextSupplierId: string) {
+    setSupplierId(nextSupplierId);
+    setItems((prev) =>
+      prev.map((item) => {
+        if (!item.productId) return item;
+        const product = products.find((candidate) => candidate.id === item.productId);
+        if (product?.supplierId === nextSupplierId) return item;
+        return { productId: "", qty: "1", uom: "pcs", masterPrice: "0" };
+      }),
+    );
   }
 
   return (
@@ -177,6 +262,20 @@ export default function GoodsReceipts() {
                 />
               </label>
 
+              <label className="block">
+                <div className="mb-1 text-xs font-medium text-zinc-600">Supplier</div>
+                <SearchableSelect
+                  value={supplierId}
+                  onChange={handleSupplierChange}
+                  placeholder="Pilih supplier"
+                  searchPlaceholder="Cari supplier..."
+                  options={suppliers.map((supplier) => ({
+                    value: supplier.id,
+                    label: `${supplier.code} - ${supplier.name}`,
+                  }))}
+                />
+              </label>
+
             <Input label="Tanggal Terima" type="date" value={receivedDate} onChange={(e) => setReceivedDate(e.target.value)} />
 
             <div className="rounded-lg border border-zinc-200">
@@ -193,19 +292,22 @@ export default function GoodsReceipts() {
                           if (productId) {
                             await ensureProductUomsLoaded(productId);
                             try {
-                              const mappings = await fetchProductUomMappings(productId);
-                              nextUom = pickDefaultUom(mappings, "purchase");
+                              const mappings = productUomMappings[productId] ?? (await fetchProductUomMappings(productId));
+                              nextUom = pickLargestPurchaseUom(mappings);
                             } catch {
                               nextUom = "pcs";
                             }
                           }
+                          const product = products.find((p) => p.id === productId);
+                          const nextPrice = resolveMasterPurchasePrice(product, productId, nextUom);
                           setItems((prev) =>
-                            prev.map((x, i) => (i === idx ? { ...x, productId, uom: nextUom } : x)),
+                            prev.map((x, i) => (i === idx ? { ...x, productId, uom: nextUom, masterPrice: nextPrice } : x)),
                           );
                         }}
-                        placeholder="Pilih produk"
-                        searchPlaceholder="Cari SKU / nama produk..."
-                        options={products.map((p) => ({ value: p.id, label: `${p.sku} - ${p.name}` }))}
+                        placeholder={supplierId ? "Pilih produk" : "Pilih supplier dulu"}
+                        searchPlaceholder={supplierId ? "Cari SKU / nama produk..." : "Pilih supplier terlebih dahulu"}
+                        options={filteredProducts.map((p) => ({ value: p.id, label: `${p.sku} - ${p.name}` }))}
+                        disabled={!supplierId}
                       />
                       <Button
                         type="button"
@@ -216,6 +318,7 @@ export default function GoodsReceipts() {
                         }}
                         className="px-3"
                         title="Scan Barcode"
+                        disabled={!supplierId}
                       >
                         <Camera className="h-4 w-4" />
                       </Button>
@@ -233,7 +336,12 @@ export default function GoodsReceipts() {
                         <select
                           className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
                           value={it.uom}
-                          onChange={(e) => setItems((prev) => prev.map((x, i) => i === idx ? { ...x, uom: e.target.value } : x))}
+                          onChange={(e) => {
+                            const nextUom = e.target.value;
+                            const product = products.find((p) => p.id === it.productId);
+                            const nextPrice = resolveMasterPurchasePrice(product, it.productId, nextUom);
+                            setItems((prev) => prev.map((x, i) => i === idx ? { ...x, uom: nextUom, masterPrice: nextPrice } : x));
+                          }}
                         >
                           {getUomOptions(it.productId).map((u) => (
                             <option key={u.code} value={u.code}>
@@ -243,6 +351,13 @@ export default function GoodsReceipts() {
                         </select>
                       </label>
                     </div>
+                    <NumericInput
+                      label="Harga Master"
+                      mode="currency"
+                      value={it.masterPrice}
+                      onValueChange={() => {}}
+                      disabled
+                    />
                     <div className="flex justify-between">
                       <Button
                         variant="ghost"
@@ -258,7 +373,8 @@ export default function GoodsReceipts() {
                           variant="secondary"
                           size="sm"
                           type="button"
-                          onClick={() => setItems((prev) => [...prev, { productId: "", qty: "1", uom: "pcs" }])}
+                          onClick={() => setItems((prev) => [...prev, { productId: "", qty: "1", uom: "pcs", masterPrice: "0" }])}
+                          disabled={!supplierId}
                         >
                           Tambah Item
                         </Button>
@@ -286,7 +402,8 @@ export default function GoodsReceipts() {
                           items: items.map((i) => ({ productId: i.productId, qty: Number(i.qty), uom: i.uom })),
                         }),
                       });
-                      setItems([{ productId: "", qty: "1", uom: "pcs" }]);
+                      setSupplierId("");
+                      setItems([{ productId: "", qty: "1", uom: "pcs", masterPrice: "0" }]);
                       setIsFormOpen(false);
                       await load();
                     } catch (e) {

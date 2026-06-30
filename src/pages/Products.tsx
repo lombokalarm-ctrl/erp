@@ -3,6 +3,7 @@ import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import NumericInput from "@/components/ui/NumericInput";
 import Button from "@/components/ui/Button";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import { apiFetch, ApiError } from "@/api/client";
 import { fetchActiveUoms } from "@/lib/uom";
 import { exportToExcel } from "@/lib/exportUtils";
@@ -13,6 +14,8 @@ type Product = {
   sku: string;
   name: string;
   unit: string;
+  supplierId?: string | null;
+  supplierName?: string | null;
   purchasePrice: string;
   salePrice: string;
   categoryPrices?: Record<string, Record<string, number>>;
@@ -22,6 +25,12 @@ type Product = {
   dusSize?: number;
   minStockBase?: string;
   reorderQtyBase?: string;
+};
+
+type SupplierOption = {
+  id: string;
+  code: string;
+  name: string;
 };
 
 type UomMaster = {
@@ -70,12 +79,14 @@ export default function Products() {
   const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
   const [importing, setImporting] = useState(false);
   const [importSummary, setImportSummary] = useState<ProductImportSummary | null>(null);
 
   const [sku, setSku] = useState("");
   const [name, setName] = useState("");
   const [unit, setUnit] = useState("pcs");
+  const [supplierId, setSupplierId] = useState("");
   const [purchasePrice, setPurchasePrice] = useState("0");
   const [salePrice, setSalePrice] = useState("0");
   const [minStockBase, setMinStockBase] = useState("0");
@@ -136,6 +147,7 @@ export default function Products() {
     setSku(p.sku);
     setName(p.name);
     setUnit(p.unit);
+    setSupplierId(p.supplierId ?? "");
     setPurchasePrice(p.purchasePrice);
     setSalePrice(p.salePrice);
     setMinStockBase(p.minStockBase ?? "0");
@@ -196,6 +208,7 @@ export default function Products() {
     setSku("");
     setName("");
     setUnit("pcs");
+    setSupplierId("");
     setPurchasePrice("0");
     setSalePrice("0");
     setMinStockBase("0");
@@ -283,9 +296,19 @@ export default function Products() {
     }
   }
 
+  async function loadSuppliers() {
+    try {
+      const res = await apiFetch<{ data: SupplierOption[] }>("/api/v1/suppliers?page=1&pageSize=200");
+      setSuppliers(res.data);
+    } catch {
+      setSuppliers([]);
+    }
+  }
+
   useEffect(() => {
     void load();
     void loadUomMaster();
+    void loadSuppliers();
   }, []);
 
   useEffect(() => {
@@ -395,6 +418,7 @@ export default function Products() {
         sku,
         name,
         unit,
+        supplierId: supplierId || null,
         purchasePrice: Number(purchasePrice),
         salePrice: Number(salePrice),
         minStockBase: Number(minStockBase),
@@ -520,6 +544,7 @@ export default function Products() {
                 <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
                   <th className="px-4 py-2">SKU</th>
                   <th className="px-4 py-2">Nama</th>
+                  <th className="px-4 py-2">Supplier</th>
                   <th className="px-4 py-2 whitespace-nowrap">Sat. Dasar</th>
                   <th className="px-4 py-2">Harga Beli</th>
                   <th className="px-4 py-2 whitespace-nowrap">Min/Reorder Base</th>
@@ -532,6 +557,7 @@ export default function Products() {
                   <tr key={p.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                     <td className="px-4 py-2 font-medium">{p.sku}</td>
                     <td className="px-4 py-2">{p.name}</td>
+                    <td className="px-4 py-2">{p.supplierName || "-"}</td>
                     <td className="px-4 py-2">{p.unit}</td>
                     <td className="whitespace-nowrap px-4 py-2">{formatCurrency(p.purchasePrice)}</td>
                     <td className="px-4 py-2">{`${Number(p.minStockBase ?? 0).toFixed(2)} / ${Number(p.reorderQtyBase ?? 0).toFixed(2)}`}</td>
@@ -553,7 +579,7 @@ export default function Products() {
                 ))}
                 {items.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={7}>
+                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={8}>
                       Belum ada data.
                     </td>
                   </tr>
@@ -628,6 +654,19 @@ export default function Products() {
             <div className="mt-3 grid gap-3">
               <Input label="SKU" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="SKU-001" />
               <Input label="Nama" value={name} onChange={(e) => setName(e.target.value)} placeholder="Teh Botol 350ml" />
+              <label className="block">
+                <div className="mb-1 text-xs font-medium text-zinc-600">Supplier</div>
+                <SearchableSelect
+                  value={supplierId}
+                  onChange={setSupplierId}
+                  placeholder="Pilih supplier"
+                  searchPlaceholder="Cari supplier..."
+                  options={suppliers.map((supplier) => ({
+                    value: supplier.id,
+                    label: `${supplier.code} - ${supplier.name}`,
+                  }))}
+                />
+              </label>
               <label className="block">
                 <div className="mb-1 text-xs font-medium text-zinc-600">Satuan Dasar</div>
                 <select
