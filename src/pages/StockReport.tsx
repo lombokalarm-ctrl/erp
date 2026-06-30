@@ -152,8 +152,8 @@ export default function StockReport() {
                       <th className="px-4 py-3">Kode Barang</th>
                       <th className="px-4 py-3">Nama Barang</th>
                       <th className="px-4 py-3">Supplier</th>
-                      <th className="px-4 py-3 text-right">Stok Satuan Kecil</th>
                       <th className="px-4 py-3 text-right">Stok Satuan Besar</th>
+                      <th className="px-4 py-3 text-right">Stok Satuan Kecil</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -163,12 +163,12 @@ export default function StockReport() {
                         <td className="px-4 py-3">{row.productName}</td>
                         <td className="px-4 py-3">{row.supplierName ?? "-"}</td>
                         <td className="px-4 py-3 text-right">
-                          {Number(row.smallQty ?? row.qty).toFixed(2)} {String(row.smallUnitCode ?? "unit").toUpperCase()}
-                        </td>
-                        <td className="px-4 py-3 text-right">
                           {row.largeUnitCode
                             ? `${Number(row.largeQty ?? 0).toFixed(2)} ${String(row.largeUnitCode).toUpperCase()}`
                             : "-"}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {Number(row.smallQty ?? row.qty).toFixed(2)} {String(row.smallUnitCode ?? "unit").toUpperCase()}
                         </td>
                       </tr>
                     ))}

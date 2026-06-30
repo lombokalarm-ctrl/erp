@@ -58,14 +58,14 @@ export async function exportStockReport(params: {
     row.sku,
     row.productName,
     row.supplierName ?? "-",
-    `${num2(row.smallQty ?? row.qty)} ${String(row.smallUnitCode ?? "unit").toUpperCase()}`,
     row.largeUnitCode ? `${num2(row.largeQty ?? 0)} ${String(row.largeUnitCode).toUpperCase()}` : "-",
+    `${num2(row.smallQty ?? row.qty)} ${String(row.smallUnitCode ?? "unit").toUpperCase()}`,
   ]);
 
   const sections = [
     {
       title: "Saldo Stok",
-      headers: ["Kode Barang", "Nama Barang", "Supplier", "Stok Satuan Kecil", "Stok Satuan Besar"],
+      headers: ["Kode Barang", "Nama Barang", "Supplier", "Stok Satuan Besar", "Stok Satuan Kecil"],
       rows,
     },
   ];

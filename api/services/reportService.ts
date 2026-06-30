@@ -1006,12 +1006,27 @@ export async function getStockReport(params: { q?: string; supplierId?: string }
   const summaryRes = await pool.query(
     `
       with latest_supplier as (
-        select distinct on (poi.product_id)
-          poi.product_id,
-          po.supplier_id
-        from purchase_order_items poi
-        join purchase_orders po on po.id = poi.purchase_order_id
-        order by poi.product_id, po.order_date desc, po.created_at desc
+        select distinct on (src.product_id)
+          src.product_id,
+          src.supplier_id
+        from (
+          select
+            poi.product_id,
+            po.supplier_id,
+            po.order_date::timestamp as event_at,
+            po.created_at
+          from purchase_order_items poi
+          join purchase_orders po on po.id = poi.purchase_order_id
+          union all
+          select
+            pii.product_id,
+            pi.supplier_id,
+            pi.invoice_date::timestamp as event_at,
+            pi.created_at
+          from purchase_invoice_items pii
+          join purchase_invoices pi on pi.id = pii.purchase_invoice_id
+        ) src
+        order by src.product_id, src.event_at desc, src.created_at desc
       )
       select
         count(p.id)::int as "totalProducts",
@@ -1031,12 +1046,27 @@ export async function getStockReport(params: { q?: string; supplierId?: string }
   const stockRes = await pool.query(
     `
       with latest_supplier as (
-        select distinct on (poi.product_id)
-          poi.product_id,
-          po.supplier_id
-        from purchase_order_items poi
-        join purchase_orders po on po.id = poi.purchase_order_id
-        order by poi.product_id, po.order_date desc, po.created_at desc
+        select distinct on (src.product_id)
+          src.product_id,
+          src.supplier_id
+        from (
+          select
+            poi.product_id,
+            po.supplier_id,
+            po.order_date::timestamp as event_at,
+            po.created_at
+          from purchase_order_items poi
+          join purchase_orders po on po.id = poi.purchase_order_id
+          union all
+          select
+            pii.product_id,
+            pi.supplier_id,
+            pi.invoice_date::timestamp as event_at,
+            pi.created_at
+          from purchase_invoice_items pii
+          join purchase_invoices pi on pi.id = pii.purchase_invoice_id
+        ) src
+        order by src.product_id, src.event_at desc, src.created_at desc
       )
       select
         p.id as "productId",
@@ -1075,12 +1105,27 @@ export async function getStockReport(params: { q?: string; supplierId?: string }
   const movementRes = await pool.query(
     `
       with latest_supplier as (
-        select distinct on (poi.product_id)
-          poi.product_id,
-          po.supplier_id
-        from purchase_order_items poi
-        join purchase_orders po on po.id = poi.purchase_order_id
-        order by poi.product_id, po.order_date desc, po.created_at desc
+        select distinct on (src.product_id)
+          src.product_id,
+          src.supplier_id
+        from (
+          select
+            poi.product_id,
+            po.supplier_id,
+            po.order_date::timestamp as event_at,
+            po.created_at
+          from purchase_order_items poi
+          join purchase_orders po on po.id = poi.purchase_order_id
+          union all
+          select
+            pii.product_id,
+            pi.supplier_id,
+            pi.invoice_date::timestamp as event_at,
+            pi.created_at
+          from purchase_invoice_items pii
+          join purchase_invoices pi on pi.id = pii.purchase_invoice_id
+        ) src
+        order by src.product_id, src.event_at desc, src.created_at desc
       )
       select
         it.id,
