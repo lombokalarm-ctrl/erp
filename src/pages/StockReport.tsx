@@ -2,11 +2,19 @@ import { useEffect, useState } from "react";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import { apiDownload, apiFetch, ApiError } from "@/api/client";
 import { Download, Printer } from "lucide-react";
 import { formatDate } from "@/lib/date";
 
+type SupplierOption = {
+  id: string;
+  code: string;
+  name: string;
+};
+
 type StockReportData = {
+  suppliers: SupplierOption[];
   summary: {
     totalProducts: number;
     totalQty: string;
@@ -15,10 +23,13 @@ type StockReportData = {
     productId: string;
     sku: string;
     productName: string;
+    supplierId?: string | null;
+    supplierName?: string | null;
     qty: string;
-    uomOrder?: string[];
-    breakdownLabel?: string;
-    breakdown?: { uomCode: string; qty: number }[];
+    smallUnitCode?: string | null;
+    smallQty?: number;
+    largeUnitCode?: string | null;
+    largeQty?: number | null;
   }[];
   latestMovements: {
     id: string;
@@ -34,6 +45,7 @@ type StockReportData = {
 export default function StockReport() {
   const [data, setData] = useState<StockReportData | null>(null);
   const [q, setQ] = useState("");
+  const [supplierId, setSupplierId] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
@@ -41,6 +53,7 @@ export default function StockReport() {
     try {
       const url = new URL("/api/v1/reports/stocks", window.location.origin);
       if (q.trim()) url.searchParams.set("q", q.trim());
+      if (supplierId) url.searchParams.set("supplierId", supplierId);
       const res = await apiFetch<{ data: StockReportData }>(url.pathname + url.search);
       setData(res.data);
     } catch (e) {
@@ -58,6 +71,7 @@ export default function StockReport() {
       const url = new URL("/api/v1/exports/stocks", window.location.origin);
       url.searchParams.set("format", format);
       if (q.trim()) url.searchParams.set("q", q.trim());
+      if (supplierId) url.searchParams.set("supplierId", supplierId);
       const file = await apiDownload(url.pathname + url.search);
       const blobUrl = URL.createObjectURL(file.blob);
       const a = document.createElement("a");
@@ -77,13 +91,23 @@ export default function StockReport() {
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
         <div>
           <h1 className="text-lg font-semibold">Laporan Stok</h1>
-          <p className="mt-1 text-sm text-zinc-600">Ringkasan saldo stok dan mutasi terbaru.</p>
+          <p className="mt-1 text-sm text-zinc-600">Filter per supplier untuk melihat saldo stok produk yang lebih spesifik.</p>
         </div>
-        <div className="flex items-end gap-2">
+        <div className="grid w-full gap-2 md:w-auto md:grid-cols-[240px_240px_auto_auto_auto]">
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Cari SKU / nama produk..."
+          />
+          <SearchableSelect
+            value={supplierId}
+            onChange={setSupplierId}
+            options={(data?.suppliers ?? []).map((supplier) => ({
+              value: supplier.id,
+              label: `${supplier.code} - ${supplier.name}`,
+            }))}
+            placeholder="Semua Supplier"
+            searchPlaceholder="Cari supplier..."
           />
           <Button variant="secondary" onClick={load}>
             Filter
@@ -125,27 +149,27 @@ export default function StockReport() {
                 <table className="min-w-full text-sm">
                   <thead className="sticky top-0 bg-white">
                     <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
-                      <th className="px-4 py-3">Produk</th>
-                      <th className="px-4 py-3">Breakdown Satuan</th>
-                      <th className="px-4 py-3 text-right">Qty Base</th>
+                      <th className="px-4 py-3">Kode Barang</th>
+                      <th className="px-4 py-3">Nama Barang</th>
+                      <th className="px-4 py-3">Supplier</th>
+                      <th className="px-4 py-3 text-right">Stok Satuan Kecil</th>
+                      <th className="px-4 py-3 text-right">Stok Satuan Besar</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.stock.map((row) => (
                       <tr key={row.productId} className="border-b border-zinc-100 hover:bg-zinc-50">
-                        <td className="px-4 py-3">
-                          <div className="font-medium">{row.productName}</div>
-                          <div className="text-xs text-zinc-500">{row.sku}</div>
+                        <td className="px-4 py-3 font-medium">{row.sku}</td>
+                        <td className="px-4 py-3">{row.productName}</td>
+                        <td className="px-4 py-3">{row.supplierName ?? "-"}</td>
+                        <td className="px-4 py-3 text-right">
+                          {Number(row.smallQty ?? row.qty).toFixed(2)} {String(row.smallUnitCode ?? "unit").toUpperCase()}
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="font-medium">{row.breakdownLabel ?? "-"}</div>
-                          {row.breakdown?.length ? (
-                            <div className="text-xs text-zinc-500">
-                              {row.breakdown.map((b) => `${Number(b.qty.toFixed(2))} ${b.uomCode}`).join(" | ")}
-                            </div>
-                          ) : null}
+                        <td className="px-4 py-3 text-right">
+                          {row.largeUnitCode
+                            ? `${Number(row.largeQty ?? 0).toFixed(2)} ${String(row.largeUnitCode).toUpperCase()}`
+                            : "-"}
                         </td>
-                        <td className="px-4 py-3 text-right">{Number(row.qty).toFixed(2)}</td>
                       </tr>
                     ))}
                   </tbody>

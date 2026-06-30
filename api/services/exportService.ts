@@ -44,24 +44,28 @@ function makePdfBuffer(args: {
   return createSimplePdfBuffer(args.title, lines);
 }
 
-export async function exportStockReport(params: { q?: string; format: ExportFormat }): Promise<ExportFile> {
-  const [company, report] = await Promise.all([getCompanySettings(), getStockReport({ q: params.q })]);
+export async function exportStockReport(params: {
+  q?: string;
+  supplierId?: string;
+  format: ExportFormat;
+}): Promise<ExportFile> {
+  const [company, report] = await Promise.all([
+    getCompanySettings(),
+    getStockReport({ q: params.q, supplierId: params.supplierId }),
+  ]);
 
   const rows = report.stock.map((row: any) => [
     row.sku,
     row.productName,
-    (row.uomOrder ?? []).slice(0, 3).join(", ") || "-",
-    num2(row.breakdown?.find((b: any) => b.uomCode === (row.uomOrder ?? [])[0])?.qty ?? 0),
-    num2(row.breakdown?.find((b: any) => b.uomCode === (row.uomOrder ?? [])[1])?.qty ?? 0),
-    num2(row.breakdown?.find((b: any) => b.uomCode === (row.uomOrder ?? [])[2])?.qty ?? 0),
-    row.breakdownLabel ?? "-",
-    num2(row.qty),
+    row.supplierName ?? "-",
+    `${num2(row.smallQty ?? row.qty)} ${String(row.smallUnitCode ?? "unit").toUpperCase()}`,
+    row.largeUnitCode ? `${num2(row.largeQty ?? 0)} ${String(row.largeUnitCode).toUpperCase()}` : "-",
   ]);
 
   const sections = [
     {
       title: "Saldo Stok",
-      headers: ["SKU", "Nama Produk", "Satuan", "Qty 1", "Qty 2", "Qty 3", "Breakdown Satuan", "Qty Base"],
+      headers: ["Kode Barang", "Nama Barang", "Supplier", "Stok Satuan Kecil", "Stok Satuan Besar"],
       rows,
     },
   ];

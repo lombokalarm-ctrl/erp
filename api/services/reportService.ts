@@ -975,24 +975,58 @@ export async function getPurchaseReport(params: { startDate?: string; endDate?: 
   }
 }
 
-export async function getStockReport(params: { q?: string }) {
+export async function getStockReport(params: { q?: string; supplierId?: string }) {
   const pool = getPool()
   const values: unknown[] = []
   const where: string[] = []
 
   if (params.q?.trim()) {
     values.push(`%${params.q.trim().toLowerCase()}%`)
-    where.push('(lower(p.sku) like $1 or lower(p.name) like $1)')
+    where.push(`(lower(p.sku) like $${values.length} or lower(p.name) like $${values.length})`)
+  }
+
+  if (params.supplierId) {
+    values.push(params.supplierId)
+    where.push(`ls.supplier_id = $${values.length}`)
   }
 
   const whereSql = where.length ? `where ${where.join(' and ')}` : ''
 
+  const supplierOptionsRes = await pool.query(
+    `
+      with latest_supplier as (
+        select distinct on (poi.product_id)
+          poi.product_id,
+          po.supplier_id
+        from purchase_order_items poi
+        join purchase_orders po on po.id = poi.purchase_order_id
+        order by poi.product_id, po.order_date desc, po.created_at desc
+      )
+      select distinct
+        s.id,
+        s.code,
+        s.name
+      from latest_supplier ls
+      join suppliers s on s.id = ls.supplier_id
+      order by s.name asc
+    `,
+  )
+
   const summaryRes = await pool.query(
     `
+      with latest_supplier as (
+        select distinct on (poi.product_id)
+          poi.product_id,
+          po.supplier_id
+        from purchase_order_items poi
+        join purchase_orders po on po.id = poi.purchase_order_id
+        order by poi.product_id, po.order_date desc, po.created_at desc
+      )
       select
         count(p.id)::int as "totalProducts",
         coalesce(sum(coalesce(b.qty, 0)), 0)::text as "totalQty"
       from products p
+      left join latest_supplier ls on ls.product_id = p.id
       left join (
         select product_id, sum(qty) as qty
         from inventory_balances
@@ -1005,10 +1039,20 @@ export async function getStockReport(params: { q?: string }) {
 
   const stockRes = await pool.query(
     `
+      with latest_supplier as (
+        select distinct on (poi.product_id)
+          poi.product_id,
+          po.supplier_id
+        from purchase_order_items poi
+        join purchase_orders po on po.id = poi.purchase_order_id
+        order by poi.product_id, po.order_date desc, po.created_at desc
+      )
       select
         p.id as "productId",
         p.sku,
         p.name as "productName",
+        ls.supplier_id as "supplierId",
+        s.name as "supplierName",
         coalesce(sum(b.qty), 0)::text as qty,
         bu.code as "baseUomCode",
         coalesce(
@@ -1023,20 +1067,30 @@ export async function getStockReport(params: { q?: string }) {
           '[]'::json
         ) as "uomMappings"
       from products p
+      left join latest_supplier ls on ls.product_id = p.id
+      left join suppliers s on s.id = ls.supplier_id
       left join inventory_balances b on b.product_id = p.id
       left join uoms bu on bu.id = p.base_uom_id
       left join product_uoms pu on pu.product_id = p.id
       left join uoms u on u.id = pu.uom_id
       ${whereSql}
-      group by p.id, p.sku, p.name, bu.code
+      group by p.id, p.sku, p.name, ls.supplier_id, s.name, bu.code
       order by p.name asc
-      limit 200
+      limit 500
     `,
     values,
   )
 
   const movementRes = await pool.query(
     `
+      with latest_supplier as (
+        select distinct on (poi.product_id)
+          poi.product_id,
+          po.supplier_id
+        from purchase_order_items poi
+        join purchase_orders po on po.id = poi.purchase_order_id
+        order by poi.product_id, po.order_date desc, po.created_at desc
+      )
       select
         it.id,
         it.created_at as "createdAt",
@@ -1047,9 +1101,12 @@ export async function getStockReport(params: { q?: string }) {
         it.ref_type as "refType"
       from inventory_transactions it
       join products p on p.id = it.product_id
+      left join latest_supplier ls on ls.product_id = p.id
+      ${whereSql}
       order by it.created_at desc
       limit 100
     `,
+    values,
   )
 
   const stockWithBreakdown = stockRes.rows.map((row) => {
@@ -1093,16 +1150,30 @@ export async function getStockReport(params: { q?: string }) {
         : `${Number(qtyNumber.toFixed(2))} ${row.baseUomCode ?? 'unit'}`
 
     const uomOrder = normalizedMappings.map((m) => m.uomCode).slice(0, 3)
+    const baseMapping = normalizedMappings.find((m) => m.toBaseFactor === 1) ?? null
+    const smallMapping = baseMapping
+    const largeMapping = normalizedMappings.find((m) => m.toBaseFactor > 1) ?? null
+    const smallQty = qtyNumber
+    const largeQty = largeMapping
+      ? largeMapping.toBaseFactor > 0
+        ? qtyNumber / largeMapping.toBaseFactor
+        : 0
+      : 0
 
     return {
       ...row,
       breakdown,
       breakdownLabel,
       uomOrder,
+      smallUnitCode: smallMapping?.uomCode ?? String(row.baseUomCode ?? 'unit').toLowerCase(),
+      smallQty: Number(smallQty.toFixed(2)),
+      largeUnitCode: largeMapping?.uomCode ?? null,
+      largeQty: largeMapping ? Number(largeQty.toFixed(2)) : null,
     }
   })
 
   return {
+    suppliers: supplierOptionsRes.rows,
     summary: summaryRes.rows[0] ?? { totalProducts: 0, totalQty: '0' },
     stock: stockWithBreakdown,
     latestMovements: movementRes.rows,

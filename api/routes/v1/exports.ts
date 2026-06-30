@@ -22,12 +22,14 @@ router.get(
       const query = z
         .object({
           q: z.string().optional(),
+          supplierId: z.string().uuid().optional(),
           format: formatSchema,
         })
         .parse(req.query);
 
       const file = await exportStockReport({
         q: query.q,
+        supplierId: query.supplierId,
         format: query.format ?? "xlsx",
       });
       res.setHeader("Content-Type", file.contentType);

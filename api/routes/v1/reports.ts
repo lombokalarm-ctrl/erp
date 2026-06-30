@@ -267,6 +267,7 @@ router.get(
       const query = z
         .object({
           q: z.string().optional(),
+          supplierId: z.string().uuid().optional(),
         })
         .parse(req.query)
 
