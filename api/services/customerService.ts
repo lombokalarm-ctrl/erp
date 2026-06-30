@@ -14,6 +14,7 @@ export type Customer = {
   email: string | null
   address: string | null
   regionId: string | null
+  regionName?: string | null
   status: string
   salesId?: string | null
   salesName?: string | null
@@ -73,11 +74,13 @@ export async function listCustomers(params: {
         c.npwp_no as "npwpNo",
         c.category, c.phone, c.email, c.address,
         c.region_id as "regionId",
+        r.name as "regionName",
         c.status,
         c.sales_id as "salesId",
         u.full_name as "salesName"
       from customers c
       left join users u on u.id = c.sales_id
+      left join regions r on r.id = c.region_id
       ${whereSql}
       order by c.created_at desc
       limit $${values.length + 1} offset $${values.length + 2}
@@ -102,11 +105,13 @@ export async function getCustomerById(id: string) {
         c.npwp_no as "npwpNo",
         c.category, c.phone, c.email, c.address,
         c.region_id as "regionId",
+        r.name as "regionName",
         c.status,
         c.sales_id as "salesId",
         u.full_name as "salesName"
       from customers c
       left join users u on u.id = c.sales_id
+      left join regions r on r.id = c.region_id
       where c.id = $1
       limit 1
     `,

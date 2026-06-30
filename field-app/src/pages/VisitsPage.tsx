@@ -12,6 +12,7 @@ type Customer = {
   id: string;
   name: string;
   code: string;
+  regionName?: string | null;
 };
 
 const visitOptions = [
@@ -344,6 +345,7 @@ export default function VisitsPage() {
             {customers.map((customer) => (
               <option key={customer.id} value={customer.id}>
                 {customer.code} - {customer.name}
+                {customer.regionName ? ` (${customer.regionName})` : ""}
               </option>
             ))}
           </select>

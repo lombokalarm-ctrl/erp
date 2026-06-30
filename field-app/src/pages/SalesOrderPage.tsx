@@ -12,6 +12,7 @@ type Customer = {
   id: string;
   name: string;
   code: string;
+  regionName?: string | null;
 };
 
 type Product = {
@@ -491,7 +492,10 @@ export default function SalesOrderPage() {
                       >
                         <div>
                           <div className="text-sm font-medium text-zinc-900">{customer.name}</div>
-                          <div className="text-xs text-zinc-500">{customer.code}</div>
+                          <div className="text-xs text-zinc-500">
+                            {customer.code}
+                            {customer.regionName ? ` - ${customer.regionName}` : ""}
+                          </div>
                         </div>
                         {customerId === customer.id ? (
                           <span className="text-xs font-semibold text-emerald-700">Dipilih</span>
@@ -511,6 +515,7 @@ export default function SalesOrderPage() {
             {customerId && customerName ? (
               <div className="mt-2 rounded-[16px] bg-emerald-50 px-3 py-2.5 text-sm text-emerald-900">
                 Pelanggan terpilih: <span className="font-semibold">{customerName}</span>
+                {customerCache[customerId]?.regionName ? ` - ${customerCache[customerId]?.regionName}` : ""}
               </div>
             ) : null}
           </div>
