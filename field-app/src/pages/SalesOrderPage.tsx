@@ -298,10 +298,18 @@ export default function SalesOrderPage() {
   function getProductSearchMeta(product: Product) {
     const mappings = productUomMappings[product.id] ?? [];
     const largestUom = pickLargestSaleUom(mappings, String(product.unit || "pcs").toLowerCase());
+    const baseMapping =
+      mappings.find((item) => Number(item.toBaseFactor) === 1) ??
+      mappings.find((item) => item.uomCode === String(product.unit || "pcs").toLowerCase());
+    const stockBase = Number(product.currentStockBase ?? 0);
+    const largestMapping = mappings.find((item) => item.uomCode === largestUom.code);
+    const largestFactor = Number(largestMapping?.toBaseFactor ?? 1);
     return {
       largestUom,
       displayPrice: resolveUnitPrice(product, mappings, largestUom.code),
-      stockBase: Number(product.currentStockBase ?? 0),
+      stockBase,
+      baseUomName: (baseMapping?.uomName || product.unit || "pcs").toUpperCase(),
+      largestStockQty: largestFactor > 1 ? stockBase / largestFactor : null,
     };
   }
 
@@ -574,7 +582,11 @@ export default function SalesOrderPage() {
                           <div>
                             <div className="text-sm font-medium text-zinc-900">{product.name}</div>
                             <div className="text-[11px] text-zinc-500">
-                              {product.sku} • Stok gudang: {formatQuantity(meta.stockBase)} pcs
+                              {product.sku} • Stok gudang:{" "}
+                              {meta.largestStockQty !== null
+                                ? `${formatQuantity(meta.largestStockQty)} ${meta.largestUom.name} • `
+                                : ""}
+                              {formatQuantity(meta.stockBase)} {meta.baseUomName}
                             </div>
                             <div className="mt-1 text-[11px] font-medium text-emerald-700">
                               Harga {meta.largestUom.name}: {formatCurrency(meta.displayPrice)}
