@@ -147,6 +147,7 @@ export default function InvoiceDetail() {
                 <div><strong>Tanggal    :</strong> ${formatDate(inv.invoiceDate)}</div>
                 <div><strong>Jatuh Tempo:</strong> ${formatDate(inv.dueDate)}</div>
                 <div><strong>No. SO     :</strong> ${inv.soNo || '-'}</div>
+                <div><strong>Sales      :</strong> ${escapeHtml(inv.salesName || "-")}</div>
               </div>
               <div class="meta-box">
                 <div><strong>Kepada Yth:</strong></div>

@@ -153,11 +153,13 @@ export async function getInvoiceDetail(id: string) {
         i.due_date::text as "dueDate",
         i.total_amount::text as "totalAmount",
         i.status,
-        so.order_no as "soNo"
+        so.order_no as "soNo",
+        u.full_name as "salesName"
       from invoices i
       join customers c on c.id = i.customer_id
       left join regions r on r.id = c.region_id
       left join sales_orders so on so.id = i.sales_order_id
+      left join users u on u.id = so.created_by
       where i.id = $1
       limit 1
     `,
