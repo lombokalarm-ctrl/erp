@@ -118,10 +118,6 @@ function isSalesOrderItemComplete(item: Pick<SalesOrderFormItem, "productId" | "
   return Boolean(item.productId) && Number(item.qty) > 0;
 }
 
-function isSalesOrderItemBlank(item: Pick<SalesOrderFormItem, "productId" | "qty">) {
-  return !item.productId;
-}
-
 function escapeHtml(value?: string | null) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -165,15 +161,13 @@ export default function SalesOrders() {
   const [customerId, setCustomerId] = useState("");
   const [orderDate, setOrderDate] = useState(today());
   const [notes, setNotes] = useState("");
-  const [items, setItems] = useState<SalesOrderFormItem[]>([createEmptySalesOrderItem()]);
+  const [items, setItems] = useState<SalesOrderFormItem[]>([]);
+  const [draftItem, setDraftItem] = useState<SalesOrderFormItem>(createEmptySalesOrderItem());
   const [productUoms, setProductUoms] = useState<Record<string, Array<{ code: string; name: string }>>>({});
   const [productUomMappings, setProductUomMappings] = useState<Record<string, ProductUomMapping[]>>({});
-  const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
   const topItemSearchRef = useRef<HTMLInputElement | null>(null);
   const company = useSettingsStore((s) => s.company);
   const fetchCompany = useSettingsStore((s) => s.fetchCompany);
-
-  const completedItems = useMemo(() => items.filter(isSalesOrderItemComplete), [items]);
 
   function getToBaseFactor(productId: string, uom: string) {
     const mappings = productUomMappings[productId] ?? [];
@@ -223,7 +217,10 @@ export default function SalesOrders() {
     ];
   }
 
-  const canSubmit = useMemo(() => Boolean(customerId) && completedItems.length > 0, [completedItems, customerId]);
+  const canSubmit = useMemo(() => Boolean(customerId) && items.length > 0, [items.length, customerId]);
+  const canAddDraftItem = useMemo(() => isSalesOrderItemComplete(draftItem), [draftItem]);
+  const selectedCustomer = useMemo(() => customers.find((item) => item.id === customerId), [customerId, customers]);
+  const draftProduct = useMemo(() => products.find((item) => item.id === draftItem.productId), [draftItem.productId, products]);
 
   async function loadInitial() {
     try {
@@ -275,9 +272,9 @@ export default function SalesOrders() {
     setCustomerId("");
     setOrderDate(today());
     setNotes("");
-    setItems([createEmptySalesOrderItem()]);
+    setItems([]);
+    setDraftItem(createEmptySalesOrderItem());
     setEditingOrderId(null);
-    setFocusedItemId(null);
   }
 
   function focusTopItemSearch() {
@@ -287,22 +284,10 @@ export default function SalesOrders() {
     });
   }
 
-  function handleAddDraftItem() {
-    setItems((prev) => {
-      const blankIndex = prev.findIndex(isSalesOrderItemBlank);
-      if (blankIndex === 0) {
-        setFocusedItemId(prev[0]?.id ?? null);
-        return prev;
-      }
-      if (blankIndex > 0) {
-        const draft = prev[blankIndex];
-        setFocusedItemId(draft.id);
-        return [draft, ...prev.filter((_, index) => index !== blankIndex)];
-      }
-      const draft = createEmptySalesOrderItem();
-      setFocusedItemId(draft.id);
-      return [draft, ...prev];
-    });
+  function handleAddItemToList() {
+    if (!isSalesOrderItemComplete(draftItem)) return;
+    setItems((prev) => [...prev, { ...draftItem }]);
+    setDraftItem(createEmptySalesOrderItem());
     focusTopItemSearch();
   }
 
@@ -326,7 +311,7 @@ export default function SalesOrders() {
       customerId,
       orderDate,
       notes: notes.trim() || undefined,
-      items: completedItems.map((i) => ({
+      items: items.map((i) => ({
         productId: i.productId,
         qty: Number(i.qty),
         uom: i.uom,
@@ -422,11 +407,12 @@ export default function SalesOrders() {
           unitPrice: String(Number(it.unitPrice)),
         })),
       );
-      setFocusedItemId(null);
+      setDraftItem(createEmptySalesOrderItem());
       for (const item of detail.items) {
         void ensureProductUomsLoaded(item.productId);
       }
       setIsFormOpen(true);
+      focusTopItemSearch();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Gagal memuat data edit");
     }
@@ -560,7 +546,9 @@ export default function SalesOrders() {
               onClick={() => {
                 setError(null);
                 setApprovalNotice(null);
+                resetForm();
                 setIsFormOpen(true);
+                focusTopItemSearch();
               }}
             >
               Tambah Sales Order
@@ -576,7 +564,9 @@ export default function SalesOrders() {
             onClick={() => {
               setError(null);
               setApprovalNotice(null);
+              resetForm();
               setIsFormOpen(true);
+              focusTopItemSearch();
             }}
           >
             Tambah Sales Order
@@ -712,15 +702,18 @@ export default function SalesOrders() {
                   onChange={(newCustId) => {
                     setCustomerId(newCustId);
                     const c = customers.find(x => x.id === newCustId);
-                    if (c) {
-                      setItems(prev => prev.map(it => {
-                        const p = products.find(x => x.id === it.productId);
-                        if (p) {
-                          return { ...it, unitPrice: resolveUnitPrice(p, c, it.uom) };
-                        }
-                        return it;
-                      }));
-                    }
+                    setItems(prev => prev.map(it => {
+                      const p = products.find(x => x.id === it.productId);
+                      if (p) {
+                        return { ...it, unitPrice: resolveUnitPrice(p, c, it.uom) };
+                      }
+                      return it;
+                    }));
+                    setDraftItem((prev) => {
+                      const p = products.find((x) => x.id === prev.productId);
+                      if (!p) return prev;
+                      return { ...prev, unitPrice: resolveUnitPrice(p, c, prev.uom) };
+                    });
                   }}
                   placeholder="Pilih pelanggan"
                   searchPlaceholder="Cari pelanggan..."
@@ -733,118 +726,184 @@ export default function SalesOrders() {
 
             <div className="rounded-lg border border-zinc-200">
               <div className="border-b border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-600">
-                Item
+                Input Item
               </div>
-              <div className="grid gap-2 p-3">
-                {items.map((it, idx) => (
-                  <div key={it.id} className="grid grid-cols-1 gap-2">
-                    <SearchableSelect
-                      value={it.productId}
-                      autoFocusSearch={idx === 0 && focusedItemId === it.id}
-                      searchInputRef={idx === 0 ? topItemSearchRef : undefined}
-                      onChange={async (pid) => {
-                        const p = products.find((x) => x.id === pid);
-                        const c = customers.find((x) => x.id === customerId);
-                        let nextUom = it.uom || "pcs";
-                        if (pid) {
-                          await ensureProductUomsLoaded(pid);
-                          try {
-                            const mappings = productUomMappings[pid] ?? (await fetchProductUomMappings(pid));
-                            nextUom = pickDefaultUom(mappings, "sale");
-                          } catch {
-                            nextUom = "pcs";
-                          }
-                        }
-                        const newPrice = resolveUnitPrice(p, c, nextUom);
-
-                        setItems((prev) =>
-                          prev.map((x, i) =>
-                            i === idx
-                              ? { ...x, productId: pid, uom: nextUom, unitPrice: newPrice ?? x.unitPrice }
-                              : x,
-                          ),
-                        );
-                        if (idx === 0) {
-                          setFocusedItemId(null);
-                        }
-                      }}
-                      placeholder="Pilih produk"
-                      searchPlaceholder="Cari SKU / nama produk..."
-                      options={products.map((p) => ({ value: p.id, label: `${p.sku} - ${p.name}` }))}
-                    />
-                    <div className="grid grid-cols-2 gap-2">
-                      <NumericInput
-                        label="Qty"
-                        value={it.qty}
-                        onValueChange={(v) =>
-                          setItems((prev) =>
-                              prev.map((x, i) => (i === idx ? { ...x, qty: v || (x.productId ? "0" : "") } : x)),
-                          )
-                        }
-                      />
-                      <label className="block">
-                        <div className="mb-1 text-xs font-medium text-zinc-600">Satuan</div>
-                        <select
-                          className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
-                          value={it.uom}
-                          onChange={(e) => {
-                            const nextUom = e.target.value;
-                            const p = products.find((x) => x.id === it.productId);
-                            const c = customers.find((x) => x.id === customerId);
-                            const nextPrice = resolveUnitPrice(p, c, nextUom);
-                            setItems((prev) =>
-                              prev.map((x, i) =>
-                                i === idx ? { ...x, uom: nextUom, unitPrice: nextPrice } : x,
-                              ),
-                            );
-                          }}
-                        >
-                          {getUomOptions(it.productId).map((u) => (
-                            <option key={u.code} value={u.code}>
-                              {u.code}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    </div>
-                    <NumericInput
-                      label="Harga"
-                      mode="currency"
-                      value={it.unitPrice}
-                      onValueChange={(v) =>
-                        setItems((prev) =>
-                          prev.map((x, i) =>
-                            i === idx ? { ...x, unitPrice: v || "0" } : x,
-                          ),
-                        )
+              <div className="grid gap-3 p-3">
+                <SearchableSelect
+                  value={draftItem.productId}
+                  searchInputRef={topItemSearchRef}
+                  onChange={async (pid) => {
+                    const p = products.find((x) => x.id === pid);
+                    let nextUom = draftItem.uom || "pcs";
+                    if (pid) {
+                      await ensureProductUomsLoaded(pid);
+                      try {
+                        const mappings = productUomMappings[pid] ?? (await fetchProductUomMappings(pid));
+                        nextUom = pickDefaultUom(mappings, "sale");
+                      } catch {
+                        nextUom = "pcs";
                       }
-                    />
-                    <div className="flex justify-between">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          setItems((prev) =>
-                            prev.length === 1 ? [createEmptySalesOrderItem()] : prev.filter((_, i) => i !== idx),
-                          )
-                        }
-                        type="button"
-                      >
-                        Hapus
-                      </Button>
-                      {idx === 0 ? (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          type="button"
-                          onClick={handleAddDraftItem}
-                        >
-                          Tambah Item
-                        </Button>
-                      ) : null}
+                    }
+                    const newPrice = resolveUnitPrice(p, selectedCustomer, nextUom);
+                    setDraftItem((prev) => ({
+                      ...prev,
+                      productId: pid,
+                      uom: nextUom,
+                      unitPrice: newPrice,
+                    }));
+                  }}
+                  placeholder="Pilih produk"
+                  searchPlaceholder="Cari SKU / nama produk..."
+                  options={products.map((p) => ({ value: p.id, label: `${p.sku} - ${p.name}` }))}
+                />
+                <div className="grid gap-2 md:grid-cols-[minmax(0,1.6fr)_120px_160px_180px_auto]">
+                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm">
+                    <div className="text-[11px] font-medium text-zinc-500">Produk Aktif</div>
+                    <div className="font-medium text-zinc-900">
+                      {draftProduct ? `${draftProduct.sku} - ${draftProduct.name}` : "Belum pilih produk"}
                     </div>
                   </div>
-                ))}
+                  <NumericInput
+                    label="Qty"
+                    value={draftItem.qty}
+                    onValueChange={(v) => setDraftItem((prev) => ({ ...prev, qty: v || (prev.productId ? "0" : "") }))}
+                  />
+                  <label className="block">
+                    <div className="mb-1 text-xs font-medium text-zinc-600">Satuan</div>
+                    <select
+                      className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                      value={draftItem.uom}
+                      onChange={(e) => {
+                        const nextUom = e.target.value;
+                        const nextPrice = resolveUnitPrice(draftProduct, selectedCustomer, nextUom);
+                        setDraftItem((prev) => ({ ...prev, uom: nextUom, unitPrice: nextPrice }));
+                      }}
+                      disabled={!draftItem.productId}
+                    >
+                      {getUomOptions(draftItem.productId).map((u) => (
+                        <option key={u.code} value={u.code}>
+                          {u.code}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <NumericInput
+                    label="Harga"
+                    mode="currency"
+                    value={draftItem.unitPrice}
+                    onValueChange={(v) => setDraftItem((prev) => ({ ...prev, unitPrice: v || "0" }))}
+                    disabled={!draftItem.productId}
+                  />
+                  <div className="flex items-end">
+                    <Button
+                      variant="secondary"
+                      type="button"
+                      className="w-full md:w-auto"
+                      onClick={handleAddItemToList}
+                      disabled={!canAddDraftItem}
+                    >
+                      Tambah Item
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-zinc-200">
+              <div className="border-b border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-600">
+                Daftar Item
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-white">
+                    <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
+                      <th className="px-3 py-2">Produk</th>
+                      <th className="px-3 py-2 text-right">Qty</th>
+                      <th className="px-3 py-2">Satuan</th>
+                      <th className="px-3 py-2 text-right">Harga</th>
+                      <th className="px-3 py-2 text-right">Subtotal</th>
+                      <th className="px-3 py-2 text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.length ? (
+                      items.map((it, idx) => {
+                        const product = products.find((x) => x.id === it.productId);
+                        const subtotal = (Number(it.qty) || 0) * (Number(it.unitPrice) || 0);
+                        return (
+                          <tr key={it.id} className="border-b border-zinc-100 last:border-b-0">
+                            <td className="px-3 py-2">
+                              <div className="font-medium text-zinc-900">{product ? `${product.sku} - ${product.name}` : "-"}</div>
+                            </td>
+                            <td className="px-3 py-2">
+                              <NumericInput
+                                value={it.qty}
+                                onValueChange={(v) =>
+                                  setItems((prev) =>
+                                    prev.map((x, i) => (i === idx ? { ...x, qty: v || "0" } : x)),
+                                  )
+                                }
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <select
+                                className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                                value={it.uom}
+                                onChange={(e) => {
+                                  const nextUom = e.target.value;
+                                  const nextPrice = resolveUnitPrice(product, selectedCustomer, nextUom);
+                                  setItems((prev) =>
+                                    prev.map((x, i) =>
+                                      i === idx ? { ...x, uom: nextUom, unitPrice: nextPrice } : x,
+                                    ),
+                                  );
+                                }}
+                              >
+                                {getUomOptions(it.productId).map((u) => (
+                                  <option key={u.code} value={u.code}>
+                                    {u.code}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="px-3 py-2">
+                              <NumericInput
+                                mode="currency"
+                                value={it.unitPrice}
+                                onValueChange={(v) =>
+                                  setItems((prev) =>
+                                    prev.map((x, i) =>
+                                      i === idx ? { ...x, unitPrice: v || "0" } : x,
+                                    ),
+                                  )
+                                }
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-right font-medium text-zinc-700">
+                              {formatCurrency(subtotal)}
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setItems((prev) => prev.filter((_, i) => i !== idx))}
+                                type="button"
+                              >
+                                Hapus
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td className="px-3 py-6 text-center text-sm text-zinc-500" colSpan={6}>
+                          Belum ada item. Pilih produk dari area input di atas lalu klik `Tambah Item`.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
 
