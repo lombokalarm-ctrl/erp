@@ -71,6 +71,7 @@ const CUSTOMER_CATEGORIES = [
 ];
 
 export default function Products() {
+  const skuInputId = "product-form-sku";
   const [q, setQ] = useState("");
   const [appliedQ, setAppliedQ] = useState("");
   const [items, setItems] = useState<Product[]>([]);
@@ -106,6 +107,7 @@ export default function Products() {
   const [uomMappings, setUomMappings] = useState<ProductUomMapping[]>([]);
   const [editingMappings, setEditingMappings] = useState<ProductUomMapping[]>([]);
   const [isMappingInlineOpen, setIsMappingInlineOpen] = useState(false);
+  const [isSavingProduct, setIsSavingProduct] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const canCreate = useMemo(() => sku.trim() && name.trim(), [sku, name]);
@@ -198,12 +200,12 @@ export default function Products() {
   }
 
   function handleOpenCreate() {
-    handleCancelEdit();
-    setCategoryPrices(emptyCategoryPrices([unit || "pcs"]));
+    resetProductForm();
     setIsFormOpen(true);
+    focusSkuInput();
   }
 
-  function handleCancelEdit() {
+  function resetProductForm() {
     setEditingId(null);
     setSku("");
     setName("");
@@ -218,6 +220,18 @@ export default function Products() {
     setEditingMappings([]);
     setIsMappingInlineOpen(false);
     setError(null);
+  }
+
+  function focusSkuInput() {
+    window.requestAnimationFrame(() => {
+      const skuInput = document.getElementById(skuInputId) as HTMLInputElement | null;
+      skuInput?.focus();
+      skuInput?.select();
+    });
+  }
+
+  function handleCancelEdit() {
+    resetProductForm();
     setIsFormOpen(false);
   }
 
@@ -396,8 +410,9 @@ export default function Products() {
     }
   }
 
-  async function handleSaveProduct() {
+  async function handleSaveProduct(mode: "close" | "create-another" = "close") {
     setError(null);
+    setIsSavingProduct(true);
     try {
       const priceUoms = activePriceUoms.length ? activePriceUoms : [unit || "pcs"];
       const normalizedUnitPrices = priceUoms.reduce(
@@ -437,10 +452,18 @@ export default function Products() {
           body: JSON.stringify(payload),
         });
       }
-      handleCancelEdit();
       await load(page, pageSize, appliedQ);
+      if (mode === "create-another" && !editingId) {
+        resetProductForm();
+        setIsFormOpen(true);
+        focusSkuInput();
+      } else {
+        handleCancelEdit();
+      }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Gagal menyimpan produk");
+    } finally {
+      setIsSavingProduct(false);
     }
   }
 
@@ -652,7 +675,14 @@ export default function Products() {
               </button>
             </div>
             <div className="mt-3 grid gap-3">
-              <Input label="SKU" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="SKU-001" />
+              <Input
+                id={skuInputId}
+                label="SKU"
+                value={sku}
+                onChange={(e) => setSku(e.target.value)}
+                placeholder="SKU-001"
+                autoFocus
+              />
               <Input label="Nama" value={name} onChange={(e) => setName(e.target.value)} placeholder="Teh Botol 350ml" />
               <label className="block">
                 <div className="mb-1 text-xs font-medium text-zinc-600">Supplier</div>
@@ -770,11 +800,20 @@ export default function Products() {
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">
-                <Button variant="secondary" onClick={handleCancelEdit}>
+                <Button variant="secondary" onClick={handleCancelEdit} disabled={isSavingProduct}>
                   Batal
                 </Button>
-                <Button disabled={!canCreate} onClick={handleSaveProduct}>
-                  {editingId ? "Update" : "Simpan"}
+                {!editingId ? (
+                  <Button
+                    variant="secondary"
+                    disabled={!canCreate || isSavingProduct}
+                    onClick={() => void handleSaveProduct("create-another")}
+                  >
+                    Simpan & Tambah Baru
+                  </Button>
+                ) : null}
+                <Button disabled={!canCreate || isSavingProduct} onClick={() => void handleSaveProduct("close")}>
+                  {isSavingProduct ? "Menyimpan..." : editingId ? "Update" : "Simpan"}
                 </Button>
               </div>
             </div>

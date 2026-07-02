@@ -371,61 +371,51 @@ export async function createProduct(input: {
   leadTimeDays?: number
   bufferDays?: number
 }) {
-  const pool = getPool()
   const packSize = input.packSize ?? 1
   const packPerDus = input.packPerDus ?? 1
   const dusSize = input.dusSize ?? packSize * packPerDus
-  const res = await pool.query(
-    `
-      insert into products(
-        sku, name, unit, supplier_id, purchase_price, sale_price, category_prices, unit_prices, pack_size, pack_per_dus, dus_size,
-        min_stock_base, reorder_qty_base, lead_time_days, buffer_days
-      )
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-      returning
-        id,
-        sku,
-        name,
-        unit,
-        supplier_id as "supplierId",
-        purchase_price::text as "purchasePrice",
-        sale_price::text as "salePrice",
-        category_prices as "categoryPrices",
-        unit_prices as "unitPrices",
-        pack_size as "packSize",
-        dus_size as "dusSize",
-        pack_per_dus as "packPerDus",
-        base_uom_id as "baseUomId",
-        min_stock_base::text as "minStockBase",
-        reorder_qty_base::text as "reorderQtyBase",
-        lead_time_days as "leadTimeDays",
-        buffer_days as "bufferDays"
-    `,
-    [
-      input.sku,
-      input.name,
-      input.unit,
-      input.supplierId ?? null,
-      input.purchasePrice,
-      input.salePrice,
-      JSON.stringify(input.categoryPrices || {}),
-      JSON.stringify(input.unitPrices || { pcs: input.salePrice, pack: 0, dus: 0 }),
-      packSize,
-      packPerDus,
-      dusSize,
-      input.minStockBase ?? 0,
-      input.reorderQtyBase ?? 0,
-      input.leadTimeDays ?? 0,
-      input.bufferDays ?? 0,
-    ],
-  )
-  const created = res.rows[0] as Product
-  await syncLegacyProductToUomMappings({
-    productId: created.id,
-    packSize,
-    dusSize,
+  const normalizedUnit = String(input.unit || 'pcs').trim().toLowerCase() || 'pcs'
+  const createdId = await withTransaction(async (client) => {
+    const res = await client.query(
+      `
+        insert into products(
+          sku, name, unit, supplier_id, purchase_price, sale_price, category_prices, unit_prices, pack_size, pack_per_dus, dus_size,
+          min_stock_base, reorder_qty_base, lead_time_days, buffer_days
+        )
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        returning id
+      `,
+      [
+        input.sku,
+        input.name,
+        normalizedUnit,
+        input.supplierId ?? null,
+        input.purchasePrice,
+        input.salePrice,
+        JSON.stringify(input.categoryPrices || {}),
+        JSON.stringify(input.unitPrices || { [normalizedUnit]: input.salePrice }),
+        packSize,
+        packPerDus,
+        dusSize,
+        input.minStockBase ?? 0,
+        input.reorderQtyBase ?? 0,
+        input.leadTimeDays ?? 0,
+        input.bufferDays ?? 0,
+      ],
+    )
+    const created = res.rows[0] as { id: string }
+    await syncLegacyProductToUomMappings(
+      {
+        productId: created.id,
+        baseUomCode: normalizedUnit,
+        packSize,
+        dusSize,
+      },
+      client,
+    )
+    return created.id
   })
-  return getProductById(created.id)
+  return getProductById(createdId)
 }
 
 export async function deleteProduct(id: string) {

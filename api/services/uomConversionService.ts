@@ -306,11 +306,13 @@ export async function replaceProductUomMappings(
 
 export async function syncLegacyProductToUomMappings(params: {
   productId: string
+  baseUomCode?: string
   packSize: number
   dusSize: number
-}) {
-  const pool = getPool()
-  const product = await getProductByIdOrThrow(params.productId, pool)
+}, tx?: Queryable) {
+  const client = tx ?? getPool()
+  const product = await getProductByIdOrThrow(params.productId, client)
+  const baseUomCode = normalizeCode(params.baseUomCode || 'pcs')
   const effectivePackSize =
     Number(params.packSize) > 0 ? Number(params.packSize) : Number(product.packSize) || 1
   const effectiveDusSize =
@@ -320,18 +322,24 @@ export async function syncLegacyProductToUomMappings(params: {
 
   const mappings: ProductUomMappingInput[] = [
     {
-      uomCode: 'pcs',
+      uomCode: baseUomCode,
       toBaseFactor: 1,
       isSale: true,
       isPurchase: true,
       isDefaultSale: true,
       isDefaultPurchase: true,
     },
-    { uomCode: 'pack', toBaseFactor: effectivePackSize, isSale: true, isPurchase: true },
-    { uomCode: 'dus', toBaseFactor: effectiveDusSize, isSale: true, isPurchase: true },
   ]
 
-  return replaceProductUomMappings({ productId: params.productId, mappings })
+  // Legacy pack/dus mappings are only added when the base is pcs and the factor is truly larger than 1.
+  if (baseUomCode === 'pcs' && effectivePackSize > 1) {
+    mappings.push({ uomCode: 'pack', toBaseFactor: effectivePackSize, isSale: true, isPurchase: true })
+  }
+  if (baseUomCode === 'pcs' && effectiveDusSize > 1) {
+    mappings.push({ uomCode: 'dus', toBaseFactor: effectiveDusSize, isSale: true, isPurchase: true })
+  }
+
+  return replaceProductUomMappings({ productId: params.productId, mappings }, client)
 }
 
 export async function getToBaseFactorByCode(params: { productId: string; uomCode: string }) {
