@@ -7,6 +7,7 @@ export type Supplier = {
   name: string
   phone: string | null
   address: string | null
+  isActive: boolean
 }
 
 export type SupplierImportRow = {
@@ -14,7 +15,12 @@ export type SupplierImportRow = {
   name?: string
 }
 
-export async function listSuppliers(params: { page?: number; pageSize?: number; q?: string }) {
+export async function listSuppliers(params: {
+  page?: number
+  pageSize?: number
+  q?: string
+  isActive?: boolean | 'all'
+}) {
   const pool = getPool()
   const page = params.page ?? 1
   const pageSize = params.pageSize ?? 20
@@ -23,9 +29,13 @@ export async function listSuppliers(params: { page?: number; pageSize?: number; 
 
   const where: string[] = []
   const values: unknown[] = []
+  if (params.isActive !== 'all') {
+    values.push(params.isActive ?? true)
+    where.push(`is_active = $${values.length}`)
+  }
   if (q) {
     values.push(`%${q.toLowerCase()}%`)
-    where.push('(lower(code) like $1 or lower(name) like $1)')
+    where.push(`(lower(code) like $${values.length} or lower(name) like $${values.length})`)
   }
   const whereSql = where.length ? `where ${where.join(' and ')}` : ''
 
@@ -37,7 +47,7 @@ export async function listSuppliers(params: { page?: number; pageSize?: number; 
 
   const res = await pool.query(
     `
-      select id, code, name, phone, address
+      select id, code, name, phone, address, is_active as "isActive"
       from suppliers
       ${whereSql}
       order by created_at desc
@@ -54,15 +64,16 @@ export async function createSupplier(input: {
   name: string
   phone?: string
   address?: string
+  isActive?: boolean
 }) {
   const pool = getPool()
   const res = await pool.query(
     `
-      insert into suppliers(code, name, phone, address)
-      values ($1,$2,$3,$4)
-      returning id, code, name, phone, address
+      insert into suppliers(code, name, phone, address, is_active)
+      values ($1,$2,$3,$4,$5)
+      returning id, code, name, phone, address, is_active as "isActive"
     `,
-    [input.code, input.name, input.phone ?? null, input.address ?? null],
+    [input.code, input.name, input.phone ?? null, input.address ?? null, input.isActive ?? true],
   )
   return res.rows[0] as Supplier
 }
@@ -80,6 +91,7 @@ export async function updateSupplier(
     name: input.name ?? current.name,
     phone: input.phone ?? current.phone,
     address: input.address ?? current.address,
+    isActive: input.isActive ?? current.isActive,
   }
 
   const res = await pool.query(
@@ -89,11 +101,12 @@ export async function updateSupplier(
           name = $3,
           phone = $4,
           address = $5,
+          is_active = $6,
           updated_at = now()
       where id = $1
-      returning id, code, name, phone, address
+      returning id, code, name, phone, address, is_active as "isActive"
     `,
-    [id, next.code, next.name, next.phone, next.address],
+    [id, next.code, next.name, next.phone, next.address, next.isActive],
   )
 
   return res.rows[0] as Supplier
@@ -117,7 +130,7 @@ export async function deleteSupplier(id: string) {
 export async function getSupplierById(id: string) {
   const pool = getPool()
   const res = await pool.query(
-    `select id, code, name, phone, address from suppliers where id = $1 limit 1`,
+    `select id, code, name, phone, address, is_active as "isActive" from suppliers where id = $1 limit 1`,
     [id],
   )
   const row = res.rows[0] as Supplier | undefined

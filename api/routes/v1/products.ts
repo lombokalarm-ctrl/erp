@@ -71,10 +71,15 @@ router.get(
           page: z.coerce.number().int().min(1).default(1),
           pageSize: z.coerce.number().int().min(1).max(200).default(20),
           q: z.string().optional(),
+          isActive: z.enum(['true', 'false', 'all']).optional(),
         })
         .parse(req.query)
 
-      const result = await listProducts(query)
+      const result = await listProducts({
+        ...query,
+        isActive:
+          query.isActive === 'all' ? 'all' : query.isActive === 'false' ? false : true,
+      })
       ok(res, result.items, { total: result.total })
     } catch (err) {
       next(err)
@@ -94,6 +99,7 @@ router.post(
           name: z.string().min(1),
           unit: z.string().min(1).default('pcs'),
           supplierId: z.string().uuid().nullable().optional(),
+          isActive: z.boolean().optional(),
           purchasePrice: z.coerce.number().min(0),
           salePrice: z.coerce.number().min(0),
           categoryPrices: z.record(z.record(z.coerce.number().min(0))).optional(),
@@ -113,6 +119,7 @@ router.post(
         name: body.name,
         unit: body.unit ?? 'pcs',
         supplierId: body.supplierId ?? null,
+        isActive: body.isActive,
         purchasePrice: body.purchasePrice,
         salePrice: body.salePrice,
         categoryPrices: body.categoryPrices,
@@ -317,6 +324,7 @@ router.patch(
           name: z.string().min(1).optional(),
           unit: z.string().min(1).optional(),
           supplierId: z.string().uuid().nullable().optional(),
+          isActive: z.boolean().optional(),
           purchasePrice: z.coerce.number().min(0).optional(),
           salePrice: z.coerce.number().min(0).optional(),
           categoryPrices: z.record(z.record(z.coerce.number().min(0))).optional(),

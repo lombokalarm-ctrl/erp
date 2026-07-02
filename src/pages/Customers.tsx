@@ -19,6 +19,7 @@ type Customer = {
   address: string | null;
   regionId: string | null;
   status: "ACTIVE" | "BLOCKED";
+  isActive: boolean;
   salesId: string | null;
   salesName: string | null;
 };
@@ -77,6 +78,7 @@ export default function Customers() {
   const [npwpNo, setNpwpNo] = useState("");
   const [category, setCategory] = useState("RETAIL");
   const [status, setStatus] = useState("ACTIVE");
+  const [isActive, setIsActive] = useState(true);
   const [salesId, setSalesId] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [phone, setPhone] = useState("");
@@ -93,9 +95,10 @@ export default function Customers() {
   const isSalesRole = authUser?.role === "Sales";
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "BLOCKED">("ALL");
+  const [masterStatusFilter, setMasterStatusFilter] = useState<"true" | "false" | "all">("true");
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
   const [regionFilter, setRegionFilter] = useState<string>("ALL");
-  const [sortBy, setSortBy] = useState<"name" | "code" | "category" | "status">("name");
+  const [sortBy, setSortBy] = useState<"name" | "code" | "category" | "status" | "isActive">("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const canCreate = useMemo(() => code.trim() && name.trim(), [code, name]);
@@ -123,6 +126,7 @@ export default function Customers() {
     setNpwpNo("");
     setCategory("RETAIL");
     setStatus("ACTIVE");
+    setIsActive(true);
     setSalesId("");
     setPhone("");
     setEmail("");
@@ -144,6 +148,7 @@ export default function Customers() {
     setNpwpNo(c.npwpNo || "");
     setCategory(c.category);
     setStatus(c.status);
+    setIsActive(c.isActive);
     setSalesId(c.salesId || "");
     setPhone(c.phone || "");
     setEmail(c.email || "");
@@ -173,6 +178,7 @@ export default function Customers() {
     setNpwpNo("");
     setCategory("RETAIL");
     setStatus("ACTIVE");
+    setIsActive(true);
     setSalesId("");
     setPhone("");
     setEmail("");
@@ -204,6 +210,7 @@ export default function Customers() {
         page: "1",
         pageSize: "50",
         q,
+        isActive: masterStatusFilter,
       });
       if (regionFilter !== "ALL") {
         params.set("regionId", regionFilter);
@@ -260,6 +267,7 @@ export default function Customers() {
         address: address || undefined,
         regionId: regionId || undefined,
         status,
+        isActive,
       };
       if (!isSalesRole) {
         payload.salesId = salesId || null;
@@ -375,6 +383,26 @@ export default function Customers() {
     }
   }
 
+  async function handleToggleActive(customer: Customer) {
+    const nextActive = !customer.isActive;
+    const actionLabel = nextActive ? "mengaktifkan" : "menonaktifkan";
+    if (!confirm(`Apakah Anda yakin ingin ${actionLabel} pelanggan ini?`)) return;
+    setError(null);
+    try {
+      await apiFetch(`/api/v1/customers/${customer.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ isActive: nextActive }),
+      });
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Gagal mengubah status pelanggan");
+    }
+  }
+
+  function getMasterStatusBadgeClass(active: boolean) {
+    return active ? "bg-emerald-50 text-emerald-700" : "bg-zinc-200 text-zinc-700";
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
@@ -394,6 +422,15 @@ export default function Customers() {
             <option value="ALL">Semua Status</option>
             <option value="ACTIVE">ACTIVE</option>
             <option value="BLOCKED">BLOCKED</option>
+          </select>
+          <select
+            className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+            value={masterStatusFilter}
+            onChange={(e) => setMasterStatusFilter(e.target.value as "true" | "false" | "all")}
+          >
+            <option value="true">Master Aktif</option>
+            <option value="false">Master Nonaktif</option>
+            <option value="all">Semua Master</option>
           </select>
           <select
             className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm"
@@ -422,11 +459,12 @@ export default function Customers() {
           <select
             className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm"
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as "name" | "code" | "category" | "status")}
+            onChange={(e) => setSortBy(e.target.value as "name" | "code" | "category" | "status" | "isActive")}
           >
             <option value="name">Sort Nama</option>
             <option value="code">Sort Kode</option>
             <option value="category">Sort Kategori</option>
+            <option value="isActive">Sort Master</option>
             <option value="status">Sort Status</option>
           </select>
           <select
@@ -510,7 +548,8 @@ export default function Customers() {
                   <th className="px-4 py-2">Kontak</th>
                   <th className="px-4 py-2">Wilayah & Alamat</th>
                   <th className="px-4 py-2">Sales</th>
-                  <th className="px-4 py-2">Status</th>
+                  <th className="px-4 py-2 whitespace-nowrap">Status Master</th>
+                  <th className="px-4 py-2 whitespace-nowrap">Status Bisnis</th>
                   <th className="px-4 py-2 text-right">Aksi</th>
                 </tr>
               </thead>
@@ -520,7 +559,7 @@ export default function Customers() {
                   return (
                     <tr
                       key={c.id}
-                      className={`cursor-pointer border-b border-zinc-100 hover:bg-zinc-50 ${selected?.id === c.id ? "bg-zinc-50" : ""}`}
+                      className={`cursor-pointer border-b border-zinc-100 hover:bg-zinc-50 ${selected?.id === c.id ? "bg-zinc-50" : ""} ${c.isActive ? "" : "bg-zinc-50/70"}`}
                       onClick={() => {
                         if (editingId && editingId !== c.id) return;
                         setSelected(c);
@@ -542,12 +581,26 @@ export default function Customers() {
                       </td>
                       <td className="px-4 py-2 text-zinc-600">{c.salesName || "-"}</td>
                       <td className="px-4 py-2">
+                        <span className={`rounded-full px-2 py-0.5 text-xs ${getMasterStatusBadgeClass(c.isActive)}`}>
+                          {c.isActive ? "Aktif" : "Nonaktif"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2">
                         <span className={`rounded-full px-2 py-0.5 text-xs ${c.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-zinc-200 text-zinc-700"}`}>
                           {c.status}
                         </span>
                       </td>
                       <td className="px-4 py-2 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleToggleActive(c);
+                            }}
+                            className="font-medium text-amber-600 hover:text-amber-800"
+                          >
+                            {c.isActive ? "Nonaktifkan" : "Aktifkan"}
+                          </button>
                           <button onClick={(e) => { e.stopPropagation(); handleEdit(c); }} className="text-blue-600 hover:text-blue-800 font-medium">Edit</button>
                           <button onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }} className="text-red-600 hover:text-red-800 font-medium">Hapus</button>
                         </div>
@@ -557,7 +610,7 @@ export default function Customers() {
                 })}
                 {filteredItems.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-6 text-center text-sm text-zinc-500" colSpan={11}>
+                    <td className="px-4 py-6 text-center text-sm text-zinc-500" colSpan={12}>
                       Tidak ada data sesuai filter.
                     </td>
                   </tr>
@@ -663,6 +716,17 @@ export default function Customers() {
                   </select>
                 </label>
               ) : null}
+              <label className="block">
+                <div className="mb-1 text-xs font-medium text-zinc-600">Status Master</div>
+                <select
+                  className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                  value={isActive ? "true" : "false"}
+                  onChange={(e) => setIsActive(e.target.value === "true")}
+                >
+                  <option value="true">Aktif</option>
+                  <option value="false">Nonaktif</option>
+                </select>
+              </label>
               {editingId ? (
                 <label className="block">
                   <div className="mb-1 text-xs font-medium text-zinc-600">Status</div>

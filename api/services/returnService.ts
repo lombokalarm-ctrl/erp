@@ -64,6 +64,24 @@ export async function createReturn(input: ReturnInput) {
   }
 
   return withTransaction(async (client) => {
+    if (input.type === 'SALES_RETURN') {
+      const customerRes = await client.query(
+        `select id from customers where id = $1 and is_active = true limit 1`,
+        [input.customerId],
+      )
+      if (!customerRes.rowCount) {
+        throw new ApiError({ code: 'VALIDATION_ERROR', status: 400, message: 'Pelanggan nonaktif atau tidak ditemukan' })
+      }
+    }
+    if (input.type === 'PURCHASE_RETURN') {
+      const supplierRes = await client.query(
+        `select id from suppliers where id = $1 and is_active = true limit 1`,
+        [input.supplierId],
+      )
+      if (!supplierRes.rowCount) {
+        throw new ApiError({ code: 'VALIDATION_ERROR', status: 400, message: 'Supplier nonaktif atau tidak ditemukan' })
+      }
+    }
     // Resolve UOM conversion for all items.
     const resolvedItems = []
     for (const it of input.items) {
@@ -76,6 +94,7 @@ export async function createReturn(input: ReturnInput) {
             base_uom_id as "baseUomId"
           from products
           where id = $1
+            and is_active = true
           limit 1
         `,
         [it.productId],

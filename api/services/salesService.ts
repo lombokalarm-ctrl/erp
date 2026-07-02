@@ -279,6 +279,20 @@ async function generateNumber(
   return `${prefix}-${dateKey}-${pad4(nextSeq)}`
 }
 
+async function assertActiveCustomer(customerId: string) {
+  const res = await getPool().query(
+    `select id from customers where id = $1 and is_active = true limit 1`,
+    [customerId],
+  )
+  if (!res.rowCount) {
+    throw new ApiError({
+      code: 'VALIDATION_ERROR',
+      status: 400,
+      message: 'Pelanggan nonaktif atau tidak ditemukan',
+    })
+  }
+}
+
 async function getExistingInvoiceBySalesOrderId(client: PoolClient, salesOrderId: string) {
   const existing = await client.query(
     `
@@ -385,6 +399,7 @@ export async function createSalesOrder(params: {
   items: SalesOrderItemInput[]
   allowOverLimit: boolean
 }) {
+  await assertActiveCustomer(params.customerId)
   const headerDiscount = params.discountAmount ?? 0
   const resolvedItems = await resolveOrderItems(params.items)
 
@@ -509,6 +524,7 @@ async function resolveOrderItems(items: SalesOrderItemInput[]): Promise<Resolved
           base_uom_id as "baseUomId"
         from products
         where id = $1
+          and is_active = true
         limit 1
       `,
       [it.productId],
@@ -735,6 +751,7 @@ export async function updateSalesOrder(params: {
       userId: params.updatedBy,
       role: params.actorRole,
     })
+    await assertActiveCustomer(params.customerId)
     if (so.deliveryStatus !== 'PENDING') {
       throw new ApiError({
         code: 'CONFLICT',
@@ -956,10 +973,10 @@ export async function getApprovalList(params: { page?: number; pageSize?: number
         and so.status = 'PENDING_APPROVAL'
     `,
   )
-  
+
   const listRes = await pool.query(
     `
-      select 
+      select
         a.id as "approvalId",
         a.status as "approvalStatus",
         a.notes as "approvalNotes",
@@ -980,7 +997,7 @@ export async function getApprovalList(params: { page?: number; pageSize?: number
       order by a.created_at asc
       limit $1 offset $2
     `,
-    [pageSize, offset]
+    [pageSize, offset],
   )
 
   const items = await Promise.all(
@@ -1016,7 +1033,12 @@ export async function getApprovalList(params: { page?: number; pageSize?: number
   return { items, total: Number(countRes.rows[0]?.c ?? 0) }
 }
 
-export async function processApproval(approvalId: string, action: 'APPROVED' | 'REJECTED', approverId: string, notes?: string) {
+export async function processApproval(
+  approvalId: string,
+  action: 'APPROVED' | 'REJECTED',
+  approverId: string,
+  notes?: string,
+) {
   return withTransaction(async (client) => {
     const approverNotes = notes?.trim()
     if (!approverNotes || approverNotes.length < 5) {
@@ -1093,7 +1115,7 @@ export async function processApproval(approvalId: string, action: 'APPROVED' | '
             approver_id = $3,
             notes = case
               when coalesce(notes, '') = '' then $4
-              else notes || E'\n\n' || $4
+              else notes || E'\\n\\n' || $4
             end,
             updated_at = now()
         where id = $1 and status = 'PENDING'
@@ -1110,7 +1132,6 @@ export async function processApproval(approvalId: string, action: 'APPROVED' | '
     }
     const soId = apprRes.rows[0].sales_order_id as string
 
-    // 2. Update SO status
     const newSoStatus = action === 'APPROVED' ? 'CONFIRMED' : 'CANCELLED'
     const soUpdateRes = await client.query(
       `update sales_orders set status = $2, updated_at = now() where id = $1 and status = 'PENDING_APPROVAL'`,
@@ -1153,7 +1174,6 @@ export async function createDeliveryOrder(params: {
       return approvedRes.rowCount > 0
     }
 
-    // 1. Get SO
     const so = assertSalesOrderAccess(await getSalesOrderAccessRecord(client, params.salesOrderId), {
       userId: params.createdBy,
       role: params.actorRole,
@@ -1165,11 +1185,9 @@ export async function createDeliveryOrder(params: {
         throw new Error('SO belum disetujui/terkonfirmasi')
       }
 
-      // Self-heal legacy inconsistent rows: approval is APPROVED but SO status is still DRAFT.
       await client.query(`update sales_orders set status = 'CONFIRMED' where id = $1`, [params.salesOrderId])
     }
 
-    // 2. Get SO items
     const itemsRes = await client.query('select * from sales_order_items where sales_order_id = $1', [params.salesOrderId])
     const items = itemsRes.rows
 
@@ -1189,22 +1207,21 @@ export async function createDeliveryOrder(params: {
       })
     }
 
-    // 3. Insert Delivery Order
     const doRes = await client.query(
       `
         insert into delivery_orders(do_no, sales_order_id, delivery_date, created_by)
         values ($1, $2, $3, $4)
         returning *
       `,
-      [doNo, params.salesOrderId, params.deliveryDate, params.createdBy]
+      [doNo, params.salesOrderId, params.deliveryDate, params.createdBy],
     )
     const deliveryOrder = doRes.rows[0]
 
-    // 4. Insert DO Items & Deduct Stock
     for (const it of items) {
       const qtyPcs = Number(it.qty_pcs ?? 0)
       const qtyBase = Number(it.qty_base ?? qtyPcs)
       const qty = Number(it.qty ?? 0)
+
       await client.query(
         `
           insert into delivery_order_items(
@@ -1245,7 +1262,6 @@ export async function createDeliveryOrder(params: {
       })
     }
 
-    // 5. Update SO status
     await client.query("update sales_orders set delivery_status = 'DELIVERED' where id = $1", [params.salesOrderId])
     const invoice = await ensureInvoiceForSalesOrder(client, params.salesOrderId, params.deliveryDate)
 
@@ -1271,7 +1287,7 @@ export async function listSalesOrders(params: {
 
   if (params.q?.trim()) {
     values.push(`%${params.q.trim().toLowerCase()}%`)
-    where.push('(lower(so.order_no) like $1)')
+    where.push(`lower(so.order_no) like $${values.length}`)
   }
 
   if (params.customerId) {
@@ -1293,7 +1309,7 @@ export async function listSalesOrders(params: {
 
   const totalRes = await pool.query(
     `
-      select count(*)::int as c 
+      select count(*)::int as c
       from sales_orders so
       join customers c on c.id = so.customer_id
       ${whereSql}

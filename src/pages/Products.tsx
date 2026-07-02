@@ -14,6 +14,7 @@ type Product = {
   sku: string;
   name: string;
   unit: string;
+  isActive: boolean;
   supplierId?: string | null;
   supplierName?: string | null;
   purchasePrice: string;
@@ -31,6 +32,7 @@ type SupplierOption = {
   id: string;
   code: string;
   name: string;
+  isActive?: boolean;
 };
 
 type UomMaster = {
@@ -74,6 +76,7 @@ export default function Products() {
   const skuInputId = "product-form-sku";
   const [q, setQ] = useState("");
   const [appliedQ, setAppliedQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"true" | "false" | "all">("true");
   const [items, setItems] = useState<Product[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -101,6 +104,7 @@ export default function Products() {
   );
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isActive, setIsActive] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [uomMaster, setUomMaster] = useState<UomMaster[]>([]);
   const [mappingModalProduct, setMappingModalProduct] = useState<Product | null>(null);
@@ -152,6 +156,7 @@ export default function Products() {
     setSupplierId(p.supplierId ?? "");
     setPurchasePrice(p.purchasePrice);
     setSalePrice(p.salePrice);
+    setIsActive(p.isActive);
     setMinStockBase(p.minStockBase ?? "0");
     setReorderQtyBase(p.reorderQtyBase ?? "0");
     try {
@@ -213,6 +218,7 @@ export default function Products() {
     setSupplierId("");
     setPurchasePrice("0");
     setSalePrice("0");
+    setIsActive(true);
     setMinStockBase("0");
     setReorderQtyBase("0");
     setUnitPrices({ pcs: "0" });
@@ -277,7 +283,12 @@ export default function Products() {
     }
   }
 
-  async function load(nextPage = page, nextPageSize = pageSize, nextQ = appliedQ) {
+  async function load(
+    nextPage = page,
+    nextPageSize = pageSize,
+    nextQ = appliedQ,
+    nextStatusFilter = statusFilter,
+  ) {
     setError(null);
     setLoading(true);
     try {
@@ -285,6 +296,7 @@ export default function Products() {
         page: String(nextPage),
         pageSize: String(nextPageSize),
         q: nextQ,
+        isActive: nextStatusFilter,
       });
       const res = await apiFetch<ProductListResponse>(
         `/api/v1/products?${params.toString()}`,
@@ -312,7 +324,7 @@ export default function Products() {
 
   async function loadSuppliers() {
     try {
-      const res = await apiFetch<{ data: SupplierOption[] }>("/api/v1/suppliers?page=1&pageSize=200");
+      const res = await apiFetch<{ data: SupplierOption[] }>("/api/v1/suppliers?page=1&pageSize=200&isActive=all");
       setSuppliers(res.data);
     } catch {
       setSuppliers([]);
@@ -433,6 +445,7 @@ export default function Products() {
         sku,
         name,
         unit,
+        isActive,
         supplierId: supplierId || null,
         purchasePrice: Number(purchasePrice),
         salePrice: Number(salePrice),
@@ -452,7 +465,7 @@ export default function Products() {
           body: JSON.stringify(payload),
         });
       }
-      await load(page, pageSize, appliedQ);
+      await load(page, pageSize, appliedQ, statusFilter);
       if (mode === "create-another" && !editingId) {
         resetProductForm();
         setIsFormOpen(true);
@@ -465,6 +478,26 @@ export default function Products() {
     } finally {
       setIsSavingProduct(false);
     }
+  }
+
+  async function handleToggleActive(product: Product) {
+    const nextActive = !product.isActive;
+    const actionLabel = nextActive ? "mengaktifkan" : "menonaktifkan";
+    if (!confirm(`Apakah Anda yakin ingin ${actionLabel} produk ini?`)) return;
+    setError(null);
+    try {
+      await apiFetch(`/api/v1/products/${product.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ isActive: nextActive }),
+      });
+      await load(page, pageSize, appliedQ, statusFilter);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Gagal mengubah status produk");
+    }
+  }
+
+  function getStatusBadgeClass(active: boolean) {
+    return active ? "bg-emerald-50 text-emerald-700" : "bg-zinc-200 text-zinc-700";
   }
 
   const startItem = items.length === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -484,10 +517,19 @@ export default function Products() {
           <div className="w-full md:w-72">
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari SKU / nama..." />
           </div>
+          <select
+            className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as "true" | "false" | "all")}
+          >
+            <option value="true">Produk Aktif</option>
+            <option value="false">Produk Nonaktif</option>
+            <option value="all">Semua Status</option>
+          </select>
           <Button
             variant="secondary"
             onClick={() => {
-              void load(1, pageSize, q);
+              void load(1, pageSize, q, statusFilter);
             }}
           >
             {loading ? "Memuat..." : "Cari"}
@@ -567,6 +609,7 @@ export default function Products() {
                 <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
                   <th className="px-4 py-2">SKU</th>
                   <th className="px-4 py-2">Nama</th>
+                  <th className="px-4 py-2 whitespace-nowrap">Status</th>
                   <th className="px-4 py-2">Supplier</th>
                   <th className="px-4 py-2 whitespace-nowrap">Sat. Dasar</th>
                   <th className="px-4 py-2">Harga Beli</th>
@@ -577,9 +620,17 @@ export default function Products() {
               </thead>
               <tbody>
                 {items.map((p) => (
-                  <tr key={p.id} className="border-b border-zinc-100 hover:bg-zinc-50">
+                  <tr
+                    key={p.id}
+                    className={`border-b border-zinc-100 hover:bg-zinc-50 ${p.isActive ? "" : "bg-zinc-50/70"}`}
+                  >
                     <td className="px-4 py-2 font-medium">{p.sku}</td>
                     <td className="px-4 py-2">{p.name}</td>
+                    <td className="px-4 py-2">
+                      <span className={`rounded-full px-2 py-0.5 text-xs ${getStatusBadgeClass(p.isActive)}`}>
+                        {p.isActive ? "Aktif" : "Nonaktif"}
+                      </span>
+                    </td>
                     <td className="px-4 py-2">{p.supplierName || "-"}</td>
                     <td className="px-4 py-2">{p.unit}</td>
                     <td className="whitespace-nowrap px-4 py-2">{formatCurrency(p.purchasePrice)}</td>
@@ -593,6 +644,12 @@ export default function Products() {
                     </td>
                     <td className="px-4 py-2 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => void handleToggleActive(p)}
+                          className="font-medium text-amber-600 hover:text-amber-800"
+                        >
+                          {p.isActive ? "Nonaktifkan" : "Aktifkan"}
+                        </button>
                         <button onClick={() => handleOpenUomMappings(p)} className="text-emerald-600 hover:text-emerald-800 font-medium">UOM</button>
                         <button onClick={() => handleEdit(p)} className="text-blue-600 hover:text-blue-800 font-medium">Edit</button>
                         <button onClick={() => handleDelete(p.id)} className="text-red-600 hover:text-red-800 font-medium">Hapus</button>
@@ -602,7 +659,7 @@ export default function Products() {
                 ))}
                 {items.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={8}>
+                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={9}>
                       Belum ada data.
                     </td>
                   </tr>
@@ -622,7 +679,7 @@ export default function Products() {
                   value={pageSize}
                   onChange={(e) => {
                     const nextPageSize = Number(e.target.value);
-                    void load(1, nextPageSize, appliedQ);
+                    void load(1, nextPageSize, appliedQ, statusFilter);
                   }}
                   disabled={loading}
                 >
@@ -636,7 +693,7 @@ export default function Products() {
                   variant="secondary"
                   disabled={!canGoPrev}
                   onClick={() => {
-                    void load(page - 1, pageSize, appliedQ);
+                    void load(page - 1, pageSize, appliedQ, statusFilter);
                   }}
                 >
                   Prev
@@ -648,7 +705,7 @@ export default function Products() {
                   variant="secondary"
                   disabled={!canGoNext}
                   onClick={() => {
-                    void load(page + 1, pageSize, appliedQ);
+                    void load(page + 1, pageSize, appliedQ, statusFilter);
                   }}
                 >
                   Next
@@ -693,9 +750,20 @@ export default function Products() {
                   searchPlaceholder="Cari supplier..."
                   options={suppliers.map((supplier) => ({
                     value: supplier.id,
-                    label: `${supplier.code} - ${supplier.name}`,
+                    label: `${supplier.code} - ${supplier.name}${supplier.isActive === false ? " [Nonaktif]" : ""}`,
                   }))}
                 />
+              </label>
+              <label className="block">
+                <div className="mb-1 text-xs font-medium text-zinc-600">Status Master</div>
+                <select
+                  className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                  value={isActive ? "true" : "false"}
+                  onChange={(e) => setIsActive(e.target.value === "true")}
+                >
+                  <option value="true">Aktif</option>
+                  <option value="false">Nonaktif</option>
+                </select>
               </label>
               <label className="block">
                 <div className="mb-1 text-xs font-medium text-zinc-600">Satuan Dasar</div>

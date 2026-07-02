@@ -56,6 +56,7 @@ router.get(
           q: z.string().optional(),
           salesId: z.string().uuid().optional(),
           regionId: z.string().uuid().optional(),
+          isActive: z.enum(['true', 'false', 'all']).optional(),
           includeUnassigned: z
             .enum(['true', 'false'])
             .optional()
@@ -67,7 +68,11 @@ router.get(
         query.salesId = req.user.userId
       }
 
-      const result = await listCustomers(query)
+      const result = await listCustomers({
+        ...query,
+        isActive:
+          query.isActive === 'all' ? 'all' : query.isActive === 'false' ? false : true,
+      })
       ok(res, result.items, { total: result.total })
     } catch (err) {
       next(err)
@@ -94,6 +99,7 @@ router.post(
           address: z.string().optional(),
           regionId: z.string().uuid().nullable().optional(),
           status: z.enum(['ACTIVE', 'BLOCKED']).optional(),
+          isActive: z.boolean().optional(),
           salesId: z.string().uuid().nullable().optional(),
         })
         .parse(req.body)
@@ -115,6 +121,7 @@ router.post(
         address: body.address,
         regionId: body.regionId,
         status: body.status,
+        isActive: body.isActive,
         salesId: salesId ?? null,
       })
       await writeAuditLog({
@@ -270,14 +277,15 @@ router.patch(
           ktpNo: z.string().nullable().optional(),
           npwpNo: z.string().nullable().optional(),
           category: z.enum(['RETAIL', 'GROSIR', 'MODERN RETAIL', 'HOREKA', 'NASIONAL MODERN RETAIL']).optional(),
-        phone: z.string().nullable().optional(),
-        email: z.string().nullable().optional(),
-        address: z.string().nullable().optional(),
-        regionId: z.string().uuid().nullable().optional(),
-        status: z.enum(['ACTIVE', 'BLOCKED']).optional(),
-        salesId: z.string().uuid().nullable().optional(),
-      })
-      .parse(req.body)
+          phone: z.string().nullable().optional(),
+          email: z.string().nullable().optional(),
+          address: z.string().nullable().optional(),
+          regionId: z.string().uuid().nullable().optional(),
+          status: z.enum(['ACTIVE', 'BLOCKED']).optional(),
+          isActive: z.boolean().optional(),
+          salesId: z.string().uuid().nullable().optional(),
+        })
+        .parse(req.body)
 
       const updateData = { ...body }
       if (req.user?.role === 'Sales') {

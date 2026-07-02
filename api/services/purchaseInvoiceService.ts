@@ -100,6 +100,26 @@ function calcLine(params: {
   }
 }
 
+async function assertActiveSupplier(client: PoolClient, supplierId: string) {
+  const res = await client.query(
+    `select id from suppliers where id = $1 and is_active = true limit 1`,
+    [supplierId],
+  )
+  if (!res.rowCount) {
+    throw new ApiError({ code: 'VALIDATION_ERROR', status: 400, message: 'Supplier nonaktif atau tidak ditemukan' })
+  }
+}
+
+async function assertActiveProduct(client: PoolClient, productId: string) {
+  const res = await client.query(
+    `select id from products where id = $1 and is_active = true limit 1`,
+    [productId],
+  )
+  if (!res.rowCount) {
+    throw new ApiError({ code: 'VALIDATION_ERROR', status: 400, message: 'Produk nonaktif atau tidak ditemukan' })
+  }
+}
+
 export async function listPurchaseInvoices(params: {
   page?: number
   pageSize?: number
@@ -273,6 +293,7 @@ export async function createPurchaseInvoice(input: {
     const termDays = Math.trunc(Number(input.termDays ?? 0))
     const dueDate = input.dueDate ?? addDays(invoiceDate, termDays)
     const invoiceNo = await generateInvoiceNumber(client, invoiceDate)
+    await assertActiveSupplier(client, input.supplierId)
 
     const headerRes = await client.query(
       `
@@ -297,6 +318,7 @@ export async function createPurchaseInvoice(input: {
     const purchaseInvoiceId = String(headerRes.rows[0].id)
 
     for (const it of input.items) {
+      await assertActiveProduct(client, it.productId)
       const uomCode = normalizeCode(it.uomCode)
       const qty = Number(it.qty)
       const basePrice = Number(it.basePrice)
@@ -415,6 +437,16 @@ export async function updatePurchaseInvoice(
     const nextTermDays = Math.trunc(Number(input.termDays ?? current.termDays ?? 0))
     const computedDueDate = addDays(nextInvoiceDate, nextTermDays)
     const nextDueDate = input.dueDate ?? computedDueDate
+    const nextSupplierId =
+      input.supplierId ??
+      String(
+        (
+          await client.query(`select supplier_id as "supplierId" from purchase_invoices where id = $1 limit 1`, [
+            purchaseInvoiceId,
+          ])
+        ).rows[0]?.supplierId ?? '',
+      )
+    await assertActiveSupplier(client, nextSupplierId)
 
     await client.query(
       `
@@ -447,6 +479,7 @@ export async function updatePurchaseInvoice(
     ])
 
     for (const it of input.items) {
+      await assertActiveProduct(client, it.productId)
       const uomCode = normalizeCode(it.uomCode)
       const qty = Number(it.qty)
       const basePrice = Number(it.basePrice)

@@ -63,11 +63,18 @@ export async function createPurchaseOrder(params: {
   items: { productId: string; qty: number; uom: 'pcs' | 'pack' | 'dus'; unitPrice: number }[]
 }) {
   const pool = getPool()
+  const supplierRes = await pool.query(
+    `select id from suppliers where id = $1 and is_active = true limit 1`,
+    [params.supplierId],
+  )
+  if (!supplierRes.rowCount) {
+    throw new ApiError({ code: 'VALIDATION_ERROR', status: 400, message: 'Supplier nonaktif atau tidak ditemukan' })
+  }
   const resolvedItems = []
   
   for (const it of params.items) {
     const pRes = await pool.query(
-      `select pack_size as "packSize", pack_per_dus as "packPerDus", dus_size as "dusSize" from products where id = $1 limit 1`,
+      `select pack_size as "packSize", pack_per_dus as "packPerDus", dus_size as "dusSize" from products where id = $1 and is_active = true limit 1`,
       [it.productId],
     )
     const p = pRes.rows[0] as { packSize?: number; packPerDus?: number; dusSize?: number } | undefined
@@ -155,6 +162,7 @@ export async function createGoodsReceipt(params: {
           base_uom_id as "baseUomId"
         from products
         where id = $1
+          and is_active = true
         limit 1
       `,
       [it.productId],

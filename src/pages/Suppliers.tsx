@@ -5,7 +5,14 @@ import Button from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/api/client";
 import { exportToExcel } from "@/lib/exportUtils";
 
-type Supplier = { id: string; code: string; name: string; phone: string | null; address: string | null };
+type Supplier = {
+  id: string;
+  code: string;
+  name: string;
+  phone: string | null;
+  address: string | null;
+  isActive: boolean;
+};
 type SupplierImportSummary = {
   total: number;
   created: number;
@@ -16,6 +23,7 @@ type SupplierImportSummary = {
 
 export default function Suppliers() {
   const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"true" | "false" | "all">("true");
   const [items, setItems] = useState<Supplier[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
@@ -24,6 +32,7 @@ export default function Suppliers() {
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isActive, setIsActive] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   
@@ -33,6 +42,7 @@ export default function Suppliers() {
     setEditingId(s.id);
     setCode(s.code);
     setName(s.name);
+    setIsActive(s.isActive);
     setIsFormOpen(true);
   }
 
@@ -40,6 +50,7 @@ export default function Suppliers() {
     setEditingId(null);
     setCode("");
     setName("");
+    setIsActive(true);
     setError(null);
     setIsFormOpen(false);
   }
@@ -89,12 +100,32 @@ export default function Suppliers() {
     setError(null);
     try {
       const res = await apiFetch<{ data: Supplier[] }>(
-        "/api/v1/suppliers?page=1&pageSize=50&q=" + encodeURIComponent(q),
+        `/api/v1/suppliers?page=1&pageSize=50&q=${encodeURIComponent(q)}&isActive=${statusFilter}`,
       );
       setItems(res.data);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Gagal memuat data");
     }
+  }
+
+  async function handleToggleActive(supplier: Supplier) {
+    const nextActive = !supplier.isActive;
+    const actionLabel = nextActive ? "mengaktifkan" : "menonaktifkan";
+    if (!confirm(`Apakah Anda yakin ingin ${actionLabel} supplier ini?`)) return;
+    setError(null);
+    try {
+      await apiFetch(`/api/v1/suppliers/${supplier.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ isActive: nextActive }),
+      });
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Gagal mengubah status supplier");
+    }
+  }
+
+  function getStatusBadgeClass(active: boolean) {
+    return active ? "bg-emerald-50 text-emerald-700" : "bg-zinc-200 text-zinc-700";
   }
 
   useEffect(() => {
@@ -112,6 +143,15 @@ export default function Suppliers() {
           <div className="w-full md:w-72">
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari kode/nama..." />
           </div>
+          <select
+            className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as "true" | "false" | "all")}
+          >
+            <option value="true">Supplier Aktif</option>
+            <option value="false">Supplier Nonaktif</option>
+            <option value="all">Semua Status</option>
+          </select>
           <Button variant="secondary" onClick={load}>
             Cari
           </Button>
@@ -186,16 +226,31 @@ export default function Suppliers() {
                 <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
                   <th className="px-4 py-2">Kode</th>
                   <th className="px-4 py-2">Nama</th>
+                  <th className="px-4 py-2">Status</th>
                   <th className="px-4 py-2 text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((s) => (
-                  <tr key={s.id} className="border-b border-zinc-100 hover:bg-zinc-50">
+                  <tr
+                    key={s.id}
+                    className={`border-b border-zinc-100 hover:bg-zinc-50 ${s.isActive ? "" : "bg-zinc-50/70"}`}
+                  >
                     <td className="px-4 py-2 font-medium">{s.code}</td>
                     <td className="px-4 py-2">{s.name}</td>
+                    <td className="px-4 py-2">
+                      <span className={`rounded-full px-2 py-0.5 text-xs ${getStatusBadgeClass(s.isActive)}`}>
+                        {s.isActive ? "Aktif" : "Nonaktif"}
+                      </span>
+                    </td>
                     <td className="px-4 py-2 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => void handleToggleActive(s)}
+                          className="font-medium text-amber-600 hover:text-amber-800"
+                        >
+                          {s.isActive ? "Nonaktifkan" : "Aktifkan"}
+                        </button>
                         <button onClick={() => handleEdit(s)} className="text-blue-600 hover:text-blue-800 font-medium">Edit</button>
                         <button onClick={() => handleDelete(s.id)} className="text-red-600 hover:text-red-800 font-medium">Hapus</button>
                       </div>
@@ -204,7 +259,7 @@ export default function Suppliers() {
                 ))}
                 {items.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={3}>
+                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={4}>
                       Belum ada data.
                     </td>
                   </tr>
@@ -232,6 +287,17 @@ export default function Suppliers() {
             <div className="mt-3 grid gap-3">
               <Input label="Kode" value={code} onChange={(e) => setCode(e.target.value)} placeholder="SUP-001" />
               <Input label="Nama" value={name} onChange={(e) => setName(e.target.value)} placeholder="PT Pabrik" />
+              <label className="block">
+                <div className="mb-1 text-xs font-medium text-zinc-600">Status Master</div>
+                <select
+                  className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                  value={isActive ? "true" : "false"}
+                  onChange={(e) => setIsActive(e.target.value === "true")}
+                >
+                  <option value="true">Aktif</option>
+                  <option value="false">Nonaktif</option>
+                </select>
+              </label>
 
               <div className="flex items-center justify-end gap-2 pt-2">
                 <Button variant="secondary" onClick={handleCancelEdit}>
@@ -243,9 +309,15 @@ export default function Suppliers() {
                     setError(null);
                     try {
                       if (editingId) {
-                        await apiFetch(`/api/v1/suppliers/${editingId}`, { method: "PATCH", body: JSON.stringify({ code, name }) });
+                        await apiFetch(`/api/v1/suppliers/${editingId}`, {
+                          method: "PATCH",
+                          body: JSON.stringify({ code, name, isActive }),
+                        });
                       } else {
-                        await apiFetch("/api/v1/suppliers", { method: "POST", body: JSON.stringify({ code, name }) });
+                        await apiFetch("/api/v1/suppliers", {
+                          method: "POST",
+                          body: JSON.stringify({ code, name, isActive }),
+                        });
                       }
                       handleCancelEdit();
                       await load();

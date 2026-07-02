@@ -113,6 +113,7 @@ async function getCustomerForVisit(customerId: string) {
         c.sales_id as "salesId"
       from customers c
       where c.id = $1
+        and c.is_active = true
       limit 1
     `,
     [customerId],

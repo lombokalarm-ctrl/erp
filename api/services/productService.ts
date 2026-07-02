@@ -13,6 +13,7 @@ export type Product = {
   sku: string
   name: string
   unit: string
+  isActive: boolean
   supplierId?: string | null
   supplierName?: string | null
   purchasePrice: string
@@ -246,6 +247,7 @@ export async function listProducts(params: {
   page?: number
   pageSize?: number
   q?: string
+  isActive?: boolean | 'all'
 }) {
   const pool = getPool()
   const page = params.page ?? 1
@@ -256,9 +258,14 @@ export async function listProducts(params: {
   const where: string[] = []
   const values: unknown[] = []
 
+  if (params.isActive !== 'all') {
+    values.push(params.isActive ?? true)
+    where.push(`p.is_active = $${values.length}`)
+  }
+
   if (q) {
     values.push(`%${q.toLowerCase()}%`)
-    where.push('(lower(p.sku) like $1 or lower(p.name) like $1)')
+    where.push(`(lower(p.sku) like $${values.length} or lower(p.name) like $${values.length})`)
   }
 
   const whereSql = where.length ? `where ${where.join(' and ')}` : ''
@@ -285,6 +292,7 @@ export async function listProducts(params: {
         p.sku,
         p.name,
         p.unit,
+        p.is_active as "isActive",
         p.supplier_id as "supplierId",
         sp.name as "supplierName",
         p.purchase_price::text as "purchasePrice",
@@ -325,6 +333,7 @@ export async function getProductById(id: string) {
         p.sku,
         p.name,
         p.unit,
+        p.is_active as "isActive",
         p.supplier_id as "supplierId",
         s.name as "supplierName",
         p.purchase_price::text as "purchasePrice",
@@ -359,6 +368,7 @@ export async function createProduct(input: {
   name: string
   unit: string
   supplierId?: string | null
+  isActive?: boolean
   purchasePrice: number
   salePrice: number
   categoryPrices?: Record<string, Record<string, number>>
@@ -380,9 +390,9 @@ export async function createProduct(input: {
       `
         insert into products(
           sku, name, unit, supplier_id, purchase_price, sale_price, category_prices, unit_prices, pack_size, pack_per_dus, dus_size,
-          min_stock_base, reorder_qty_base, lead_time_days, buffer_days
+          min_stock_base, reorder_qty_base, lead_time_days, buffer_days, is_active
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         returning id
       `,
       [
@@ -401,6 +411,7 @@ export async function createProduct(input: {
         input.reorderQtyBase ?? 0,
         input.leadTimeDays ?? 0,
         input.bufferDays ?? 0,
+        input.isActive ?? true,
       ],
     )
     const created = res.rows[0] as { id: string }
@@ -440,6 +451,7 @@ export async function updateProduct(
     name: string
     unit: string
     supplierId: string | null
+    isActive: boolean
     purchasePrice: number
     salePrice: number
     categoryPrices: Record<string, Record<string, number>>
@@ -469,17 +481,18 @@ export async function updateProduct(
           name = $3,
           unit = $4,
           supplier_id = $5,
-          purchase_price = $6,
-          sale_price = $7,
-          category_prices = $8,
-          unit_prices = $9,
-          pack_size = $10,
-          pack_per_dus = $11,
-          dus_size = $12,
-          min_stock_base = $13,
-          reorder_qty_base = $14,
-          lead_time_days = $15,
-          buffer_days = $16,
+          is_active = $6,
+          purchase_price = $7,
+          sale_price = $8,
+          category_prices = $9,
+          unit_prices = $10,
+          pack_size = $11,
+          pack_per_dus = $12,
+          dus_size = $13,
+          min_stock_base = $14,
+          reorder_qty_base = $15,
+          lead_time_days = $16,
+          buffer_days = $17,
           updated_at = now()
       where id = $1
       returning
@@ -487,6 +500,7 @@ export async function updateProduct(
         sku,
         name,
         unit,
+        is_active as "isActive",
         supplier_id as "supplierId",
         purchase_price::text as "purchasePrice",
         sale_price::text as "salePrice",
@@ -507,6 +521,7 @@ export async function updateProduct(
       input.name ?? current.name,
       input.unit ?? current.unit,
       input.supplierId ?? current.supplierId ?? null,
+      input.isActive ?? current.isActive,
       input.purchasePrice ?? Number(current.purchasePrice),
       input.salePrice ?? Number(current.salePrice),
       input.categoryPrices ? JSON.stringify(input.categoryPrices) : JSON.stringify(current.categoryPrices || {}),
@@ -566,7 +581,8 @@ export async function importProducts(rows: ProductImportRow[]) {
         `
           select id
           from suppliers
-          where lower(code) = lower($1) or lower(name) = lower($1)
+          where (lower(code) = lower($1) or lower(name) = lower($1))
+            and is_active = true
           limit 1
         `,
         [supplierName],

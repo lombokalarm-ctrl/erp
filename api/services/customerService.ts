@@ -16,6 +16,7 @@ export type Customer = {
   regionId: string | null
   regionName?: string | null
   status: string
+  isActive: boolean
   salesId?: string | null
   salesName?: string | null
 }
@@ -27,6 +28,7 @@ export async function listCustomers(params: {
   salesId?: string
   regionId?: string
   includeUnassigned?: boolean
+  isActive?: boolean | 'all'
 }) {
   const pool = getPool()
   const page = params.page ?? 1
@@ -37,9 +39,16 @@ export async function listCustomers(params: {
   const where: string[] = []
   const values: unknown[] = []
 
+  if (params.isActive !== 'all') {
+    values.push(params.isActive ?? true)
+    where.push(`c.is_active = $${values.length}`)
+  }
+
   if (q) {
     values.push(`%${q.toLowerCase()}%`)
-    where.push('(lower(c.code) like $1 or lower(c.name) like $1 or lower(c.owner_name) like $1)')
+    where.push(
+      `(lower(c.code) like $${values.length} or lower(c.name) like $${values.length} or lower(c.owner_name) like $${values.length})`,
+    )
   }
 
   if (params.salesId) {
@@ -76,6 +85,7 @@ export async function listCustomers(params: {
         c.region_id as "regionId",
         r.name as "regionName",
         c.status,
+        c.is_active as "isActive",
         c.sales_id as "salesId",
         u.full_name as "salesName"
       from customers c
@@ -107,6 +117,7 @@ export async function getCustomerById(id: string) {
         c.region_id as "regionId",
         r.name as "regionName",
         c.status,
+        c.is_active as "isActive",
         c.sales_id as "salesId",
         u.full_name as "salesName"
       from customers c
@@ -136,6 +147,7 @@ export async function createCustomer(input: {
   address?: string | null
   regionId?: string | null
   status?: string
+  isActive?: boolean
   salesId?: string | null
 }) {
   const pool = getPool()
@@ -143,9 +155,9 @@ export async function createCustomer(input: {
     `
       insert into customers(
         code, name, owner_name, ktp_no, npwp_no,
-        category, phone, email, address, region_id, status, sales_id
+        category, phone, email, address, region_id, status, is_active, sales_id
       )
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       returning
         id, code, name,
         owner_name as "ownerName",
@@ -153,7 +165,9 @@ export async function createCustomer(input: {
         npwp_no as "npwpNo",
         category, phone, email, address,
         region_id as "regionId",
-        status, sales_id as "salesId"
+        status,
+        is_active as "isActive",
+        sales_id as "salesId"
     `,
     [
       input.code,
@@ -167,6 +181,7 @@ export async function createCustomer(input: {
       input.address ?? null,
       input.regionId ?? null,
       input.status ?? 'ACTIVE',
+      input.isActive ?? true,
       input.salesId ?? null,
     ],
   )
@@ -202,6 +217,7 @@ export async function updateCustomer(
     address: string | null
     regionId: string | null
     status: 'ACTIVE' | 'BLOCKED'
+    isActive: boolean
     salesId: string | null
   }>,
 ) {
@@ -224,6 +240,9 @@ export async function updateCustomer(
       values.push(v)
     } else if (k === 'npwpNo') {
       sets.push(`npwp_no = $${i++}`)
+      values.push(v)
+    } else if (k === 'isActive') {
+      sets.push(`is_active = $${i++}`)
       values.push(v)
     } else {
       sets.push(`${k} = $${i++}`)

@@ -35,10 +35,15 @@ router.get(
           page: z.coerce.number().int().min(1).default(1),
           pageSize: z.coerce.number().int().min(1).max(200).default(20),
           q: z.string().optional(),
+          isActive: z.enum(['true', 'false', 'all']).optional(),
         })
         .parse(req.query)
 
-      const result = await listSuppliers(query)
+      const result = await listSuppliers({
+        ...query,
+        isActive:
+          query.isActive === 'all' ? 'all' : query.isActive === 'false' ? false : true,
+      })
       ok(res, result.items, { total: result.total })
     } catch (err) {
       next(err)
@@ -58,6 +63,7 @@ router.post(
           name: z.string().min(1),
           phone: z.string().optional(),
           address: z.string().optional(),
+          isActive: z.boolean().optional(),
         })
         .parse(req.body)
 
@@ -66,6 +72,7 @@ router.post(
         name: body.name,
         phone: body.phone,
         address: body.address,
+        isActive: body.isActive,
       })
       await writeAuditLog({
         actorUserId: req.user!.userId,
@@ -170,6 +177,7 @@ router.patch(
           name: z.string().min(1).optional(),
           phone: z.string().nullable().optional(),
           address: z.string().nullable().optional(),
+          isActive: z.boolean().optional(),
         })
         .parse(req.body)
 
