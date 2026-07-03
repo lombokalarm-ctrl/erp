@@ -681,7 +681,7 @@ export default function SalesOrders() {
 
       {isFormOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <Card className="w-full max-w-3xl p-5 max-h-[92vh] overflow-y-auto shadow-2xl">
+          <Card className="w-full max-w-4xl p-5 max-h-[92vh] overflow-y-auto shadow-2xl">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-base font-semibold">{editingOrderId ? "Edit Sales Order" : "Buat Sales Order"}</div>
@@ -695,98 +695,101 @@ export default function SalesOrders() {
               </button>
             </div>
             <div className="mt-3 grid gap-3">
-              <label className="block">
-                <div className="mb-1 text-xs font-medium text-zinc-600">Pelanggan</div>
-                <SearchableSelect
-                  value={customerId}
-                  onChange={(newCustId) => {
-                    setCustomerId(newCustId);
-                    const c = customers.find(x => x.id === newCustId);
-                    setItems(prev => prev.map(it => {
-                      const p = products.find(x => x.id === it.productId);
-                      if (p) {
-                        return { ...it, unitPrice: resolveUnitPrice(p, c, it.uom) };
-                      }
-                      return it;
-                    }));
-                    setDraftItem((prev) => {
-                      const p = products.find((x) => x.id === prev.productId);
-                      if (!p) return prev;
-                      return { ...prev, unitPrice: resolveUnitPrice(p, c, prev.uom) };
-                    });
-                  }}
-                  placeholder="Pilih pelanggan"
-                  searchPlaceholder="Cari pelanggan..."
-                  options={customers.map((c) => ({ value: c.id, label: `${c.code} - ${c.name}` }))}
-                />
-              </label>
-
-            <Input label="Tanggal" type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
-            <Input label="Catatan" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opsional" />
-
-            <div className="rounded-lg border border-zinc-200">
-              <div className="border-b border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-600">
-                Input Item
-              </div>
-              <div className="grid gap-3 p-3">
-                <SearchableSelect
-                  value={draftItem.productId}
-                  searchInputRef={topItemSearchRef}
-                  onChange={async (pid) => {
-                    const p = products.find((x) => x.id === pid);
-                    let nextUom = draftItem.uom || "pcs";
-                    if (pid) {
-                      await ensureProductUomsLoaded(pid);
-                      try {
-                        const mappings = productUomMappings[pid] ?? (await fetchProductUomMappings(pid));
-                        nextUom = pickDefaultUom(mappings, "sale");
-                      } catch {
-                        nextUom = "pcs";
-                      }
-                    }
-                    const newPrice = resolveUnitPrice(p, selectedCustomer, nextUom);
-                    setDraftItem((prev) => ({
-                      ...prev,
-                      productId: pid,
-                      uom: nextUom,
-                      unitPrice: newPrice,
-                    }));
-                  }}
-                  placeholder="Pilih produk"
-                  searchPlaceholder="Cari SKU / nama produk..."
-                  options={products.map((p) => ({ value: p.id, label: `${p.sku} - ${p.name}` }))}
-                />
-                <div className="grid gap-2 md:grid-cols-[minmax(0,1.6fr)_120px_160px_180px_auto]">
-                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm">
-                    <div className="text-[11px] font-medium text-zinc-500">Produk Aktif</div>
-                    <div className="font-medium text-zinc-900">
-                      {draftProduct ? `${draftProduct.sku} - ${draftProduct.name}` : "Belum pilih produk"}
-                    </div>
-                  </div>
-                  <NumericInput
-                    label="Qty"
-                    value={draftItem.qty}
-                    onValueChange={(v) => setDraftItem((prev) => ({ ...prev, qty: v || (prev.productId ? "0" : "") }))}
+              <div className="grid gap-3 md:grid-cols-[minmax(0,1.8fr)_220px] md:items-start">
+                <label className="block">
+                  <div className="mb-1 text-xs font-medium text-zinc-600">Pelanggan</div>
+                  <SearchableSelect
+                    value={customerId}
+                    onChange={(newCustId) => {
+                      setCustomerId(newCustId);
+                      const c = customers.find(x => x.id === newCustId);
+                      setItems(prev => prev.map(it => {
+                        const p = products.find(x => x.id === it.productId);
+                        if (p) {
+                          return { ...it, unitPrice: resolveUnitPrice(p, c, it.uom) };
+                        }
+                        return it;
+                      }));
+                      setDraftItem((prev) => {
+                        const p = products.find((x) => x.id === prev.productId);
+                        if (!p) return prev;
+                        return { ...prev, unitPrice: resolveUnitPrice(p, c, prev.uom) };
+                      });
+                    }}
+                    placeholder="Pilih pelanggan"
+                    searchPlaceholder="Cari pelanggan..."
+                    options={customers.map((c) => ({ value: c.id, label: `${c.code} - ${c.name}` }))}
                   />
-                  <label className="block">
-                    <div className="mb-1 text-xs font-medium text-zinc-600">Satuan</div>
-                    <select
-                      className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
-                      value={draftItem.uom}
-                      onChange={(e) => {
-                        const nextUom = e.target.value;
-                        const nextPrice = resolveUnitPrice(draftProduct, selectedCustomer, nextUom);
-                        setDraftItem((prev) => ({ ...prev, uom: nextUom, unitPrice: nextPrice }));
-                      }}
-                      disabled={!draftItem.productId}
-                    >
-                      {getUomOptions(draftItem.productId).map((u) => (
-                        <option key={u.code} value={u.code}>
-                          {u.code}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                </label>
+
+                <Input label="Tanggal" type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
+              </div>
+
+              <Input label="Catatan" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opsional" />
+
+              <div className="rounded-lg border border-zinc-200">
+                <div className="border-b border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-600">
+                  Input Item
+                </div>
+                <div className="grid gap-3 p-3">
+                  <SearchableSelect
+                    value={draftItem.productId}
+                    searchInputRef={topItemSearchRef}
+                    onChange={async (pid) => {
+                      const p = products.find((x) => x.id === pid);
+                      let nextUom = draftItem.uom || "pcs";
+                      if (pid) {
+                        await ensureProductUomsLoaded(pid);
+                        try {
+                          const mappings = productUomMappings[pid] ?? (await fetchProductUomMappings(pid));
+                          nextUom = pickDefaultUom(mappings, "sale");
+                        } catch {
+                          nextUom = "pcs";
+                        }
+                      }
+                      const newPrice = resolveUnitPrice(p, selectedCustomer, nextUom);
+                      setDraftItem((prev) => ({
+                        ...prev,
+                        productId: pid,
+                        uom: nextUom,
+                        unitPrice: newPrice,
+                      }));
+                    }}
+                    placeholder="Pilih produk"
+                    searchPlaceholder="Cari SKU / nama produk..."
+                    options={products.map((p) => ({ value: p.id, label: `${p.sku} - ${p.name}` }))}
+                  />
+                  <div className="grid gap-2 md:grid-cols-[minmax(0,1.6fr)_120px_160px_180px_auto]">
+                    <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm">
+                      <div className="text-[11px] font-medium text-zinc-500">Produk Aktif</div>
+                      <div className="font-medium text-zinc-900">
+                        {draftProduct ? `${draftProduct.sku} - ${draftProduct.name}` : "Belum pilih produk"}
+                      </div>
+                    </div>
+                    <NumericInput
+                      label="Qty"
+                      value={draftItem.qty}
+                      onValueChange={(v) => setDraftItem((prev) => ({ ...prev, qty: v || (prev.productId ? "0" : "") }))}
+                    />
+                    <label className="block">
+                      <div className="mb-1 text-xs font-medium text-zinc-600">Satuan</div>
+                      <select
+                        className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                        value={draftItem.uom}
+                        onChange={(e) => {
+                          const nextUom = e.target.value;
+                          const nextPrice = resolveUnitPrice(draftProduct, selectedCustomer, nextUom);
+                          setDraftItem((prev) => ({ ...prev, uom: nextUom, unitPrice: nextPrice }));
+                        }}
+                        disabled={!draftItem.productId}
+                      >
+                        {getUomOptions(draftItem.productId).map((u) => (
+                          <option key={u.code} value={u.code}>
+                            {u.code}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                   <NumericInput
                     label="Harga"
                     mode="currency"
