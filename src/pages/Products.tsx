@@ -301,7 +301,22 @@ export default function Products() {
       const res = await apiFetch<ProductListResponse>(
         `/api/v1/products?${params.toString()}`,
       );
-      setItems(res.data);
+      const sortedItems = [...res.data].sort((a, b) => {
+        const supplierA = (a.supplierName || "zzz tanpa supplier").toLowerCase();
+        const supplierB = (b.supplierName || "zzz tanpa supplier").toLowerCase();
+        if (supplierA !== supplierB) {
+          return supplierA.localeCompare(supplierB, "id");
+        }
+
+        const nameA = a.name.toLowerCase();
+        const nameB = b.name.toLowerCase();
+        if (nameA !== nameB) {
+          return nameA.localeCompare(nameB, "id");
+        }
+
+        return a.sku.toLowerCase().localeCompare(b.sku.toLowerCase(), "id");
+      });
+      setItems(sortedItems);
       setTotal(Number(res.meta?.total ?? 0));
       setPage(nextPage);
       setPageSize(nextPageSize);
@@ -496,10 +511,6 @@ export default function Products() {
     }
   }
 
-  function getStatusBadgeClass(active: boolean) {
-    return active ? "bg-emerald-50 text-emerald-700" : "bg-zinc-200 text-zinc-700";
-  }
-
   const startItem = items.length === 0 ? 0 : (page - 1) * pageSize + 1;
   const endItem = items.length === 0 ? 0 : startItem + items.length - 1;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -609,7 +620,6 @@ export default function Products() {
                 <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
                   <th className="px-4 py-2">SKU</th>
                   <th className="px-4 py-2">Nama</th>
-                  <th className="px-4 py-2 whitespace-nowrap">Status</th>
                   <th className="px-4 py-2">Supplier</th>
                   <th className="px-4 py-2 whitespace-nowrap">Sat. Dasar</th>
                   <th className="px-4 py-2">Harga Beli</th>
@@ -626,11 +636,6 @@ export default function Products() {
                   >
                     <td className="px-4 py-2 font-medium">{p.sku}</td>
                     <td className="px-4 py-2">{p.name}</td>
-                    <td className="px-4 py-2">
-                      <span className={`rounded-full px-2 py-0.5 text-xs ${getStatusBadgeClass(p.isActive)}`}>
-                        {p.isActive ? "Aktif" : "Nonaktif"}
-                      </span>
-                    </td>
                     <td className="px-4 py-2">{p.supplierName || "-"}</td>
                     <td className="px-4 py-2">{p.unit}</td>
                     <td className="whitespace-nowrap px-4 py-2">{formatCurrency(p.purchasePrice)}</td>
@@ -659,7 +664,7 @@ export default function Products() {
                 ))}
                 {items.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={9}>
+                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={8}>
                       Belum ada data.
                     </td>
                   </tr>
