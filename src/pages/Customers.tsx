@@ -624,11 +624,11 @@ export default function Customers() {
 
       {isFormOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <Card className="w-full max-w-3xl max-h-[92vh] overflow-auto p-5 shadow-2xl">
+          <Card className="w-full max-w-5xl max-h-[92vh] overflow-auto p-5 shadow-2xl">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-base font-semibold">{editingId ? "Edit Pelanggan" : "Tambah Pelanggan Baru"}</div>
-                <p className="text-xs text-zinc-500">Lengkapi informasi identitas, wilayah, dan PIC sales pelanggan.</p>
+                <p className="text-xs text-zinc-500">Lengkapi informasi identitas, wilayah, dan PIC sales dengan layout yang lebih rapat.</p>
               </div>
               <button
                 className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
@@ -637,7 +637,7 @@ export default function Customers() {
                 Tutup
               </button>
             </div>
-            <div className="mt-3 grid gap-3">
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
               <Input label="Kode" value={code} onChange={(e) => setCode(e.target.value)} placeholder="CUST-001" />
               <Input label="Nama" value={name} onChange={(e) => setName(e.target.value)} placeholder="Toko Sumber Rejeki" />
               <Input label="Nama Pemilik" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="Nama pemilik toko" />
@@ -691,7 +691,7 @@ export default function Customers() {
                   ))}
                 </select>
               </label>
-              <label className="block">
+              <label className="block md:col-span-2">
                 <div className="mb-1 text-xs font-medium text-zinc-600">Alamat Lengkap</div>
                 <textarea
                   className="w-full rounded-lg border border-zinc-200 bg-white p-3 text-sm min-h-[80px]"
@@ -740,7 +740,7 @@ export default function Customers() {
                   </select>
                 </label>
               ) : null}
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="flex items-center justify-end gap-2 pt-2 md:col-span-2">
                 <Button variant="secondary" onClick={handleCancelEdit}>
                   Batal
                 </Button>

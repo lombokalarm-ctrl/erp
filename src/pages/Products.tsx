@@ -723,11 +723,11 @@ export default function Products() {
 
       {isFormOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <Card className="w-full max-w-4xl max-h-[92vh] overflow-y-auto p-5 shadow-2xl">
+          <Card className="w-full max-w-6xl max-h-[92vh] overflow-y-auto p-5 shadow-2xl">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-base font-semibold">{editingId ? "Edit Produk" : "Tambah Produk Baru"}</div>
-                <p className="text-xs text-zinc-500">Atur SKU, harga, konversi satuan, dan harga per kategori pelanggan.</p>
+                <p className="text-xs text-zinc-500">Atur SKU, harga, dan satuan dengan layout yang lebih sejajar dan efisien.</p>
               </div>
               <button
                 className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
@@ -736,7 +736,7 @@ export default function Products() {
                 Tutup
               </button>
             </div>
-            <div className="mt-3 grid gap-3">
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
               <Input
                 id={skuInputId}
                 label="SKU"
@@ -811,14 +811,14 @@ export default function Products() {
                 />
               </div>
 
-              <div className="rounded-lg border border-zinc-200 p-3 mt-2 space-y-3">
+              <div className="rounded-lg border border-zinc-200 p-3 mt-2 space-y-3 md:col-span-2">
                 <div className="text-xs font-semibold text-zinc-600">Konversi Satuan (UOM V2)</div>
                 <div className="text-xs text-zinc-600">
                   Konversi tidak lagi diinput fixed `pack/dus`. Kelola melalui tombol <strong>UOM</strong> pada daftar produk.
                 </div>
               </div>
 
-              <div className="rounded-lg border border-zinc-200 p-3 mt-2 space-y-3">
+              <div className="rounded-lg border border-zinc-200 p-3 mt-2 space-y-3 md:col-span-2">
                 <div className="text-xs font-semibold text-zinc-600">Harga Dasar per UOM Jual</div>
                 <div className="grid grid-cols-2 gap-2">
                   {activePriceUoms.map((uomCode) => (
@@ -835,7 +835,7 @@ export default function Products() {
                 </div>
               </div>
 
-              <div className="rounded-lg border border-zinc-200 p-3 mt-2 space-y-3">
+              <div className="rounded-lg border border-zinc-200 p-3 mt-2 space-y-3 md:col-span-2">
                 <div className="text-xs font-semibold text-zinc-600">Harga Per Kategori Pelanggan (Dinamis)</div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm text-left">
@@ -872,7 +872,7 @@ export default function Products() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="flex items-center justify-end gap-2 pt-2 md:col-span-2">
                 <Button variant="secondary" onClick={handleCancelEdit} disabled={isSavingProduct}>
                   Batal
                 </Button>
