@@ -61,7 +61,9 @@ router.post(
         .object({
           code: z.string().min(1),
           name: z.string().min(1),
+          contactPerson: z.string().optional(),
           phone: z.string().optional(),
+          email: z.string().optional(),
           address: z.string().optional(),
           isActive: z.boolean().optional(),
         })
@@ -70,7 +72,9 @@ router.post(
       const created = await createSupplier({
         code: body.code,
         name: body.name,
+        contactPerson: body.contactPerson,
         phone: body.phone,
+        email: body.email,
         address: body.address,
         isActive: body.isActive,
       })
@@ -175,7 +179,9 @@ router.patch(
         .object({
           code: z.string().min(1).optional(),
           name: z.string().min(1).optional(),
+          contactPerson: z.string().nullable().optional(),
           phone: z.string().nullable().optional(),
+          email: z.string().nullable().optional(),
           address: z.string().nullable().optional(),
           isActive: z.boolean().optional(),
         })

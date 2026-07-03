@@ -9,7 +9,9 @@ type Supplier = {
   id: string;
   code: string;
   name: string;
+  contactPerson: string | null;
   phone: string | null;
+  email: string | null;
   address: string | null;
   isActive: boolean;
 };
@@ -31,6 +33,10 @@ export default function Suppliers() {
 
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
+  const [contactPerson, setContactPerson] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [address, setAddress] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isActive, setIsActive] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -42,6 +48,10 @@ export default function Suppliers() {
     setEditingId(s.id);
     setCode(s.code);
     setName(s.name);
+    setContactPerson(s.contactPerson || "");
+    setPhone(s.phone || "");
+    setEmail(s.email || "");
+    setAddress(s.address || "");
     setIsActive(s.isActive);
     setIsFormOpen(true);
   }
@@ -50,6 +60,10 @@ export default function Suppliers() {
     setEditingId(null);
     setCode("");
     setName("");
+    setContactPerson("");
+    setPhone("");
+    setEmail("");
+    setAddress("");
     setIsActive(true);
     setError(null);
     setIsFormOpen(false);
@@ -226,6 +240,9 @@ export default function Suppliers() {
                 <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
                   <th className="px-4 py-2">Kode</th>
                   <th className="px-4 py-2">Nama</th>
+                  <th className="px-4 py-2">PIC</th>
+                  <th className="px-4 py-2">Kontak</th>
+                  <th className="px-4 py-2">Alamat</th>
                   <th className="px-4 py-2">Status</th>
                   <th className="px-4 py-2 text-right">Aksi</th>
                 </tr>
@@ -238,6 +255,14 @@ export default function Suppliers() {
                   >
                     <td className="px-4 py-2 font-medium">{s.code}</td>
                     <td className="px-4 py-2">{s.name}</td>
+                    <td className="px-4 py-2">{s.contactPerson || "-"}</td>
+                    <td className="px-4 py-2">
+                      <div>{s.phone || "-"}</div>
+                      <div className="text-xs text-zinc-500">{s.email || "-"}</div>
+                    </td>
+                    <td className="px-4 py-2">
+                      <div className="max-w-[260px] whitespace-pre-wrap text-xs text-zinc-600">{s.address || "-"}</div>
+                    </td>
                     <td className="px-4 py-2">
                       <span className={`rounded-full px-2 py-0.5 text-xs ${getStatusBadgeClass(s.isActive)}`}>
                         {s.isActive ? "Aktif" : "Nonaktif"}
@@ -259,7 +284,7 @@ export default function Suppliers() {
                 ))}
                 {items.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={4}>
+                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={7}>
                       Belum ada data.
                     </td>
                   </tr>
@@ -287,6 +312,33 @@ export default function Suppliers() {
             <div className="mt-3 grid gap-3">
               <Input label="Kode" value={code} onChange={(e) => setCode(e.target.value)} placeholder="SUP-001" />
               <Input label="Nama" value={name} onChange={(e) => setName(e.target.value)} placeholder="PT Pabrik" />
+              <Input
+                label="PIC"
+                value={contactPerson}
+                onChange={(e) => setContactPerson(e.target.value)}
+                placeholder="Nama PIC supplier"
+              />
+              <Input
+                label="No HP / Telepon"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="08xxxx / 0370-xxxx"
+              />
+              <Input
+                label="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="supplier@contoh.com"
+              />
+              <label className="block">
+                <div className="mb-1 text-xs font-medium text-zinc-600">Alamat</div>
+                <textarea
+                  className="min-h-[96px] w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none transition focus:border-zinc-400"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="Alamat supplier"
+                />
+              </label>
               <label className="block">
                 <div className="mb-1 text-xs font-medium text-zinc-600">Status Master</div>
                 <select
@@ -311,12 +363,12 @@ export default function Suppliers() {
                       if (editingId) {
                         await apiFetch(`/api/v1/suppliers/${editingId}`, {
                           method: "PATCH",
-                          body: JSON.stringify({ code, name, isActive }),
+                          body: JSON.stringify({ code, name, contactPerson, phone, email, address, isActive }),
                         });
                       } else {
                         await apiFetch("/api/v1/suppliers", {
                           method: "POST",
-                          body: JSON.stringify({ code, name, isActive }),
+                          body: JSON.stringify({ code, name, contactPerson, phone, email, address, isActive }),
                         });
                       }
                       handleCancelEdit();

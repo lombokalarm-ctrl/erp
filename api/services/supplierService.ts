@@ -5,7 +5,9 @@ export type Supplier = {
   id: string
   code: string
   name: string
+  contactPerson: string | null
   phone: string | null
+  email: string | null
   address: string | null
   isActive: boolean
 }
@@ -13,6 +15,11 @@ export type Supplier = {
 export type SupplierImportRow = {
   code?: string
   name?: string
+}
+
+function toNullableText(value?: string | null) {
+  const normalized = value?.trim()
+  return normalized ? normalized : null
 }
 
 export async function listSuppliers(params: {
@@ -35,7 +42,9 @@ export async function listSuppliers(params: {
   }
   if (q) {
     values.push(`%${q.toLowerCase()}%`)
-    where.push(`(lower(code) like $${values.length} or lower(name) like $${values.length})`)
+    where.push(
+      `(lower(code) like $${values.length} or lower(name) like $${values.length} or lower(coalesce(contact_person, '')) like $${values.length} or lower(coalesce(phone, '')) like $${values.length} or lower(coalesce(email, '')) like $${values.length})`,
+    )
   }
   const whereSql = where.length ? `where ${where.join(' and ')}` : ''
 
@@ -47,7 +56,7 @@ export async function listSuppliers(params: {
 
   const res = await pool.query(
     `
-      select id, code, name, phone, address, is_active as "isActive"
+      select id, code, name, contact_person as "contactPerson", phone, email, address, is_active as "isActive"
       from suppliers
       ${whereSql}
       order by created_at desc
@@ -62,18 +71,28 @@ export async function listSuppliers(params: {
 export async function createSupplier(input: {
   code: string
   name: string
+  contactPerson?: string
   phone?: string
+  email?: string
   address?: string
   isActive?: boolean
 }) {
   const pool = getPool()
   const res = await pool.query(
     `
-      insert into suppliers(code, name, phone, address, is_active)
-      values ($1,$2,$3,$4,$5)
-      returning id, code, name, phone, address, is_active as "isActive"
+      insert into suppliers(code, name, contact_person, phone, email, address, is_active)
+      values ($1,$2,$3,$4,$5,$6,$7)
+      returning id, code, name, contact_person as "contactPerson", phone, email, address, is_active as "isActive"
     `,
-    [input.code, input.name, input.phone ?? null, input.address ?? null, input.isActive ?? true],
+    [
+      input.code,
+      input.name,
+      toNullableText(input.contactPerson),
+      toNullableText(input.phone),
+      toNullableText(input.email),
+      toNullableText(input.address),
+      input.isActive ?? true,
+    ],
   )
   return res.rows[0] as Supplier
 }
@@ -89,8 +108,11 @@ export async function updateSupplier(
   const next = {
     code: input.code ?? current.code,
     name: input.name ?? current.name,
-    phone: input.phone ?? current.phone,
-    address: input.address ?? current.address,
+    contactPerson:
+      input.contactPerson !== undefined ? toNullableText(input.contactPerson) : current.contactPerson,
+    phone: input.phone !== undefined ? toNullableText(input.phone) : current.phone,
+    email: input.email !== undefined ? toNullableText(input.email) : current.email,
+    address: input.address !== undefined ? toNullableText(input.address) : current.address,
     isActive: input.isActive ?? current.isActive,
   }
 
@@ -99,14 +121,16 @@ export async function updateSupplier(
       update suppliers
       set code = $2,
           name = $3,
-          phone = $4,
-          address = $5,
-          is_active = $6,
+          contact_person = $4,
+          phone = $5,
+          email = $6,
+          address = $7,
+          is_active = $8,
           updated_at = now()
       where id = $1
-      returning id, code, name, phone, address, is_active as "isActive"
+      returning id, code, name, contact_person as "contactPerson", phone, email, address, is_active as "isActive"
     `,
-    [id, next.code, next.name, next.phone, next.address, next.isActive],
+    [id, next.code, next.name, next.contactPerson, next.phone, next.email, next.address, next.isActive],
   )
 
   return res.rows[0] as Supplier
@@ -130,7 +154,7 @@ export async function deleteSupplier(id: string) {
 export async function getSupplierById(id: string) {
   const pool = getPool()
   const res = await pool.query(
-    `select id, code, name, phone, address, is_active as "isActive" from suppliers where id = $1 limit 1`,
+    `select id, code, name, contact_person as "contactPerson", phone, email, address, is_active as "isActive" from suppliers where id = $1 limit 1`,
     [id],
   )
   const row = res.rows[0] as Supplier | undefined
