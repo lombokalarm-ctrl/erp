@@ -43,6 +43,20 @@ export default function Suppliers() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   
   const canCreate = useMemo(() => code.trim() && name.trim(), [code, name]);
+  const sortedItems = useMemo(() => {
+    const extractNumericValue = (value: string) => {
+      const match = value.match(/\d+/);
+      return match ? Number(match[0]) : Number.MAX_SAFE_INTEGER;
+    };
+
+    return [...items].sort((a, b) => {
+      const numberDiff = extractNumericValue(a.code) - extractNumericValue(b.code);
+      if (numberDiff !== 0) return numberDiff;
+      const codeDiff = a.code.localeCompare(b.code, "id", { numeric: true, sensitivity: "base" });
+      if (codeDiff !== 0) return codeDiff;
+      return a.name.localeCompare(b.name, "id", { sensitivity: "base" });
+    });
+  }, [items]);
 
   function handleEdit(s: Supplier) {
     setEditingId(s.id);
@@ -136,10 +150,6 @@ export default function Suppliers() {
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Gagal mengubah status supplier");
     }
-  }
-
-  function getStatusBadgeClass(active: boolean) {
-    return active ? "bg-emerald-50 text-emerald-700" : "bg-zinc-200 text-zinc-700";
   }
 
   useEffect(() => {
@@ -238,36 +248,21 @@ export default function Suppliers() {
             <table className="min-w-full text-sm">
               <thead className="sticky top-0 bg-white">
                 <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
+                  <th className="px-4 py-2">No</th>
                   <th className="px-4 py-2">Kode</th>
                   <th className="px-4 py-2">Nama</th>
-                  <th className="px-4 py-2">PIC</th>
-                  <th className="px-4 py-2">Kontak</th>
-                  <th className="px-4 py-2">Alamat</th>
-                  <th className="px-4 py-2">Status</th>
                   <th className="px-4 py-2 text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((s) => (
+                {sortedItems.map((s, index) => (
                   <tr
                     key={s.id}
-                    className={`border-b border-zinc-100 hover:bg-zinc-50 ${s.isActive ? "" : "bg-zinc-50/70"}`}
+                    className="border-b border-zinc-100 hover:bg-zinc-50"
                   >
+                    <td className="px-4 py-2 text-zinc-500">{index + 1}</td>
                     <td className="px-4 py-2 font-medium">{s.code}</td>
                     <td className="px-4 py-2">{s.name}</td>
-                    <td className="px-4 py-2">{s.contactPerson || "-"}</td>
-                    <td className="px-4 py-2">
-                      <div>{s.phone || "-"}</div>
-                      <div className="text-xs text-zinc-500">{s.email || "-"}</div>
-                    </td>
-                    <td className="px-4 py-2">
-                      <div className="max-w-[260px] whitespace-pre-wrap text-xs text-zinc-600">{s.address || "-"}</div>
-                    </td>
-                    <td className="px-4 py-2">
-                      <span className={`rounded-full px-2 py-0.5 text-xs ${getStatusBadgeClass(s.isActive)}`}>
-                        {s.isActive ? "Aktif" : "Nonaktif"}
-                      </span>
-                    </td>
                     <td className="px-4 py-2 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button
@@ -284,7 +279,7 @@ export default function Suppliers() {
                 ))}
                 {items.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={7}>
+                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={4}>
                       Belum ada data.
                     </td>
                   </tr>
