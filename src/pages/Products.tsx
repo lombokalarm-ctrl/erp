@@ -302,19 +302,28 @@ export default function Products() {
         `/api/v1/products?${params.toString()}`,
       );
       const sortedItems = [...res.data].sort((a, b) => {
-        const supplierA = (a.supplierName || "zzz tanpa supplier").toLowerCase();
-        const supplierB = (b.supplierName || "zzz tanpa supplier").toLowerCase();
-        if (supplierA !== supplierB) {
-          return supplierA.localeCompare(supplierB, "id");
+        const supplierA = (a.supplierName || "zzzz tanpa supplier").trim();
+        const supplierB = (b.supplierName || "zzzz tanpa supplier").trim();
+        const supplierDiff = supplierA.localeCompare(supplierB, "id", {
+          sensitivity: "base",
+          numeric: true,
+        });
+        if (supplierDiff !== 0) {
+          return supplierDiff;
         }
 
-        const nameA = a.name.toLowerCase();
-        const nameB = b.name.toLowerCase();
-        if (nameA !== nameB) {
-          return nameA.localeCompare(nameB, "id");
+        const nameDiff = a.name.localeCompare(b.name, "id", {
+          sensitivity: "base",
+          numeric: true,
+        });
+        if (nameDiff !== 0) {
+          return nameDiff;
         }
 
-        return a.sku.toLowerCase().localeCompare(b.sku.toLowerCase(), "id");
+        return a.sku.localeCompare(b.sku, "id", {
+          sensitivity: "base",
+          numeric: true,
+        });
       });
       setItems(sortedItems);
       setTotal(Number(res.meta?.total ?? 0));
@@ -623,7 +632,6 @@ export default function Products() {
                   <th className="px-4 py-2">Supplier</th>
                   <th className="px-4 py-2 whitespace-nowrap">Sat. Dasar</th>
                   <th className="px-4 py-2">Harga Beli</th>
-                  <th className="px-4 py-2 whitespace-nowrap">Min/Reorder Base</th>
                   <th className="px-4 py-2 whitespace-nowrap">Harga Retail (Dinamis)</th>
                   <th className="px-4 py-2 text-right">Aksi</th>
                 </tr>
@@ -639,7 +647,6 @@ export default function Products() {
                     <td className="px-4 py-2">{p.supplierName || "-"}</td>
                     <td className="px-4 py-2">{p.unit}</td>
                     <td className="whitespace-nowrap px-4 py-2">{formatCurrency(p.purchasePrice)}</td>
-                    <td className="px-4 py-2">{`${Number(p.minStockBase ?? 0).toFixed(2)} / ${Number(p.reorderQtyBase ?? 0).toFixed(2)}`}</td>
                     <td className="px-4 py-2">
                       {p.categoryPrices?.["RETAIL"]
                         ? Object.entries(p.categoryPrices["RETAIL"])
@@ -664,7 +671,7 @@ export default function Products() {
                 ))}
                 {items.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={8}>
+                    <td className="px-4 py-6 text-sm text-zinc-500" colSpan={7}>
                       Belum ada data.
                     </td>
                   </tr>
