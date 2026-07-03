@@ -312,7 +312,11 @@ export async function listProducts(params: {
       left join suppliers sp on sp.id = p.supplier_id
       left join stock_wh01 st on st."productId" = p.id
       ${whereSql}
-      order by p.created_at desc
+      order by
+        case when sp.name is null or trim(sp.name) = '' then 1 else 0 end asc,
+        lower(coalesce(sp.name, '')) asc,
+        lower(p.name) asc,
+        lower(p.sku) asc
       limit $${values.length + 1} offset $${values.length + 2}
     `,
     [...values, pageSize, offset],
