@@ -42,6 +42,7 @@ import PromoReport from "@/pages/PromoReport";
 import ProfitLossReport from "@/pages/ProfitLossReport";
 import PurchaseReport from "@/pages/PurchaseReport";
 import StockReport from "@/pages/StockReport";
+import StockMutationReport from "@/pages/StockMutationReport";
 import ChangePassword from "@/pages/ChangePassword";
 import UomHealth from "@/pages/UomHealth";
 
@@ -101,6 +102,7 @@ export default function App() {
           <Route path="collection-report" element={<CollectionReport />} />
           <Route path="purchase-report" element={<PurchaseReport />} />
           <Route path="stock-report" element={<StockReport />} />
+          <Route path="stock-mutations" element={<StockMutationReport />} />
           <Route path="roles" element={<Roles />} />
           <Route path="company-settings" element={<CompanySettings />} />
           <Route path="promos" element={<Promos />} />

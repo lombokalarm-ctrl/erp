@@ -5,7 +5,6 @@ import Button from "@/components/ui/Button";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import { apiDownload, apiFetch, ApiError } from "@/api/client";
 import { Download, Printer } from "lucide-react";
-import { formatDate } from "@/lib/date";
 
 type SupplierOption = {
   id: string;
@@ -140,84 +139,41 @@ export default function StockReport() {
             </Card>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Card className="overflow-hidden">
-              <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold">
-                Saldo Stok Per Produk
-              </div>
-              <div className="max-h-[420px] overflow-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="sticky top-0 bg-white">
-                    <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
-                      <th className="px-4 py-3">Kode Barang</th>
-                      <th className="px-4 py-3">Nama Barang</th>
-                      <th className="px-4 py-3">Supplier</th>
-                      <th className="px-4 py-3 text-right">Stok Satuan Besar</th>
-                      <th className="px-4 py-3 text-right">Stok Satuan Kecil</th>
+          <Card className="overflow-hidden">
+            <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold">
+              Saldo Stok Per Produk
+            </div>
+            <div className="max-h-[560px] overflow-auto">
+              <table className="min-w-full text-sm">
+                <thead className="sticky top-0 bg-white">
+                  <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
+                    <th className="px-4 py-3">Kode Barang</th>
+                    <th className="px-4 py-3">Nama Barang</th>
+                    <th className="px-4 py-3">Supplier</th>
+                    <th className="px-4 py-3 text-right">Stok Satuan Besar</th>
+                    <th className="px-4 py-3 text-right">Stok Satuan Kecil</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.stock.map((row) => (
+                    <tr key={row.productId} className="border-b border-zinc-100 hover:bg-zinc-50">
+                      <td className="px-4 py-3 font-medium">{row.sku}</td>
+                      <td className="px-4 py-3">{row.productName}</td>
+                      <td className="px-4 py-3">{row.supplierName ?? "-"}</td>
+                      <td className="px-4 py-3 text-right">
+                        {row.largeUnitCode
+                          ? `${Number(row.largeQty ?? 0).toFixed(2)} ${String(row.largeUnitCode).toUpperCase()}`
+                          : "-"}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {Number(row.smallQty ?? row.qty).toFixed(2)} {String(row.smallUnitCode ?? "unit").toUpperCase()}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {data.stock.map((row) => (
-                      <tr key={row.productId} className="border-b border-zinc-100 hover:bg-zinc-50">
-                        <td className="px-4 py-3 font-medium">{row.sku}</td>
-                        <td className="px-4 py-3">{row.productName}</td>
-                        <td className="px-4 py-3">{row.supplierName ?? "-"}</td>
-                        <td className="px-4 py-3 text-right">
-                          {row.largeUnitCode
-                            ? `${Number(row.largeQty ?? 0).toFixed(2)} ${String(row.largeUnitCode).toUpperCase()}`
-                            : "-"}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          {Number(row.smallQty ?? row.qty).toFixed(2)} {String(row.smallUnitCode ?? "unit").toUpperCase()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-
-            <Card className="overflow-hidden">
-              <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold">
-                Mutasi Stok Terbaru
-              </div>
-              <div className="max-h-[420px] overflow-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="sticky top-0 bg-white">
-                    <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
-                      <th className="px-4 py-3">Waktu</th>
-                      <th className="px-4 py-3">Produk</th>
-                      <th className="px-4 py-3 text-right">Delta</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.latestMovements.map((row) => (
-                      <tr key={row.id} className="border-b border-zinc-100 hover:bg-zinc-50">
-                        <td className="px-4 py-3">
-                          <div className="font-medium">
-                            {formatDate(row.createdAt)}
-                          </div>
-                          <div className="text-xs text-zinc-500">{row.type}</div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="font-medium">{row.productName}</div>
-                          <div className="text-xs text-zinc-500">{row.sku}</div>
-                        </td>
-                        <td
-                          className={`px-4 py-3 text-right font-medium ${
-                            Number(row.qtyDelta) < 0 ? "text-red-600" : "text-emerald-600"
-                          }`}
-                        >
-                          {Number(row.qtyDelta) > 0 ? "+" : ""}
-                          {Number(row.qtyDelta).toFixed(2)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         </>
       )}
     </div>
