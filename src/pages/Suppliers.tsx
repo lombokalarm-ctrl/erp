@@ -296,11 +296,11 @@ export default function Suppliers() {
       </div>
       {isFormOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <Card className="w-full max-w-2xl p-5 shadow-2xl">
+          <Card className="w-full max-w-4xl p-5 shadow-2xl">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-base font-semibold">{editingId ? "Edit Supplier" : "Tambah Supplier"}</div>
-                <p className="text-xs text-zinc-500">Isi kode dan nama supplier untuk master pembelian.</p>
+                <p className="text-xs text-zinc-500">Isi data supplier dengan layout lebih rapat dan efisien.</p>
               </div>
               <button
                 className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
@@ -309,7 +309,7 @@ export default function Suppliers() {
                 Tutup
               </button>
             </div>
-            <div className="mt-3 grid gap-3">
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
               <Input label="Kode" value={code} onChange={(e) => setCode(e.target.value)} placeholder="SUP-001" />
               <Input label="Nama" value={name} onChange={(e) => setName(e.target.value)} placeholder="PT Pabrik" />
               <Input
@@ -339,7 +339,7 @@ export default function Suppliers() {
                   placeholder="Alamat supplier"
                 />
               </label>
-              <label className="block">
+              <label className="block md:col-span-2">
                 <div className="mb-1 text-xs font-medium text-zinc-600">Status Master</div>
                 <select
                   className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
@@ -351,7 +351,7 @@ export default function Suppliers() {
                 </select>
               </label>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="flex items-center justify-end gap-2 pt-2 md:col-span-2">
                 <Button variant="secondary" onClick={handleCancelEdit}>
                   Batal
                 </Button>
