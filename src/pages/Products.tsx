@@ -76,7 +76,10 @@ export default function Products() {
   const skuInputId = "product-form-sku";
   const [q, setQ] = useState("");
   const [appliedQ, setAppliedQ] = useState("");
+  const [filterSupplierId, setFilterSupplierId] = useState("");
+  const [appliedSupplierId, setAppliedSupplierId] = useState("");
   const [statusFilter, setStatusFilter] = useState<"true" | "false" | "all">("true");
+  const [appliedStatusFilter, setAppliedStatusFilter] = useState<"true" | "false" | "all">("true");
   const [items, setItems] = useState<Product[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -260,7 +263,7 @@ export default function Products() {
         body: form,
       });
       setImportSummary(res.data);
-      await load(page, pageSize, appliedQ);
+      await load(page, pageSize, appliedQ, appliedStatusFilter, appliedSupplierId);
       await loadUomMaster();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Import produk gagal");
@@ -277,7 +280,7 @@ export default function Products() {
     try {
       await apiFetch(`/api/v1/products/${id}`, { method: "DELETE" });
       const nextPage = items.length === 1 && page > 1 ? page - 1 : page;
-      await load(nextPage, pageSize, appliedQ);
+      await load(nextPage, pageSize, appliedQ, appliedStatusFilter, appliedSupplierId);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Gagal menghapus produk");
     }
@@ -287,7 +290,8 @@ export default function Products() {
     nextPage = page,
     nextPageSize = pageSize,
     nextQ = appliedQ,
-    nextStatusFilter = statusFilter,
+    nextStatusFilter = appliedStatusFilter,
+    nextSupplierId = appliedSupplierId,
   ) {
     setError(null);
     setLoading(true);
@@ -298,6 +302,9 @@ export default function Products() {
         q: nextQ,
         isActive: nextStatusFilter,
       });
+      if (nextSupplierId) {
+        params.set("supplierId", nextSupplierId);
+      }
       const res = await apiFetch<ProductListResponse>(
         `/api/v1/products?${params.toString()}`,
       );
@@ -330,6 +337,8 @@ export default function Products() {
       setPage(nextPage);
       setPageSize(nextPageSize);
       setAppliedQ(nextQ);
+      setAppliedStatusFilter(nextStatusFilter);
+      setAppliedSupplierId(nextSupplierId);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Gagal memuat data");
     } finally {
@@ -489,7 +498,7 @@ export default function Products() {
           body: JSON.stringify(payload),
         });
       }
-      await load(page, pageSize, appliedQ, statusFilter);
+      await load(page, pageSize, appliedQ, appliedStatusFilter, appliedSupplierId);
       if (mode === "create-another" && !editingId) {
         resetProductForm();
         setIsFormOpen(true);
@@ -514,7 +523,7 @@ export default function Products() {
         method: "PATCH",
         body: JSON.stringify({ isActive: nextActive }),
       });
-      await load(page, pageSize, appliedQ, statusFilter);
+      await load(page, pageSize, appliedQ, appliedStatusFilter, appliedSupplierId);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Gagal mengubah status produk");
     }
@@ -533,8 +542,8 @@ export default function Products() {
           <h1 className="text-lg font-semibold">Produk</h1>
           <p className="mt-1 text-sm text-zinc-600">Kelola SKU, satuan, harga beli, dan harga jual.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <div className="w-full md:w-72">
+        <div className="grid w-full gap-2 md:w-auto md:grid-cols-[280px_180px_260px_auto]">
+          <div className="w-full">
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari SKU / nama..." />
           </div>
           <select
@@ -546,10 +555,20 @@ export default function Products() {
             <option value="false">Produk Nonaktif</option>
             <option value="all">Semua Status</option>
           </select>
+          <SearchableSelect
+            value={filterSupplierId}
+            onChange={setFilterSupplierId}
+            options={suppliers.map((supplier) => ({
+              value: supplier.id,
+              label: `${supplier.code} - ${supplier.name}${supplier.isActive === false ? " [Nonaktif]" : ""}`,
+            }))}
+            placeholder="Semua Supplier"
+            searchPlaceholder="Cari supplier..."
+          />
           <Button
             variant="secondary"
             onClick={() => {
-              void load(1, pageSize, q, statusFilter);
+              void load(1, pageSize, q, statusFilter, filterSupplierId);
             }}
           >
             {loading ? "Memuat..." : "Cari"}
@@ -691,7 +710,7 @@ export default function Products() {
                   value={pageSize}
                   onChange={(e) => {
                     const nextPageSize = Number(e.target.value);
-                    void load(1, nextPageSize, appliedQ, statusFilter);
+                    void load(1, nextPageSize, appliedQ, appliedStatusFilter, appliedSupplierId);
                   }}
                   disabled={loading}
                 >
@@ -705,7 +724,7 @@ export default function Products() {
                   variant="secondary"
                   disabled={!canGoPrev}
                   onClick={() => {
-                    void load(page - 1, pageSize, appliedQ, statusFilter);
+                    void load(page - 1, pageSize, appliedQ, appliedStatusFilter, appliedSupplierId);
                   }}
                 >
                   Prev
@@ -717,7 +736,7 @@ export default function Products() {
                   variant="secondary"
                   disabled={!canGoNext}
                   onClick={() => {
-                    void load(page + 1, pageSize, appliedQ, statusFilter);
+                    void load(page + 1, pageSize, appliedQ, appliedStatusFilter, appliedSupplierId);
                   }}
                 >
                   Next

@@ -247,6 +247,7 @@ export async function listProducts(params: {
   page?: number
   pageSize?: number
   q?: string
+  supplierId?: string
   isActive?: boolean | 'all'
 }) {
   const pool = getPool()
@@ -266,6 +267,11 @@ export async function listProducts(params: {
   if (q) {
     values.push(`%${q.toLowerCase()}%`)
     where.push(`(lower(p.sku) like $${values.length} or lower(p.name) like $${values.length})`)
+  }
+
+  if (params.supplierId) {
+    values.push(params.supplierId)
+    where.push(`p.supplier_id = $${values.length}`)
   }
 
   const whereSql = where.length ? `where ${where.join(' and ')}` : ''
