@@ -15,6 +15,12 @@ type Customer = {
   regionName?: string | null;
 };
 
+type Supplier = {
+  id: string;
+  code: string;
+  name: string;
+};
+
 type Product = {
   id: string;
   sku: string;
@@ -51,11 +57,13 @@ export default function SalesOrderPage() {
   const isOnline = useOnlineStatus();
   const addOrderDraft = useFieldStore((state) => state.addOrderDraft);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [customerResults, setCustomerResults] = useState<Customer[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [customerId, setCustomerId] = useState(params.get("customerId") ?? "");
   const [customerName, setCustomerName] = useState(params.get("customerName") ?? "");
   const [customerQuery, setCustomerQuery] = useState(params.get("customerName") ?? "");
+  const [supplierId, setSupplierId] = useState("");
+  const [supplierQuery, setSupplierQuery] = useState("");
   const [productQuery, setProductQuery] = useState("");
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<SelectedItem[]>([]);
@@ -63,76 +71,104 @@ export default function SalesOrderPage() {
   const [lastCreatedOrderId, setLastCreatedOrderId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [customerCache, setCustomerCache] = useState<Record<string, Customer>>({});
+  const [supplierCache, setSupplierCache] = useState<Record<string, Supplier>>({});
   const [productCache, setProductCache] = useState<Record<string, Product>>({});
   const [productUomMappings, setProductUomMappings] = useState<Record<string, ProductUomMapping[]>>({});
   const [productUomOptions, setProductUomOptions] = useState<Record<string, UomOption[]>>({});
   const productSearchInputRef = useRef<HTMLInputElement | null>(null);
 
   const normalizedCustomerQuery = customerQuery.trim();
+  const normalizedSupplierQuery = supplierQuery.trim();
   const normalizedProductQuery = productQuery.trim();
   const selectedCustomerLabel = customerId
     ? `${customerCache[customerId]?.code ?? ""} - ${customerCache[customerId]?.name ?? customerName}`.trim()
     : "";
+  const selectedSupplierLabel = supplierId
+    ? `${supplierCache[supplierId]?.code ?? ""} - ${supplierCache[supplierId]?.name ?? ""}`.trim()
+    : "";
   const showCustomerResults = Boolean(normalizedCustomerQuery) && normalizedCustomerQuery !== selectedCustomerLabel;
+  const showSupplierResults = Boolean(normalizedSupplierQuery) && normalizedSupplierQuery !== selectedSupplierLabel;
 
   useEffect(() => {
     apiFetch<{ data: Customer[] }>("/api/v1/customers?page=1&pageSize=60&includeUnassigned=true").then((response) => {
       setCustomers(response.data);
-      setCustomerResults(response.data);
       setCustomerCache(Object.fromEntries(response.data.map((customer) => [customer.id, customer])));
     });
   }, []);
 
   useEffect(() => {
+    setLoadingSuppliers(true);
+    apiFetch<{ data: Supplier[] }>("/api/v1/suppliers?page=1&pageSize=200")
+      .then((response) => {
+        setSuppliers(response.data);
+        setSupplierCache(Object.fromEntries(response.data.map((supplier) => [supplier.id, supplier])));
+      })
+      .finally(() => {
+        setLoadingSuppliers(false);
+      });
+  }, []);
+
+  const filteredCustomerResults = useMemo(() => {
+    const keyword = normalizedCustomerQuery.toLowerCase();
+    const source = keyword
+      ? customers.filter((customer) => {
+          const haystack = [customer.name, customer.code, customer.regionName ?? ""].join(" ").toLowerCase();
+          return haystack.includes(keyword);
+        })
+      : customers;
+    return source.slice(0, 20);
+  }, [customers, normalizedCustomerQuery]);
+
+  const filteredSupplierResults = useMemo(() => {
+    const keyword = normalizedSupplierQuery.toLowerCase();
+    const source = keyword
+      ? suppliers.filter((supplier) => {
+          const haystack = [supplier.name, supplier.code].join(" ").toLowerCase();
+          return haystack.includes(keyword);
+        })
+      : suppliers;
+    return source.slice(0, 20);
+  }, [suppliers, normalizedSupplierQuery]);
+
+  const filteredProducts = useMemo(() => {
+    const keyword = normalizedProductQuery.toLowerCase();
+    const source = keyword
+      ? products.filter((product) => {
+          const haystack = [product.name, product.sku].join(" ").toLowerCase();
+          return haystack.includes(keyword);
+        })
+      : products;
+    return source;
+  }, [products, normalizedProductQuery]);
+
+  const selectedProductIds = useMemo(() => new Set(items.map((item) => item.productId)), [items]);
+
+  useEffect(() => {
     if (!normalizedCustomerQuery) {
-      setCustomerResults(customers.slice(0, 20));
       setLoadingCustomers(false);
       return;
     }
 
     if (selectedCustomerLabel && normalizedCustomerQuery === selectedCustomerLabel) {
-      setCustomerResults([]);
       setLoadingCustomers(false);
       return;
     }
 
-    let cancelled = false;
     const handle = window.setTimeout(() => {
       setLoadingCustomers(true);
-      apiFetch<{ data: Customer[] }>(
-        `/api/v1/customers?page=1&pageSize=20&includeUnassigned=true&q=${encodeURIComponent(normalizedCustomerQuery)}`,
-      )
-        .then((response) => {
-          if (!cancelled) {
-            setCustomerResults(response.data);
-            setCustomerCache((current) => ({
-              ...current,
-              ...Object.fromEntries(response.data.map((customer) => [customer.id, customer])),
-            }));
-          }
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setCustomerResults([]);
-          }
-        })
-        .finally(() => {
-          if (!cancelled) {
-            setLoadingCustomers(false);
-          }
-        });
+      setLoadingCustomers(false);
     }, 200);
 
     return () => {
-      cancelled = true;
       window.clearTimeout(handle);
     };
-  }, [customers, normalizedCustomerQuery, selectedCustomerLabel]);
+  }, [normalizedCustomerQuery, selectedCustomerLabel]);
 
   useEffect(() => {
-    if (!normalizedProductQuery) {
+    if (!supplierId) {
       setProducts([]);
       setLoadingProducts(false);
       return;
@@ -141,7 +177,7 @@ export default function SalesOrderPage() {
     let cancelled = false;
     const handle = window.setTimeout(() => {
       setLoadingProducts(true);
-      apiFetch<{ data: Product[] }>(`/api/v1/products?page=1&pageSize=20&q=${encodeURIComponent(normalizedProductQuery)}`)
+      apiFetch<{ data: Product[] }>(`/api/v1/products?page=1&pageSize=200&supplierId=${supplierId}`)
         .then((response) => {
           if (!cancelled) {
             setProducts(response.data);
@@ -167,15 +203,15 @@ export default function SalesOrderPage() {
       cancelled = true;
       window.clearTimeout(handle);
     };
-  }, [normalizedProductQuery]);
+  }, [supplierId]);
 
   useEffect(() => {
-    for (const product of products) {
+    for (const product of filteredProducts.slice(0, 12)) {
       if (!productUomMappings[product.id]) {
         void ensureProductUomsLoaded(product);
       }
     }
-  }, [products, productUomMappings]);
+  }, [filteredProducts, productUomMappings]);
 
   const totalAmount = useMemo(
     () => items.reduce((sum, item) => sum + Number(item.qty || 0) * item.unitPrice, 0),
@@ -187,7 +223,18 @@ export default function SalesOrderPage() {
     const customer = customerCache[nextCustomerId] ?? customers.find((item) => item.id === nextCustomerId);
     setCustomerName(customer?.name ?? "");
     setCustomerQuery(customer ? `${customer.code} - ${customer.name}` : "");
-    setCustomerResults([]);
+  }
+
+  function handleSelectSupplier(nextSupplierId: string) {
+    setSupplierId(nextSupplierId);
+    const supplier = supplierCache[nextSupplierId] ?? suppliers.find((item) => item.id === nextSupplierId);
+    setSupplierQuery(supplier ? `${supplier.code} - ${supplier.name}` : "");
+    setProductQuery("");
+    setMessage(null);
+  }
+
+  function handleRemoveItem(productId: string) {
+    setItems((current) => current.filter((item) => item.productId !== productId));
   }
 
   function toNumericPrice(value: number | string | null | undefined) {
@@ -324,8 +371,6 @@ export default function SalesOrderPage() {
   }
 
   async function addProduct(product: Product) {
-    setProductQuery("");
-    setProducts([]);
     setProductCache((current) => ({ ...current, [product.id]: product }));
 
     const { mappings } = await ensureProductUomsLoaded(product);
@@ -348,7 +393,7 @@ export default function SalesOrderPage() {
         ...current,
       ];
     });
-    focusProductSearch();
+    setMessage(null);
   }
 
   function getInvalidItemMessage() {
@@ -499,9 +544,9 @@ export default function SalesOrderPage() {
               <div className="mt-2 overflow-hidden rounded-[16px] border border-zinc-200 bg-white shadow-lg">
                 {loadingCustomers ? (
                   <div className="px-3 py-2.5 text-sm text-zinc-500">Mencari pelanggan...</div>
-                ) : customerResults.length ? (
+                ) : filteredCustomerResults.length ? (
                   <div className="max-h-72 overflow-y-auto p-1.5">
-                    {customerResults.map((customer) => (
+                    {filteredCustomerResults.map((customer) => (
                       <button
                         key={customer.id}
                         type="button"
@@ -537,6 +582,68 @@ export default function SalesOrderPage() {
               </div>
             ) : null}
           </div>
+          <div>
+            <div className="mb-2 text-[12px] font-semibold text-zinc-900">Filter Supplier</div>
+            <div className="flex items-center gap-2 rounded-[16px] border border-zinc-200 bg-zinc-50 px-3 py-2.5">
+              <Search className="h-4 w-4 text-zinc-400" />
+              <input
+                value={supplierQuery}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  setSupplierQuery(nextValue);
+                  if (!nextValue.trim()) {
+                    setSupplierId("");
+                    setProductQuery("");
+                  } else if (
+                    supplierId &&
+                    nextValue !== `${supplierCache[supplierId]?.code ?? ""} - ${supplierCache[supplierId]?.name ?? ""}`
+                  ) {
+                    setSupplierId("");
+                  }
+                }}
+                className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
+                placeholder="Cari supplier untuk tampilkan katalog produk..."
+                autoComplete="off"
+              />
+            </div>
+            {showSupplierResults ? (
+              <div className="mt-2 overflow-hidden rounded-[16px] border border-zinc-200 bg-white shadow-lg">
+                {loadingSuppliers ? (
+                  <div className="px-3 py-2.5 text-sm text-zinc-500">Memuat supplier...</div>
+                ) : filteredSupplierResults.length ? (
+                  <div className="max-h-72 overflow-y-auto p-1.5">
+                    {filteredSupplierResults.map((supplier) => (
+                      <button
+                        key={supplier.id}
+                        type="button"
+                        onClick={() => handleSelectSupplier(supplier.id)}
+                        className="flex w-full items-center justify-between rounded-[14px] px-3 py-2.5 text-left transition hover:bg-zinc-50"
+                      >
+                        <div>
+                          <div className="text-sm font-medium text-zinc-900">{supplier.name}</div>
+                          <div className="text-xs text-zinc-500">{supplier.code}</div>
+                        </div>
+                        {supplierId === supplier.id ? (
+                          <span className="text-xs font-semibold text-emerald-700">Dipilih</span>
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="px-3 py-2.5 text-sm text-zinc-500">Supplier tidak ditemukan.</div>
+                )}
+              </div>
+            ) : !normalizedSupplierQuery ? (
+              <div className="mt-2 rounded-[16px] border border-dashed border-zinc-300 bg-zinc-50 px-3 py-3 text-[11px] text-zinc-500">
+                Pilih supplier dulu, lalu semua produk supplier itu akan tampil seperti katalog POS.
+              </div>
+            ) : null}
+            {supplierId ? (
+              <div className="mt-2 rounded-[16px] bg-sky-50 px-3 py-2.5 text-sm text-sky-900">
+                Supplier aktif: <span className="font-semibold">{supplierCache[supplierId]?.name}</span>
+              </div>
+            ) : null}
+          </div>
           <textarea
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
@@ -549,8 +656,8 @@ export default function SalesOrderPage() {
       <SurfaceCard className="rounded-[22px] px-3 py-3">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-[12px] font-semibold text-zinc-900">Cari Produk</div>
-            <div className="text-[11px] text-zinc-500">Tambah item satu per satu untuk transaksi toko.</div>
+            <div className="text-[12px] font-semibold text-zinc-900">Katalog Produk Supplier</div>
+            <div className="text-[11px] text-zinc-500">Pilih supplier, lihat semua produknya, lalu tambah ke keranjang seperti POS.</div>
           </div>
           <PackageSearch className="h-4 w-4 text-emerald-700" />
         </div>
@@ -560,53 +667,68 @@ export default function SalesOrderPage() {
             value={productQuery}
             onChange={(event) => setProductQuery(event.target.value)}
             className="field-input"
-            placeholder="Cari produk atau SKU..."
+            placeholder={supplierId ? "Saring produk atau SKU dalam supplier ini..." : "Pilih supplier dulu..."}
+            disabled={!supplierId}
             autoComplete="off"
           />
-          {normalizedProductQuery ? (
+          {!supplierId ? (
+            <div className="mt-2 rounded-[16px] border border-dashed border-zinc-300 bg-zinc-50 px-3 py-3 text-[11px] text-zinc-500">
+              Supplier menjadi filter utama supaya daftar produk lebih ringkas dan cepat dipilih di lapangan.
+            </div>
+          ) : (
             <div className="mt-2 overflow-hidden rounded-[16px] border border-zinc-200 bg-white shadow-lg">
               {loadingProducts ? (
-                <div className="px-3 py-2.5 text-sm text-zinc-500">Mencari produk...</div>
-              ) : products.length ? (
+                <div className="px-3 py-2.5 text-sm text-zinc-500">Memuat produk supplier...</div>
+              ) : filteredProducts.length ? (
                 <div className="max-h-72 overflow-y-auto p-1.5">
-                  {products.map((product) => (
+                  {filteredProducts.map((product) => (
                     (() => {
                       const meta = getProductSearchMeta(product);
+                      const isSelected = selectedProductIds.has(product.id);
                       return (
-                        <button
-                          key={product.id}
-                          type="button"
-                          onClick={() => addProduct(product)}
-                          className="flex w-full items-center justify-between gap-2 rounded-[14px] px-3 py-2.5 text-left transition hover:bg-zinc-50"
-                        >
-                          <div>
-                            <div className="text-sm font-medium text-zinc-900">{product.name}</div>
-                            <div className="text-[11px] text-zinc-500">
-                              {product.sku} • Stok gudang:{" "}
-                              {meta.largestStockQty !== null
-                                ? `${formatQuantity(meta.largestStockQty)} ${meta.largestUom.name} • `
-                                : ""}
-                              {formatQuantity(meta.stockBase)} {meta.baseUomName}
+                        <div key={product.id} className="rounded-[14px] border border-zinc-100 px-3 py-2.5">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-sm font-medium text-zinc-900">{product.name}</div>
+                              <div className="text-[11px] text-zinc-500">
+                                {product.sku} • Stok gudang:{" "}
+                                {meta.largestStockQty !== null
+                                  ? `${formatQuantity(meta.largestStockQty)} ${meta.largestUom.name} • `
+                                  : ""}
+                                {formatQuantity(meta.stockBase)} {meta.baseUomName}
+                              </div>
+                              <div className="mt-1 text-[11px] font-medium text-emerald-700">
+                                Harga {meta.largestUom.name}: {formatCurrency(meta.displayPrice)}
+                              </div>
                             </div>
-                            <div className="mt-1 text-[11px] font-medium text-emerald-700">
-                              Harga {meta.largestUom.name}: {formatCurrency(meta.displayPrice)}
+                            <div className="flex flex-col items-end gap-2">
+                              <div className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">
+                                {String(meta.largestUom.code || product.unit || "pcs").toUpperCase()}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => addProduct(product)}
+                                disabled={isSelected}
+                                className={`inline-flex items-center justify-center rounded-[12px] px-3 py-2 text-[11px] font-semibold transition ${
+                                  isSelected
+                                    ? "bg-zinc-100 text-zinc-400"
+                                    : "bg-emerald-950 text-white hover:bg-emerald-900"
+                                }`}
+                              >
+                                {isSelected ? "Di Keranjang" : "Tambah"}
+                              </button>
                             </div>
                           </div>
-                          <div className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">
-                            {String(meta.largestUom.code || product.unit || "pcs").toUpperCase()}
-                          </div>
-                        </button>
+                        </div>
                       );
                     })()
                   ))}
                 </div>
               ) : (
-                <div className="px-3 py-2.5 text-sm text-zinc-500">Produk tidak ditemukan.</div>
+                <div className="px-3 py-3 text-sm text-zinc-500">
+                  {normalizedProductQuery ? "Produk tidak ditemukan pada supplier ini." : "Belum ada produk aktif pada supplier ini."}
+                </div>
               )}
-            </div>
-          ) : (
-            <div className="mt-2 rounded-[16px] border border-dashed border-zinc-300 bg-zinc-50 px-3 py-3 text-[11px] text-zinc-500">
-              Ketik nama produk atau SKU untuk menampilkan dropdown pencarian.
             </div>
           )}
         </div>
@@ -615,26 +737,22 @@ export default function SalesOrderPage() {
       <SurfaceCard className="rounded-[22px] px-3 py-3">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-[12px] font-semibold text-zinc-900">Item Order</div>
-            <div className="text-[11px] text-zinc-500">Tambahkan lebih dari satu produk untuk SO multi item.</div>
+            <div className="text-[12px] font-semibold text-zinc-900">Keranjang SO</div>
+            <div className="text-[11px] text-zinc-500">Atur qty dan satuan di sini sebelum simpan draft atau kirim SO.</div>
           </div>
-          <button
-            type="button"
-            onClick={focusProductSearch}
-            className="inline-flex items-center gap-2 rounded-[14px] border border-zinc-200 bg-white px-3 py-2 text-[11px] font-semibold text-zinc-900"
-          >
-            <Plus className="h-4 w-4" />
-            Tambah Item
-          </button>
+          <div className="rounded-full bg-zinc-100 px-2.5 py-1 text-[10px] font-semibold text-zinc-700">
+            {items.length} item
+          </div>
         </div>
         <div className="mt-3 space-y-2">
           {items.length ? (
             items.map((item) => (
               <div key={item.productId} className="rounded-[16px] border border-zinc-200 px-3 py-2.5">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
+                          <div>
                     <div className="text-sm font-medium text-zinc-900">{item.productName}</div>
-                    <div className="text-[11px] text-zinc-500">Satuan: {item.uom}</div>
+                    <div className="text-[11px] text-zinc-500">Harga satuan: {formatCurrency(item.unitPrice)}</div>
+                    <div className="text-[11px] text-zinc-500">Satuan aktif: {item.uom.toUpperCase()}</div>
                   </div>
                   <div className="text-right text-[11px] font-semibold text-zinc-900">
                     {formatCurrency(Number(item.qty || 0) * item.unitPrice)}
@@ -671,7 +789,7 @@ export default function SalesOrderPage() {
                   <button
                     type="button"
                     className="text-[11px] font-semibold text-rose-600"
-                    onClick={() => setItems((current) => current.filter((currentItem) => currentItem.productId !== item.productId))}
+                    onClick={() => handleRemoveItem(item.productId)}
                   >
                     Hapus
                   </button>
@@ -679,16 +797,16 @@ export default function SalesOrderPage() {
               </div>
             ))
           ) : (
-            <EmptyState title="Belum ada item" description="Tambahkan produk dari hasil pencarian untuk mulai menyusun order." />
+            <EmptyState title="Keranjang masih kosong" description="Pilih supplier lalu tambahkan produk dari katalog ke keranjang." />
           )}
-          {items.length ? (
+          {supplierId ? (
             <button
               type="button"
               onClick={focusProductSearch}
               className="inline-flex w-full items-center justify-center gap-2 rounded-[16px] border border-dashed border-zinc-300 bg-zinc-50 px-3 py-2.5 text-sm font-semibold text-zinc-700"
             >
               <Plus className="h-4 w-4" />
-              Tambah Produk Lain
+              Cari Produk Supplier Lagi
             </button>
           ) : null}
         </div>
