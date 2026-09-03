@@ -27,6 +27,7 @@ type Product = {
   name: string;
   unit: string;
   salePrice: string;
+  supplierId?: string | null;
   unitPrices?: Record<string, number | string>;
   currentStockBase?: string;
 };
@@ -57,8 +58,10 @@ export default function SalesOrderPage() {
   const isOnline = useOnlineStatus();
   const addOrderDraft = useFieldStore((state) => state.addOrderDraft);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customerResults, setCustomerResults] = useState<Customer[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [supplierResults, setSupplierResults] = useState<Supplier[]>([]);
   const [customerId, setCustomerId] = useState(params.get("customerId") ?? "");
   const [customerName, setCustomerName] = useState(params.get("customerName") ?? "");
   const [customerQuery, setCustomerQuery] = useState(params.get("customerName") ?? "");
@@ -95,6 +98,7 @@ export default function SalesOrderPage() {
   useEffect(() => {
     apiFetch<{ data: Customer[] }>("/api/v1/customers?page=1&pageSize=60&includeUnassigned=true").then((response) => {
       setCustomers(response.data);
+      setCustomerResults(response.data.slice(0, 20));
       setCustomerCache(Object.fromEntries(response.data.map((customer) => [customer.id, customer])));
     });
   }, []);
@@ -104,34 +108,13 @@ export default function SalesOrderPage() {
     apiFetch<{ data: Supplier[] }>("/api/v1/suppliers?page=1&pageSize=200")
       .then((response) => {
         setSuppliers(response.data);
+        setSupplierResults(response.data.slice(0, 20));
         setSupplierCache(Object.fromEntries(response.data.map((supplier) => [supplier.id, supplier])));
       })
       .finally(() => {
         setLoadingSuppliers(false);
       });
   }, []);
-
-  const filteredCustomerResults = useMemo(() => {
-    const keyword = normalizedCustomerQuery.toLowerCase();
-    const source = keyword
-      ? customers.filter((customer) => {
-          const haystack = [customer.name, customer.code, customer.regionName ?? ""].join(" ").toLowerCase();
-          return haystack.includes(keyword);
-        })
-      : customers;
-    return source.slice(0, 20);
-  }, [customers, normalizedCustomerQuery]);
-
-  const filteredSupplierResults = useMemo(() => {
-    const keyword = normalizedSupplierQuery.toLowerCase();
-    const source = keyword
-      ? suppliers.filter((supplier) => {
-          const haystack = [supplier.name, supplier.code].join(" ").toLowerCase();
-          return haystack.includes(keyword);
-        })
-      : suppliers;
-    return source.slice(0, 20);
-  }, [suppliers, normalizedSupplierQuery]);
 
   const filteredProducts = useMemo(() => {
     const keyword = normalizedProductQuery.toLowerCase();
@@ -148,24 +131,93 @@ export default function SalesOrderPage() {
 
   useEffect(() => {
     if (!normalizedCustomerQuery) {
+      setCustomerResults(customers.slice(0, 20));
       setLoadingCustomers(false);
       return;
     }
 
     if (selectedCustomerLabel && normalizedCustomerQuery === selectedCustomerLabel) {
+      setCustomerResults([]);
       setLoadingCustomers(false);
       return;
     }
 
+    let cancelled = false;
     const handle = window.setTimeout(() => {
       setLoadingCustomers(true);
-      setLoadingCustomers(false);
+      apiFetch<{ data: Customer[] }>(
+        `/api/v1/customers?page=1&pageSize=20&includeUnassigned=true&q=${encodeURIComponent(normalizedCustomerQuery)}`,
+      )
+        .then((response) => {
+          if (!cancelled) {
+            setCustomerResults(response.data);
+            setCustomerCache((current) => ({
+              ...current,
+              ...Object.fromEntries(response.data.map((customer) => [customer.id, customer])),
+            }));
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setCustomerResults([]);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setLoadingCustomers(false);
+          }
+        });
     }, 200);
 
     return () => {
+      cancelled = true;
       window.clearTimeout(handle);
     };
-  }, [normalizedCustomerQuery, selectedCustomerLabel]);
+  }, [customers, normalizedCustomerQuery, selectedCustomerLabel]);
+
+  useEffect(() => {
+    if (!normalizedSupplierQuery) {
+      setSupplierResults(suppliers.slice(0, 20));
+      setLoadingSuppliers(false);
+      return;
+    }
+
+    if (selectedSupplierLabel && normalizedSupplierQuery === selectedSupplierLabel) {
+      setSupplierResults([]);
+      setLoadingSuppliers(false);
+      return;
+    }
+
+    let cancelled = false;
+    const handle = window.setTimeout(() => {
+      setLoadingSuppliers(true);
+      apiFetch<{ data: Supplier[] }>(`/api/v1/suppliers?page=1&pageSize=20&q=${encodeURIComponent(normalizedSupplierQuery)}`)
+        .then((response) => {
+          if (!cancelled) {
+            setSupplierResults(response.data);
+            setSupplierCache((current) => ({
+              ...current,
+              ...Object.fromEntries(response.data.map((supplier) => [supplier.id, supplier])),
+            }));
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setSupplierResults([]);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setLoadingSuppliers(false);
+          }
+        });
+    }, 200);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [suppliers, normalizedSupplierQuery, selectedSupplierLabel]);
 
   useEffect(() => {
     if (!supplierId) {
@@ -510,15 +562,15 @@ export default function SalesOrderPage() {
   }
 
   return (
-    <div className="space-y-3">
-      <SurfaceCard className="rounded-[22px] px-3 py-3">
-        <div className="text-base font-semibold text-zinc-950">Buat Sales Order</div>
+    <div className="space-y-2.5">
+      <SurfaceCard className="rounded-[18px] px-2.5 py-2.5">
+        <div className="text-[15px] font-semibold text-zinc-950">Buat Sales Order</div>
         <div className="mt-1 text-[11px] text-zinc-500">Mode lapangan yang lebih rapat, cepat, dan hemat scroll.</div>
-        <div className="mt-3 space-y-3">
+        <div className="mt-2.5 space-y-2.5">
           <div>
             <div className="mb-2 text-[12px] font-semibold text-zinc-900">Cari Pelanggan</div>
-            <div className="flex items-center gap-2 rounded-[16px] border border-zinc-200 bg-zinc-50 px-3 py-2.5">
-              <Search className="h-4 w-4 text-zinc-400" />
+            <div className="flex items-center gap-1.5 rounded-[14px] border border-zinc-200 bg-zinc-50 px-2.5 py-2">
+              <Search className="h-3.5 w-3.5 text-zinc-400" />
               <input
                 value={customerQuery}
                 onChange={(event) => {
@@ -541,21 +593,21 @@ export default function SalesOrderPage() {
               />
             </div>
             {showCustomerResults ? (
-              <div className="mt-2 overflow-hidden rounded-[16px] border border-zinc-200 bg-white shadow-lg">
+              <div className="mt-2 overflow-hidden rounded-[14px] border border-zinc-200 bg-white shadow-lg">
                 {loadingCustomers ? (
-                  <div className="px-3 py-2.5 text-sm text-zinc-500">Mencari pelanggan...</div>
-                ) : filteredCustomerResults.length ? (
+                  <div className="px-2.5 py-2 text-[13px] text-zinc-500">Mencari pelanggan...</div>
+                ) : customerResults.length ? (
                   <div className="max-h-72 overflow-y-auto p-1.5">
-                    {filteredCustomerResults.map((customer) => (
+                    {customerResults.map((customer) => (
                       <button
                         key={customer.id}
                         type="button"
                         onClick={() => handleSelectCustomer(customer.id)}
-                        className="flex w-full items-center justify-between rounded-[14px] px-3 py-2.5 text-left transition hover:bg-zinc-50"
+                        className="flex w-full items-center justify-between rounded-[12px] px-2.5 py-2 text-left transition hover:bg-zinc-50"
                       >
                         <div>
-                          <div className="text-sm font-medium text-zinc-900">{customer.name}</div>
-                          <div className="text-xs text-zinc-500">
+                          <div className="text-[13px] font-medium text-zinc-900">{customer.name}</div>
+                          <div className="text-[11px] text-zinc-500">
                             {customer.code}
                             {customer.regionName ? ` - ${customer.regionName}` : ""}
                           </div>
@@ -567,16 +619,16 @@ export default function SalesOrderPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="px-3 py-2.5 text-sm text-zinc-500">Pelanggan tidak ditemukan.</div>
+                  <div className="px-2.5 py-2 text-[13px] text-zinc-500">Pelanggan tidak ditemukan.</div>
                 )}
               </div>
             ) : !normalizedCustomerQuery ? (
-              <div className="mt-2 rounded-[16px] border border-dashed border-zinc-300 bg-zinc-50 px-3 py-3 text-[11px] text-zinc-500">
+              <div className="mt-2 rounded-[14px] border border-dashed border-zinc-300 bg-zinc-50 px-2.5 py-2.5 text-[11px] text-zinc-500">
                 Ketik nama toko atau kode pelanggan untuk menampilkan dropdown pencarian.
               </div>
             ) : null}
             {customerId && customerName ? (
-              <div className="mt-2 rounded-[16px] bg-emerald-50 px-3 py-2.5 text-sm text-emerald-900">
+              <div className="mt-2 rounded-[14px] bg-emerald-50 px-2.5 py-2 text-[13px] text-emerald-900">
                 Pelanggan terpilih: <span className="font-semibold">{customerName}</span>
                 {customerCache[customerId]?.regionName ? ` - ${customerCache[customerId]?.regionName}` : ""}
               </div>
@@ -584,8 +636,8 @@ export default function SalesOrderPage() {
           </div>
           <div>
             <div className="mb-2 text-[12px] font-semibold text-zinc-900">Filter Supplier</div>
-            <div className="flex items-center gap-2 rounded-[16px] border border-zinc-200 bg-zinc-50 px-3 py-2.5">
-              <Search className="h-4 w-4 text-zinc-400" />
+            <div className="flex items-center gap-1.5 rounded-[14px] border border-zinc-200 bg-zinc-50 px-2.5 py-2">
+              <Search className="h-3.5 w-3.5 text-zinc-400" />
               <input
                 value={supplierQuery}
                 onChange={(event) => {
@@ -607,21 +659,21 @@ export default function SalesOrderPage() {
               />
             </div>
             {showSupplierResults ? (
-              <div className="mt-2 overflow-hidden rounded-[16px] border border-zinc-200 bg-white shadow-lg">
+              <div className="mt-2 overflow-hidden rounded-[14px] border border-zinc-200 bg-white shadow-lg">
                 {loadingSuppliers ? (
-                  <div className="px-3 py-2.5 text-sm text-zinc-500">Memuat supplier...</div>
-                ) : filteredSupplierResults.length ? (
+                  <div className="px-2.5 py-2 text-[13px] text-zinc-500">Memuat supplier...</div>
+                ) : supplierResults.length ? (
                   <div className="max-h-72 overflow-y-auto p-1.5">
-                    {filteredSupplierResults.map((supplier) => (
+                    {supplierResults.map((supplier) => (
                       <button
                         key={supplier.id}
                         type="button"
                         onClick={() => handleSelectSupplier(supplier.id)}
-                        className="flex w-full items-center justify-between rounded-[14px] px-3 py-2.5 text-left transition hover:bg-zinc-50"
+                        className="flex w-full items-center justify-between rounded-[12px] px-2.5 py-2 text-left transition hover:bg-zinc-50"
                       >
                         <div>
-                          <div className="text-sm font-medium text-zinc-900">{supplier.name}</div>
-                          <div className="text-xs text-zinc-500">{supplier.code}</div>
+                          <div className="text-[13px] font-medium text-zinc-900">{supplier.name}</div>
+                          <div className="text-[11px] text-zinc-500">{supplier.code}</div>
                         </div>
                         {supplierId === supplier.id ? (
                           <span className="text-xs font-semibold text-emerald-700">Dipilih</span>
@@ -630,16 +682,16 @@ export default function SalesOrderPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="px-3 py-2.5 text-sm text-zinc-500">Supplier tidak ditemukan.</div>
+                  <div className="px-2.5 py-2 text-[13px] text-zinc-500">Supplier tidak ditemukan.</div>
                 )}
               </div>
             ) : !normalizedSupplierQuery ? (
-              <div className="mt-2 rounded-[16px] border border-dashed border-zinc-300 bg-zinc-50 px-3 py-3 text-[11px] text-zinc-500">
+              <div className="mt-2 rounded-[14px] border border-dashed border-zinc-300 bg-zinc-50 px-2.5 py-2.5 text-[11px] text-zinc-500">
                 Pilih supplier dulu, lalu semua produk supplier itu akan tampil seperti katalog POS.
               </div>
             ) : null}
             {supplierId ? (
-              <div className="mt-2 rounded-[16px] bg-sky-50 px-3 py-2.5 text-sm text-sky-900">
+              <div className="mt-2 rounded-[14px] bg-sky-50 px-2.5 py-2 text-[13px] text-sky-900">
                 Supplier aktif: <span className="font-semibold">{supplierCache[supplierId]?.name}</span>
               </div>
             ) : null}
@@ -647,21 +699,21 @@ export default function SalesOrderPage() {
           <textarea
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
-            className="field-input min-h-20 resize-none"
+            className="field-input min-h-16 resize-none"
             placeholder="Catatan order atau catatan visit..."
           />
         </div>
       </SurfaceCard>
 
-      <SurfaceCard className="rounded-[22px] px-3 py-3">
-        <div className="flex items-center justify-between gap-3">
+      <SurfaceCard className="rounded-[18px] px-2.5 py-2.5">
+        <div className="flex items-center justify-between gap-2.5">
           <div>
             <div className="text-[12px] font-semibold text-zinc-900">Katalog Produk Supplier</div>
             <div className="text-[11px] text-zinc-500">Pilih supplier, lihat semua produknya, lalu tambah ke keranjang seperti POS.</div>
           </div>
-          <PackageSearch className="h-4 w-4 text-emerald-700" />
+          <PackageSearch className="h-3.5 w-3.5 text-emerald-700" />
         </div>
-        <div className="mt-3">
+        <div className="mt-2.5">
           <input
             ref={productSearchInputRef}
             value={productQuery}
@@ -672,13 +724,13 @@ export default function SalesOrderPage() {
             autoComplete="off"
           />
           {!supplierId ? (
-            <div className="mt-2 rounded-[16px] border border-dashed border-zinc-300 bg-zinc-50 px-3 py-3 text-[11px] text-zinc-500">
+            <div className="mt-2 rounded-[14px] border border-dashed border-zinc-300 bg-zinc-50 px-2.5 py-2.5 text-[11px] text-zinc-500">
               Supplier menjadi filter utama supaya daftar produk lebih ringkas dan cepat dipilih di lapangan.
             </div>
           ) : (
-            <div className="mt-2 overflow-hidden rounded-[16px] border border-zinc-200 bg-white shadow-lg">
+            <div className="mt-2 overflow-hidden rounded-[14px] border border-zinc-200 bg-white shadow-lg">
               {loadingProducts ? (
-                <div className="px-3 py-2.5 text-sm text-zinc-500">Memuat produk supplier...</div>
+                <div className="px-2.5 py-2 text-[13px] text-zinc-500">Memuat produk supplier...</div>
               ) : filteredProducts.length ? (
                 <div className="max-h-72 overflow-y-auto p-1.5">
                   {filteredProducts.map((product) => (
@@ -686,10 +738,10 @@ export default function SalesOrderPage() {
                       const meta = getProductSearchMeta(product);
                       const isSelected = selectedProductIds.has(product.id);
                       return (
-                        <div key={product.id} className="rounded-[14px] border border-zinc-100 px-3 py-2.5">
-                          <div className="flex items-start justify-between gap-3">
+                        <div key={product.id} className="rounded-[12px] border border-zinc-100 px-2.5 py-2">
+                          <div className="flex items-start justify-between gap-2.5">
                             <div>
-                              <div className="text-sm font-medium text-zinc-900">{product.name}</div>
+                              <div className="text-[13px] font-medium text-zinc-900">{product.name}</div>
                               <div className="text-[11px] text-zinc-500">
                                 {product.sku} • Stok gudang:{" "}
                                 {meta.largestStockQty !== null
@@ -697,11 +749,11 @@ export default function SalesOrderPage() {
                                   : ""}
                                 {formatQuantity(meta.stockBase)} {meta.baseUomName}
                               </div>
-                              <div className="mt-1 text-[11px] font-medium text-emerald-700">
+                              <div className="mt-0.5 text-[11px] font-medium text-emerald-700">
                                 Harga {meta.largestUom.name}: {formatCurrency(meta.displayPrice)}
                               </div>
                             </div>
-                            <div className="flex flex-col items-end gap-2">
+                            <div className="flex flex-col items-end gap-1.5">
                               <div className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">
                                 {String(meta.largestUom.code || product.unit || "pcs").toUpperCase()}
                               </div>
@@ -709,7 +761,7 @@ export default function SalesOrderPage() {
                                 type="button"
                                 onClick={() => addProduct(product)}
                                 disabled={isSelected}
-                                className={`inline-flex items-center justify-center rounded-[12px] px-3 py-2 text-[11px] font-semibold transition ${
+                                className={`inline-flex items-center justify-center rounded-[10px] px-2.5 py-1.5 text-[11px] font-semibold transition ${
                                   isSelected
                                     ? "bg-zinc-100 text-zinc-400"
                                     : "bg-emerald-950 text-white hover:bg-emerald-900"
@@ -725,7 +777,7 @@ export default function SalesOrderPage() {
                   ))}
                 </div>
               ) : (
-                <div className="px-3 py-3 text-sm text-zinc-500">
+                <div className="px-2.5 py-2.5 text-[13px] text-zinc-500">
                   {normalizedProductQuery ? "Produk tidak ditemukan pada supplier ini." : "Belum ada produk aktif pada supplier ini."}
                 </div>
               )}
@@ -734,8 +786,8 @@ export default function SalesOrderPage() {
         </div>
       </SurfaceCard>
 
-      <SurfaceCard className="rounded-[22px] px-3 py-3">
-        <div className="flex items-center justify-between gap-3">
+      <SurfaceCard className="rounded-[18px] px-2.5 py-2.5">
+        <div className="flex items-center justify-between gap-2.5">
           <div>
             <div className="text-[12px] font-semibold text-zinc-900">Keranjang SO</div>
             <div className="text-[11px] text-zinc-500">Atur qty dan satuan di sini sebelum simpan draft atau kirim SO.</div>
@@ -744,13 +796,13 @@ export default function SalesOrderPage() {
             {items.length} item
           </div>
         </div>
-        <div className="mt-3 space-y-2">
+        <div className="mt-2.5 space-y-2">
           {items.length ? (
             items.map((item) => (
-              <div key={item.productId} className="rounded-[16px] border border-zinc-200 px-3 py-2.5">
-                <div className="flex items-start justify-between gap-3">
-                          <div>
-                    <div className="text-sm font-medium text-zinc-900">{item.productName}</div>
+              <div key={item.productId} className="rounded-[14px] border border-zinc-200 px-2.5 py-2">
+                <div className="flex items-start justify-between gap-2.5">
+                  <div>
+                    <div className="text-[13px] font-medium text-zinc-900">{item.productName}</div>
                     <div className="text-[11px] text-zinc-500">Harga satuan: {formatCurrency(item.unitPrice)}</div>
                     <div className="text-[11px] text-zinc-500">Satuan aktif: {item.uom.toUpperCase()}</div>
                   </div>
@@ -758,7 +810,7 @@ export default function SalesOrderPage() {
                     {formatCurrency(Number(item.qty || 0) * item.unitPrice)}
                   </div>
                 </div>
-                <div className="mt-2 grid grid-cols-[72px_1fr_auto] items-center gap-2">
+                <div className="mt-2 grid grid-cols-[64px_1fr_auto] items-center gap-1.5">
                   <input
                     type="number"
                     min={0}
@@ -772,7 +824,7 @@ export default function SalesOrderPage() {
                         ),
                       )
                     }
-                    className="field-input w-[72px] text-center"
+                    className="field-input w-[64px] text-center"
                     placeholder="Qty"
                   />
                   <select
@@ -803,9 +855,9 @@ export default function SalesOrderPage() {
             <button
               type="button"
               onClick={focusProductSearch}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-[16px] border border-dashed border-zinc-300 bg-zinc-50 px-3 py-2.5 text-sm font-semibold text-zinc-700"
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-zinc-300 bg-zinc-50 px-3 py-2 text-[13px] font-semibold text-zinc-700"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-3.5 w-3.5" />
               Cari Produk Supplier Lagi
             </button>
           ) : null}
@@ -813,9 +865,9 @@ export default function SalesOrderPage() {
       </SurfaceCard>
 
       {message ? (
-        <div className="rounded-[18px] bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">
-          <div className="flex items-start gap-2">
-            <CheckCircle2 className="mt-0.5 h-4 w-4" />
+        <div className="rounded-[16px] bg-emerald-50 px-2.5 py-2 text-[13px] text-emerald-800">
+          <div className="flex items-start gap-1.5">
+            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5" />
             <div className="space-y-2">
               <div>{message}</div>
               {lastCreatedOrderId ? (
@@ -828,23 +880,23 @@ export default function SalesOrderPage() {
         </div>
       ) : null}
 
-      <SurfaceCard className="sticky bottom-24 rounded-[22px] bg-white/95 px-3 py-3">
+      <SurfaceCard className="sticky bottom-24 rounded-[18px] bg-white/95 px-2.5 py-2.5">
         <div className="flex items-center justify-between">
           <div>
             <div className="text-[11px] text-zinc-500">Total order</div>
-            <div className="text-[1.35rem] font-semibold text-zinc-950">{formatCurrency(totalAmount)}</div>
+            <div className="text-[1.15rem] font-semibold text-zinc-950">{formatCurrency(totalAmount)}</div>
           </div>
           <div className="text-right text-[11px] text-zinc-500">
             {isOnline ? "Online: bisa kirim sekarang" : "Offline ringan: akan simpan draft"}
           </div>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="mt-2.5 grid grid-cols-2 gap-2">
           <button type="button" onClick={saveDraft} className="secondary-button">
-            <Save className="h-4 w-4" />
+            <Save className="h-3.5 w-3.5" />
             Simpan Draft
           </button>
           <button type="button" onClick={submitOrder} disabled={submitting} className="primary-button">
-            <Send className="h-4 w-4" />
+            <Send className="h-3.5 w-3.5" />
             {submitting ? "Mengirim..." : isOnline ? "Kirim SO" : "Simpan Offline"}
           </button>
         </div>

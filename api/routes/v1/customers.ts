@@ -64,10 +64,6 @@ router.get(
         })
         .parse(req.query)
 
-      if (req.user?.role === 'Sales') {
-        query.salesId = req.user.userId
-      }
-
       const result = await listCustomers({
         ...query,
         isActive:
